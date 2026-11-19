@@ -12,6 +12,7 @@ import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { ScanReceiptButton } from '../components/ScanReceiptButton'
+import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
@@ -48,7 +49,7 @@ export function ExpenseForm() {
   const people = group.data ? peopleOf(group.data, me) : null
   const leftMember = expense && people ? formerMemberIn(expense, people) : null
   let body: ReactNode
-  if (!group.data || (expenseId && expenses.isPending)) body = <p className="empty">Loading…</p>
+  if (!group.data || (expenseId && expenses.isPending)) body = <ExpenseFormSkeleton />
   else if (expenseId && !expense) body = <Notice onClose={close}>We can't find this expense. It may have been deleted.</Notice>
   else if (expense?.locked) {
     body = (

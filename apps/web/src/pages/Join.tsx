@@ -17,6 +17,7 @@ import { ErrorNote } from '../components/ErrorNote'
 import { GroupLink } from '../components/GroupLink'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { PageLink, usePageNavigate } from '../components/PageLink'
+import { JoinSkeleton } from '../components/Skeletons'
 import { lookOf } from '../design/Avatar'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -50,13 +51,7 @@ export function Join() {
     },
   })
 
-  if (invite.isPending) {
-    return (
-      <main className="narrow page">
-        <p className="empty">Checking the invite…</p>
-      </main>
-    )
-  }
+  if (invite.isPending) return <JoinSkeleton />
 
   if (invite.isError) {
     const dead = invite.error instanceof ApiError && invite.error.status === 404

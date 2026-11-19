@@ -13,6 +13,7 @@ import { InviteCard } from '../components/InviteCard'
 import { MemberList } from '../components/MemberList'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { usePageNavigate } from '../components/PageLink'
+import { SettingsSkeleton } from '../components/Skeletons'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
@@ -27,13 +28,7 @@ export function GroupSettings() {
   const me = useAuth().userId ?? ''
   const group = useGroup(id)
 
-  if (group.isPending) {
-    return (
-      <main className="page">
-        <p className="empty">Loading the group…</p>
-      </main>
-    )
-  }
+  if (group.isPending) return <SettingsSkeleton />
   if (group.isError) return <GroupUnavailable error={group.error} />
 
   const g = group.data

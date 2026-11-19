@@ -3,6 +3,7 @@ import type { FeedItem } from '@squadsplit/shared'
 import { useParams } from 'react-router'
 import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
+import { RowSkeletons, WheelPageSkeleton } from '../components/Skeletons'
 import { WheelCard } from '../components/WheelCard'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
@@ -18,13 +19,7 @@ export function Wheel() {
   const balances = useBalances(id)
   const feed = useFeed(id)
 
-  if (group.isPending) {
-    return (
-      <main className="page">
-        <p className="empty">Loading the group…</p>
-      </main>
-    )
-  }
+  if (group.isPending) return <WheelPageSkeleton />
   if (group.isError) return <GroupUnavailable error={group.error} />
 
   const people = peopleOf(group.data, me)
@@ -51,7 +46,7 @@ function RecentSpins({ items, me, people }: { items: FeedItem[] | undefined; me:
       </h3>
       <ul className="list">
         {items === undefined ? (
-          <li className="empty">Loading…</li>
+          <RowSkeletons count={3} amount={false} />
         ) : spins.length ? (
           spins.map((s) => (
             <li className="row" key={s.id}>

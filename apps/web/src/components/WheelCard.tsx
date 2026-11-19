@@ -6,6 +6,7 @@ import { Avatar } from '../design/Avatar'
 import { confetti } from '../design/confetti'
 import { UiIcon } from '../design/icons'
 import { prefersReducedMotion } from '../design/motion'
+import { SkText } from '../design/Skeleton'
 import type { People } from '../groupData'
 import { invalidateGroup } from '../queryKeys'
 import { landingRotation, wheelSlices } from '../wheel'
@@ -93,7 +94,8 @@ export function WheelCard({
               <li key={s.userId}>
                 <Avatar avatar={people.avatar(s.userId)} size="sm" />
                 {people.name(s.userId)}
-                <b>{s.percent}%</b>
+                {/* Until the balances load, the slices are a guess: the odds wait for the real ones. */}
+                <b>{result || balances ? `${s.percent}%` : <SkText w={32} />}</b>
               </li>
             ))}
           </ul>

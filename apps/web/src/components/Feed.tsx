@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { CATEGORY_ART, CategoryIcon, categoryLabel, UiIcon } from '../design/icons'
 import { formerMemberIn, type People } from '../groupData'
+import { RowSkeletons } from './Skeletons'
 
 type Tab = 'all' | 'expenses' | 'paybacks'
 const TABS: { key: Tab; label: string }[] = [
@@ -148,7 +149,7 @@ export function Feed({
       </h3>
       <ul className="list">
         {items === undefined ? (
-          <li className="empty">Loading…</li>
+          <RowSkeletons count={4} lead="tile" />
         ) : shown.length ? (
           shown.map((i) => (
             <li className="row" key={itemKey(i)}>

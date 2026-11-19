@@ -7,6 +7,7 @@ import { GroupLink } from '../components/GroupLink'
 import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
 import { PageLink } from '../components/PageLink'
+import { GroupsSkeleton } from '../components/Skeletons'
 import { lookOf } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -67,7 +68,7 @@ export function Groups() {
           <JoinWithCode />
         </div>
       )}
-      {groups.isPending && <p className="empty">Loading your groups…</p>}
+      {groups.isPending && <GroupsSkeleton />}
       {groups.isError && <ErrorNote error={groups.error} />}
       {groups.data?.length === 0 && (
         <section className="card empty-state">

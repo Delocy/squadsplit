@@ -4,17 +4,26 @@ import { Avatar } from '../design/Avatar'
 import { BadgeArt, Medal, UiIcon } from '../design/icons'
 import type { People } from '../groupData'
 import { Money } from './Money'
+import { LeaderboardSkeleton } from './Skeletons'
 
 /** Members ranked by net balance (most owed first) with a centred bar, then the badge grid. */
 export function Leaderboard({ fun, people, currency }: { fun: FunDTO | undefined; people: People; currency: string }) {
-  const board = fun?.leaderboard ?? []
-  const maxAbs = Math.max(1, ...board.map((b) => Math.abs(b.netCents)))
   return (
     <section className="card" aria-labelledby="leaderboard-h">
       <h3 id="leaderboard-h">
         <UiIcon name="trophy" />
         Leaderboard
       </h3>
+      {fun ? <Board fun={fun} people={people} currency={currency} /> : <LeaderboardSkeleton rows={people.active.length} />}
+    </section>
+  )
+}
+
+function Board({ fun, people, currency }: { fun: FunDTO; people: People; currency: string }) {
+  const board = fun.leaderboard
+  const maxAbs = Math.max(1, ...board.map((b) => Math.abs(b.netCents)))
+  return (
+    <>
       <div className="lb">
         {board.map((b) => {
           const width = `${(Math.abs(b.netCents) / maxAbs) * 50}%`
@@ -40,7 +49,7 @@ export function Leaderboard({ fun, people, currency }: { fun: FunDTO | undefined
         })}
       </div>
       <div className="badges">
-        {fun?.badges.length ? (
+        {fun.badges.length ? (
           fun.badges.map((b, i) => (
             <div className="badge" key={`${b.key}:${b.userId}`}>
               <div className="art" style={{ '--d': `${(i * 0.45).toFixed(2)}s` } as CSSProperties}>
@@ -56,6 +65,6 @@ export function Leaderboard({ fun, people, currency }: { fun: FunDTO | undefined
           <div className="empty">No titles handed out yet.</div>
         )}
       </div>
-    </section>
+    </>
   )
 }
