@@ -2,7 +2,7 @@
 const INK = '#5a3d5c'
 const BLUSH = '#ff9ec4'
 
-export type Kind = 'bunny' | 'bear' | 'panda' | 'kitty'
+export type Kind = 'bunny' | 'bear' | 'panda' | 'kitty' | 'dog'
 export type Mood = 'happy' | 'calm' | 'nervous'
 
 const svg = (vb: string, body: string, cls = '') =>
@@ -46,6 +46,21 @@ export function mascot(kind: Kind, faceColor: string, mood: Mood = 'calm', cls =
       <ellipse cx="23.5" cy="35" rx="5.5" ry="7" fill="${INK}" stroke="none" transform="rotate(25 23.5 35)"/>
       <ellipse cx="40.5" cy="35" rx="5.5" ry="7" fill="${INK}" stroke="none" transform="rotate(-25 40.5 35)"/>
       <ellipse cx="32" cy="42" rx="2.4" ry="1.7" fill="${INK}" stroke="none"/>` + face(37, mood, true)
+  } else if (kind === 'dog') {
+    // The SquadSplit logo pup: tan face, floppy brown ears, a cream muzzle with a button nose.
+    const ear = '#b07a52'
+    const mouth =
+      mood === 'happy' ? `<path d="M28.5 42.6 q3.5 6 7 0 z" fill="#ff7aa8" stroke-width="2"/>`
+      : mood === 'nervous' ? `<path d="M28 45 q2 -1.8 4 0 q2 1.8 4 0" fill="none" stroke-width="2.2"/>`
+      : `<path d="M28.5 42.5 q1.75 2.2 3.5 0 q1.75 2.2 3.5 0" fill="none" stroke-width="2.2"/>`
+    body = `<ellipse cx="32" cy="36" rx="21" ry="20" fill="${faceColor}" ${s}/>
+      <path d="M22.5 19 C15 14 6.5 17.5 5.5 29 C5 37 6.5 45.5 11.5 45.5 C16 45.5 16 39.5 17 34.5 C18 29.5 19.5 24.5 22.5 19 Z" fill="${ear}" ${s}/>
+      <path d="M41.5 19 C49 14 57.5 17.5 58.5 29 C59 37 57.5 45.5 52.5 45.5 C48 45.5 48 39.5 47 34.5 C46 29.5 44.5 24.5 41.5 19 Z" fill="${ear}" ${s}/>
+      <ellipse cx="32" cy="42" rx="9" ry="6.5" fill="#fff4e2" stroke-width="2"/>` +
+      // The pup draws its own mouth under the nose, so drop the shared one (the paths starting at x 27-29).
+      face(35, mood).replace(/<path d="M2[789][^"]*"[^>]*\/>/, '') +
+      mouth +
+      `<path d="M32 40.5 v2" fill="none" stroke-width="2"/><path d="M28.8 37 h6.4 q0 3.2 -3.2 3.9 q-3.2 -.7 -3.2 -3.9 z" fill="${INK}" stroke-width="1.2"/>`
   } else {
     body = `<path d="M11 30 L13 7 L28 19 Z" fill="${faceColor}" ${s}/><path d="M53 30 L51 7 L36 19 Z" fill="${faceColor}" ${s}/>
       <path d="M15 24 L16 13 L23 19 Z" fill="${BLUSH}" stroke="none"/><path d="M49 24 L48 13 L41 19 Z" fill="${BLUSH}" stroke="none"/>

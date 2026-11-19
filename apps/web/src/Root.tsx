@@ -1,9 +1,9 @@
-import { ClerkLoaded, ClerkLoading, ClerkProvider } from '@clerk/react'
+import { ClerkFailed, ClerkLoaded, ClerkLoading, ClerkProvider } from '@clerk/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import { isRetryable } from './api'
-import { Mascot } from './design/icons'
+import { LogoPup } from './components/Logo'
 import { Setup } from './pages/Setup'
 import { routes } from './routes'
 
@@ -27,6 +27,9 @@ function App({ publishableKey }: { publishableKey: string }) {
         <ClerkLoading>
           <LoadingScreen />
         </ClerkLoading>
+        <ClerkFailed>
+          <ClerkFailedScreen />
+        </ClerkFailed>
         <ClerkLoaded>
           <RouterProvider router={router} />
         </ClerkLoaded>
@@ -40,8 +43,25 @@ function LoadingScreen() {
   return (
     <main className="wrap narrow landing" role="status" aria-label="Loading SquadSplit">
       <div className="hero-mark bob">
-        <Mascot kind="bunny" face="#ffffff" mood="happy" />
+        <LogoPup />
       </div>
+    </main>
+  )
+}
+
+/** Shown when Clerk's script can't load (offline, blocked), instead of a page that never leaves the loading state. */
+function ClerkFailedScreen() {
+  return (
+    <main className="wrap narrow landing">
+      <section className="card join" role="alert">
+        <div className="hero-mark shiver">
+          <LogoPup mood="nervous" />
+        </div>
+        <p>Can't reach sign-in. Check your connection and try again.</p>
+        <button className="btn primary" onClick={() => window.location.reload()}>
+          Try again
+        </button>
+      </section>
     </main>
   )
 }
