@@ -12,17 +12,22 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - A **Group** ("squad") is the authorization boundary. Every read and write of group data requires the caller to be a current member.
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
 - People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
-- Every participant has an account. There are no guest placeholders.
-- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap. The cap is checked in the same statement that writes the membership, so simultaneous joins can't pass it.
+- **Named members, Tricount-style** (added 2026-11-19 at the user's request): the creator can name everyone else when creating the group (0–11 names, same rules as a nickname: 1–24 characters, no emoji or control characters), and the owner can add more names later in the group's settings.
+  - Each unclaimed name is a real member (a **placeholder**): it has its own unique look (the first free one from its default), can pay, share, be on an item and be settled with, shows on the leaderboard, badges and wheel, and counts towards the cap. The app tags it "Not joined yet". A placeholder never signs in: its `ph_` id is refused as a session.
+  - Joining asks **"Which one are you?"** with the unclaimed names and **"I'm new"**. Claiming a name makes you that person everywhere (expenses paid and logged, shares, items, settlements, spins and their weights) in one batch, keeps its look unless you pick another, and makes its name your nickname unless you set one; the placeholder is then deleted. Someone who has ever been in the group can't claim (409 `already_in_group`); a name already claimed, or not one of this group's, is 409 `already_claimed`. Claiming works in a full group, since it takes the name's place. Former members rejoin as themselves and aren't asked.
+  - The owner can remove an unclaimed name only while nothing in the group's history uses it (no expense, share, item, settlement or spin); otherwise 409 `name_in_use`. Removing deletes it; placeholders are never "former" members.
+  - Adding names doesn't appear in the feed as joins; claiming one does (at the time of the claim).
+- **Profile look** (added 2026-11-19): every user has an animal + colour of their own (`PATCH /me`; any of the 48, nothing is "taken"). It shows outside groups (the top bar on your groups list) and is where new groups start you: creating a group gives you your profile look, and joining without a pick gives you it (or a former member's old look), moved on to the first free look if someone has it.
+- A group has at most **12 active members**, counting unclaimed names. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap. The cap is checked in the same statement that writes the membership, so simultaneous joins can't pass it.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
 - Leaving is a soft delete (`membership.left_at`), so past expenses still show their names.
 - **You in a group** (added 2026-11-19 at the user's request): each membership has its own **animal + colour** avatar and an optional **nickname**.
   - The avatar is one of the 8 member animals (bunny, bear, panda, kitty, fox, hamster, penguin, koala) on one of 6 pastel colours, so 48 combinations. Among a group's **active** members every avatar is unique; former members don't hold theirs.
   - Joining lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free (the invite preview tells them which, so the Join page starts on it). Picking a taken one is 409 `avatar_taken`.
-  - Creating a group sets only your nickname; you start with your default look and can change it in the group's settings.
+  - Creating a group sets only your nickname; you start with your profile look and can change it in the group's settings.
   - The database enforces unique stored looks among active members (migration 0003), so two people picking the same look at once can't both get it. Where effective looks still clash (two members without a stored look whose defaults match), the later joiner is shown the first free combination instead, so no two active members ever look the same.
   - The nickname is 1–24 characters after trimming, with no control or invisible format characters (such as bidi overrides) and no emoji: no pictographs, flags, keycaps, skin tones or U+FE0F. The plain-text symbols ™ © ® are allowed. Empty clears it. Nicknames don't need to be unique.
-  - Inside the group your name is your nickname if you set one, otherwise your profile name. Outside a group (your groups list) the profile name and default look are used.
+  - Inside the group your name is your nickname if you set one, otherwise your profile name. Outside a group (your groups list) the profile name and profile look are used.
   - You can change both later in the group's settings.
 
 ### Expenses
@@ -59,6 +64,7 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 
 ### Settle-up (the shared, two-party action)
 - Only the **debtor** starts a settlement: "I paid Bob $40".
+- **Someone who hasn't joined** (a placeholder) can't confirm anything, so a settlement with one is one-sided and counts straight away (`confirmed`, `resolved_at` now): you can record paying them, and a creditor can record that one of them paid you ("Dave paid me", `fromUserId` = the placeholder). The usual cap applies with the placeholder as debtor or creditor. Two placeholders can't settle with each other (422 `placeholder_to_placeholder`); naming any other payer is 422 `not_your_payment`.
 - The amount can be anything from 1 cent up to `min(debtor's debt, creditor's credit)`, after subtracting the debtor's other pending outgoing settlements.
 - Lifecycle: `pending → confirmed | rejected | cancelled`
   - The **creditor** confirms or rejects it.
@@ -103,7 +109,9 @@ No live connection. TanStack Query refetches when the tab regains focus and afte
 ## 2. Data model (D1 / SQLite with Drizzle)
 
 ```
-users          id (pk, text: Clerk user id), display_name, avatar_url, created_at
+users          id (pk, text: Clerk user id, or ph_<uuid> for a placeholder), display_name, avatar_url, created_at,
+               kind ('person'|'placeholder', default 'person'), profile_animal (nullable), profile_color (nullable)   (0005)
+               a placeholder belongs to one group; profile_* null means the user's default look
 groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner_id → users, created_at
 memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable),
                avatar_animal (nullable), avatar_color (nullable), nickname (nullable)
@@ -146,20 +154,22 @@ Error responses:
 
 | Method & path | Who may call |
 |---|---|
-| `GET /me` | any user |
+| `GET /me` (includes `profileAvatar`) | any user |
+| `PATCH /me` (`{ profileAvatar }`) | any user |
 | `GET /groups` | any user (returns their own groups) |
-| `POST /groups` (optional `nickname` for the owner) | any user (they become the owner) |
+| `POST /groups` (optional `nickname` for the owner, optional `members`: up to 11 names) | any user (they become the owner) |
+| `POST /groups/:id/placeholders` (`{ name }`; 409 `group_full`) | owner |
 | `GET /groups/:id` | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
 | `POST /groups/:id/invite/reset` | owner |
-| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, and your old look if you're a former member) | any user |
-| `POST /invites/:code/join` (optional body `{ avatar?, nickname? }`) | any user (does nothing if already a member) |
+| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, your old look if you're a former member, and the unclaimed names with their looks) | any user |
+| `POST /invites/:code/join` (optional body `{ avatar?, nickname?, claim? }`; `claim` is an unclaimed name's user id) | any user (does nothing if already a member, unless claiming) |
 | `PATCH /groups/:id/members/me` (`{ avatar?, nickname? }`, at least one; `nickname: null` or `""` clears) | member |
-| `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0 |
+| `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0. An unclaimed name: owner only, deleted while unused (else 409 `name_in_use`) |
 | `GET /groups/:id/balances` (nets + suggested transfers) | member |
 | `GET /groups/:id/expenses`, `POST /groups/:id/expenses` | member |
 | `PATCH /expenses/:id`, `DELETE /expenses/:id` | creator or owner, and not locked |
-| `POST /groups/:id/settlements` | member (the caller is the debtor) |
+| `POST /groups/:id/settlements` (`{ toUserId, amountCents, fromUserId? }`) | member (the caller is the debtor, or the creditor of a placeholder named in `fromUserId`) |
 | `POST /settlements/:id/confirm`, `/reject` | creditor |
 | `POST /settlements/:id/cancel` | debtor |
 | `GET /groups/:id/badges` (badges + leaderboard) | member |
@@ -178,8 +188,9 @@ Request and response schemas are zod objects in `packages/shared`, used by both 
 - Screens:
   - Landing / sign-in
   - My groups
-  - Create group
-  - Join (`/join/:code`)
+  - Your profile look (`/me`, from the menu on your top-bar avatar)
+  - Create group (with "Who's in?" names)
+  - Join (`/join/:code`), asking "Which one are you?" when the group has unclaimed names
   - **Group home:** my balance card, the leaderboard with badges, "needs your action" (settlements waiting for me to confirm), suggested settle-ups, and the feed
   - Add/edit expense
   - Wheel (an animated spin)
@@ -220,4 +231,4 @@ squadsplit/                  (npm workspaces)
 **Later:** repeating expenses (such as rent) and real support for multiple currencies (the columns already exist).
 
 **Out of scope (v2):**
-Percentage or share splits, guest participants, ownership transfer, deleting a group, live updates, a preview deploy per PR, a custom domain, permanent achievements, comments and reactions.
+Percentage or share splits, ownership transfer, deleting a group, live updates, a preview deploy per PR, a custom domain, permanent achievements, comments and reactions.
