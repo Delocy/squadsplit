@@ -1,0 +1,11 @@
+# Cloudflare Pages response headers. Every matching rule applies, in order.
+
+# HTML (and the SPA fallback for deep links): always revalidate, so a new deploy shows up on the next load.
+/*
+  Cache-Control: no-cache
+
+# Vite's content-hashed build output never changes under the same name. Drop the rule above first,
+# or Pages would join the two values into one conflicting header.
+/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
