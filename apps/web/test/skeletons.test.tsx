@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
 import { BOB, group, groupHandlers, settlement } from './group-fixtures'
-import { fakeApi, renderApp, type Handler } from './harness'
+import { fakeApi, held, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 afterEach(() => {
@@ -10,16 +10,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** A handler that holds its reply until `release` is called, so a test can look at the page while it loads. */
-function held(reply: Awaited<ReturnType<Handler>>) {
-  let release = () => {}
-  const gate = new Promise<void>((resolve) => (release = resolve))
-  const handler: Handler = async () => {
-    await gate
-    return reply
-  }
-  return { handler, release }
-}
 const ok = (body: unknown) => ({ status: 200, body })
 const skeletons = (el: ParentNode = document) => el.querySelectorAll('.sk').length
 

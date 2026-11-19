@@ -1,5 +1,6 @@
 import { formatMoney, settlementCap } from '@squadsplit/shared'
 import { useState, type FormEvent } from 'react'
+import { BusyLabel } from '../design/Busy'
 import { centsToInput, parseAmount } from '../expenseDraft'
 import type { People } from '../groupData'
 
@@ -106,7 +107,9 @@ export function SettleForm({
           Cancel
         </button>
         <button type="submit" className="btn small primary" disabled={busy}>
-          Submit
+          <BusyLabel busy={busy} label="Saving…">
+            Submit
+          </BusyLabel>
         </button>
       </div>
     </form>

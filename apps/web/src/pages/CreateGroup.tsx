@@ -1,12 +1,14 @@
 import { CreateGroupInput, CURRENCIES, type Currency, type GroupDTO } from '@squadsplit/shared'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { PageLink, usePageNavigate } from '../components/PageLink'
+import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
 
 // The API requires an emoji for every group. The UI never shows it, so every group gets the same one.
@@ -22,7 +24,7 @@ export function CreateGroup() {
   const nickname = useNicknameDraft(profileName)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const create = useMutation({
+  const create = useSingleFlightMutation({
     mutationFn: (input: CreateGroupInput) => api.post<GroupDTO>('/groups', input),
     onSuccess: (group) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
@@ -91,7 +93,9 @@ export function CreateGroup() {
             Cancel
           </PageLink>
           <button type="submit" className="btn primary" disabled={create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create group'}
+            <BusyLabel busy={create.isPending} label="Creating…">
+              Create group
+            </BusyLabel>
           </button>
         </div>
       </form>

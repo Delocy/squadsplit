@@ -52,6 +52,7 @@ export function InviteCard({ groupId, inviteCode }: { groupId: string; inviteCod
             <ConfirmBar
               question="The old link will stop working."
               yes="Yes, reset it"
+              busyLabel="Resetting…"
               busy={reset.isPending}
               onYes={() => reset.mutate(undefined, { onSuccess: () => setConfirming(false) })}
               onCancel={() => setConfirming(false)}

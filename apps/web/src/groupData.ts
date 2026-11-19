@@ -1,8 +1,9 @@
 import { defaultAvatar, type AvatarChoice, type BalancesDTO, type ExpenseDTO, type FeedItem, type FunDTO, type GroupDTO, type MemberDTO, type SettlementDTO } from '@squadsplit/shared'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useApi, type ApiClient } from './api'
 import { invalidateGroup, queryKeys } from './queryKeys'
+import { useSingleFlightMutation } from './singleFlight'
 
 /**
  * How long a group read counts as fresh. A page opened just after its data was prefetched (see usePrefetchGroup)
@@ -69,10 +70,11 @@ export function usePrefetchGroup(): (id: string) => void {
 /**
  * A change inside the group. Whether it works or not, everything about the group is refetched
  * afterwards: a failure (say, a settlement that is no longer pending) usually means our copy is stale.
+ * A second press while it is in flight is ignored (see useSingleFlightMutation).
  */
 export function useGroupMutation<TVars, TResult>(groupId: string, mutationFn: (vars: TVars) => Promise<TResult>) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn, onSettled: () => invalidateGroup(queryClient, groupId) })
+  return useSingleFlightMutation({ mutationFn, onSettled: () => invalidateGroup(queryClient, groupId) })
 }
 
 /** Names and avatars for everyone in the group's history, including people who have left. */

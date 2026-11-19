@@ -8,7 +8,7 @@ import {
   type InvitePreviewDTO,
   type JoinGroupInput,
 } from '@squadsplit/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
@@ -19,8 +19,10 @@ import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/Ni
 import { PageLink, usePageNavigate } from '../components/PageLink'
 import { JoinSkeleton } from '../components/Skeletons'
 import { lookOf } from '../design/Avatar'
+import { BusyLabel } from '../design/Busy'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
 
 export function Join() {
@@ -37,7 +39,7 @@ export function Join() {
   const [showHint, setShowHint] = useState(false)
 
   const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(path) })
-  const join = useMutation({
+  const join = useSingleFlightMutation({
     mutationFn: (input: JoinGroupInput) => api.post<{ groupId: string }>(`${path}/join`, input),
     onSuccess: ({ groupId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
@@ -131,7 +133,9 @@ export function Join() {
               </p>
             )}
             <button className="btn primary" type="submit" disabled={join.isPending}>
-              {join.isPending ? 'Joining…' : 'Join group'}
+              <BusyLabel busy={join.isPending} label="Joining…">
+                Join group
+              </BusyLabel>
             </button>
             <ErrorNote error={join.error} />
           </form>

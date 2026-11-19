@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/react'
 import { sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import { useApi } from '../api'
@@ -14,10 +14,12 @@ import { MemberList } from '../components/MemberList'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { usePageNavigate } from '../components/PageLink'
 import { SettingsSkeleton } from '../components/Skeletons'
+import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { invalidateGroup, queryKeys } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
 
 const MAX_NAME = 50
@@ -117,7 +119,9 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
             </span>
           )}
           <button className="btn primary" type="submit" disabled={save.isPending || !dirty}>
-            Save
+            <BusyLabel busy={save.isPending} label="Saving…">
+              Save
+            </BusyLabel>
           </button>
         </div>
       </form>
@@ -146,7 +150,9 @@ function RenameCard({ group }: { group: GroupDTO }) {
       <form className="invite-link" onSubmit={submit}>
         <input type="text" aria-label="Group name" value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} />
         <button className="btn" type="submit" disabled={rename.isPending || !trimmed || trimmed === group.name}>
-          Save name
+          <BusyLabel busy={rename.isPending} label="Saving…">
+            Save name
+          </BusyLabel>
         </button>
       </form>
       {rename.isError && <ErrorNote error={rename.error} />}
@@ -160,7 +166,7 @@ function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
   // Not useGroupMutation: refetching this group after leaving would 404 before we navigate away.
-  const leave = useMutation({
+  const leave = useSingleFlightMutation({
     mutationFn: () => api.del(`/groups/${group.id}/members/${me}`),
     onSuccess: () => {
       void navigate('/groups')
@@ -180,6 +186,7 @@ function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
         <ConfirmBar
           question={`Leave ${group.name}?`}
           yes="Yes, leave"
+          busyLabel="Leaving…"
           busy={leave.isPending}
           onYes={() => leave.mutate(undefined, { onError: () => setConfirming(false) })}
           onCancel={() => setConfirming(false)}

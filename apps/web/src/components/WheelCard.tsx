@@ -1,14 +1,16 @@
 import { spinWeightsFromBalances, type SpinDTO } from '@squadsplit/shared'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
+import { Spinner } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { UiIcon } from '../design/icons'
 import { prefersReducedMotion } from '../design/motion'
 import { SkText } from '../design/Skeleton'
 import type { People } from '../groupData'
 import { invalidateGroup } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { landingRotation, wheelSlices } from '../wheel'
 import { ErrorNote } from './ErrorNote'
 import { WheelDisc } from './WheelDisc'
@@ -29,7 +31,7 @@ function useWheelSpin(groupId: string) {
   const winnerRef = useRef<HTMLDivElement>(null)
 
   // Not useGroupMutation: refetching the feed straight away would list the winner before the wheel stops.
-  const spin = useMutation({
+  const spin = useSingleFlightMutation({
     mutationFn: () => api.post<SpinDTO>(`/groups/${groupId}/spins`),
     onSuccess: (s) => {
       setRevealed(false)
@@ -101,7 +103,7 @@ export function WheelCard({
           </ul>
           <div className="spin-row">
             <button className="btn primary" onClick={() => spin.mutate()} disabled={spinning}>
-              <UiIcon name="star" />
+              {spin.isPending ? <Spinner /> : <UiIcon name="star" />}
               Spin
             </button>
           </div>

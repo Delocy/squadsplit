@@ -66,6 +66,7 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
         <ConfirmBar
           question={`Remove ${member.displayName} from the group?`}
           yes={`Yes, remove ${member.displayName}`}
+          busyLabel="Removing…"
           busy={remove.isPending}
           onYes={() => remove.mutate(undefined, { onSettled: () => setConfirming(false) })}
           onCancel={() => setConfirming(false)}

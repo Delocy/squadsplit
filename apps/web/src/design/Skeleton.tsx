@@ -37,6 +37,3 @@ export function Skeleton({
  * so put it where the real text goes, inside the element that styles that text.
  */
 export const SkText = ({ w }: { w?: Size }) => <Skeleton w={w} className="text" />
-
-/** A small spinning ring for a button that is waiting on the server. Still under reduced motion. */
-export const Spinner = () => <span className="spinner" aria-hidden="true" />

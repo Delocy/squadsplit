@@ -14,6 +14,7 @@ import { ErrorNote } from '../components/ErrorNote'
 import { ScanReceiptButton } from '../components/ScanReceiptButton'
 import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
+import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
 import {
@@ -441,11 +442,18 @@ function ExpenseFields({
       <div className="dlg-f">
         {expense &&
           (confirmDelete ? (
-            <button type="button" className="btn ghost danger" onClick={() => remove.mutate(expense.id, { onSuccess: onDone })} disabled={remove.isPending}>
-              Yes, delete it
+            <button
+              type="button"
+              className="btn ghost danger"
+              onClick={() => remove.mutate(expense.id, { onSuccess: onDone })}
+              disabled={remove.isPending || save.isPending}
+            >
+              <BusyLabel busy={remove.isPending} label="Deleting…">
+                Yes, delete it
+              </BusyLabel>
             </button>
           ) : (
-            <button type="button" className="btn ghost danger" onClick={() => setConfirmDelete(true)}>
+            <button type="button" className="btn ghost danger" onClick={() => setConfirmDelete(true)} disabled={save.isPending}>
               Delete
             </button>
           ))}
@@ -457,9 +465,11 @@ function ExpenseFields({
           ref={submitRef}
           type="submit"
           className="btn primary"
-          disabled={save.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0)}
+          disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0)}
         >
-          {expense ? 'Save changes' : 'Add expense'}
+          <BusyLabel busy={save.isPending} label={expense ? 'Saving…' : 'Adding…'}>
+            {expense ? 'Save changes' : 'Add expense'}
+          </BusyLabel>
         </button>
       </div>
     </form>
