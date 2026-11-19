@@ -15,11 +15,12 @@ describe('ScanReceiptInput', () => {
     }
   })
 
-  it('refuses other types, empty data and data that would decode to more than 5 MB', () => {
+  it('refuses other types, empty data and data that would decode to more than 1.5 MB', () => {
     expect(ScanReceiptInput.safeParse({ imageBase64: '/9j/4AAQ', mimeType: 'image/gif' }).success).toBe(false)
     expect(ScanReceiptInput.safeParse({ imageBase64: '', mimeType: 'image/jpeg' }).success).toBe(false)
     const tooLong = 'A'.repeat(Math.ceil(MAX_RECEIPT_IMAGE_BYTES / 3) * 4 + 4)
     expect(ScanReceiptInput.safeParse({ imageBase64: tooLong, mimeType: 'image/jpeg' }).success).toBe(false)
+    expect(MAX_RECEIPT_IMAGE_BYTES).toBe(1.5 * 1024 * 1024)
   })
 })
 

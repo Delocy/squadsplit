@@ -8,8 +8,8 @@ import type { Cents } from './money'
 export const RECEIPT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export type ReceiptImageType = (typeof RECEIPT_IMAGE_TYPES)[number]
 
-/** The largest receipt image the API takes, decoded. The web app sends far less (about 1024px JPEG). */
-export const MAX_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024
+/** The largest receipt image the API takes, decoded. The web app sends far less (a 1024px JPEG, usually under 600 KB). */
+export const MAX_RECEIPT_IMAGE_BYTES = 1.5 * 1024 * 1024
 export const MAX_RECEIPT_ITEMS = 50
 export const MAX_RECEIPT_ITEM_NAME = 60
 
@@ -21,7 +21,7 @@ export const ScanReceiptInput = z.object({
   imageBase64: z
     .string()
     .min(1)
-    .max(Math.ceil(MAX_RECEIPT_IMAGE_BYTES / 3) * 4, { message: 'Image must be 5 MB or smaller' }),
+    .max(Math.ceil(MAX_RECEIPT_IMAGE_BYTES / 3) * 4, { message: 'Image must be 1.5 MB or smaller' }),
   mimeType: z.enum(RECEIPT_IMAGE_TYPES),
 })
 export type ScanReceiptInput = z.infer<typeof ScanReceiptInput>

@@ -1,14 +1,31 @@
 import { normalizeReceiptScan, type ReceiptScanResult, type ScanReceiptInput } from '@squadsplit/shared'
 import { RECEIPT_MAX_TOKENS, RECEIPT_MODEL } from './config'
 
-/** Why a scan could not be done on our side. Only this code is ever logged, never the image or the answer. */
-export type ScanFailure = 'ai_error' | 'unparseable'
+/**
+ * Why the model gave no answer: it failed (`ai_error`), or the account's daily Workers AI allowance is used up
+ * (`ai_quota`). Only this code is ever logged, never the image or the error text.
+ */
+export type ScanFailure = 'ai_error' | 'ai_quota'
 
 export class ScanUnavailable extends Error {
   constructor(readonly reason: ScanFailure) {
     super(`Receipt scan unavailable: ${reason}`)
     this.name = 'ScanUnavailable'
   }
+}
+
+/** What the model's answer gave: the receipt, or why it's unreadable (no JSON object, or no usable item). */
+export type ReadResult = { receipt: ReceiptScanResult } | { unreadable: 'unparseable' | 'no_items' }
+
+/**
+ * Whether Workers AI refused because the account's free daily allocation is used up: error 4006, "you have used
+ * up your daily free allocation of 10,000 neurons". Looks at the code and message of the error and its causes.
+ */
+export function isQuotaError(err: unknown): boolean {
+  for (let e = err, depth = 0; e instanceof Error && depth < 5; e = e.cause, depth++) {
+    if ((e as { code?: unknown }).code === 4006 || /\b4006\b|daily free allocation/i.test(e.message)) return true
+  }
+  return false
 }
 
 const SYSTEM_PROMPT = `You read photos of receipts from Singapore restaurants, hawker stalls and shops.
@@ -59,10 +76,10 @@ function matchingBrace(text: string, start: number): number {
 }
 
 /**
- * Reads the receipt with the vision model. Null when the model answered but found nothing usable (not a receipt,
- * or no items). Throws ScanUnavailable when the model fails or doesn't answer with JSON.
+ * Reads the receipt with the vision model. Throws ScanUnavailable when the model gives no answer at all; an answer
+ * that isn't usable (no JSON, or no items) is reported as unreadable, since the model ran and used neurons.
  */
-export async function readReceipt(ai: Ai, image: ScanReceiptInput): Promise<ReceiptScanResult | null> {
+export async function readReceipt(ai: Ai, image: ScanReceiptInput): Promise<ReadResult> {
   let response: unknown
   try {
     const out = await ai.run(RECEIPT_MODEL, {
@@ -81,11 +98,12 @@ export async function readReceipt(ai: Ai, image: ScanReceiptInput): Promise<Rece
       temperature: 0,
     })
     response = (out as { response?: unknown } | null)?.response
-  } catch {
-    throw new ScanUnavailable('ai_error')
+  } catch (err) {
+    throw new ScanUnavailable(isQuotaError(err) ? 'ai_quota' : 'ai_error')
   }
   // The binding may hand back an object it has already parsed from the model's JSON.
   const answer = typeof response === 'string' ? firstJsonObject(response) : response
-  if (typeof answer !== 'object' || answer === null) throw new ScanUnavailable('unparseable')
-  return normalizeReceiptScan(answer)
+  if (typeof answer !== 'object' || answer === null) return { unreadable: 'unparseable' }
+  const receipt = normalizeReceiptScan(answer)
+  return receipt ? { receipt } : { unreadable: 'no_items' }
 }
