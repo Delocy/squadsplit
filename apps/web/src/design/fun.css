@@ -88,9 +88,9 @@
 .balance > .tape.t2 { top: -8px; right: 18px; transform: rotate(10deg); }
 
 /* titles as a sticker sheet */
-.sheet { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px dashed var(--line); }
-.sheet-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 700 13px Fredoka, sans-serif; color: var(--muted); margin-bottom: 10px; }
-.sheet-h b { color: var(--text); }
+.sticker-sheet { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px dashed var(--line); }
+.sticker-sheet-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 700 13px Fredoka, sans-serif; color: var(--muted); margin-bottom: 10px; }
+.sticker-sheet-h b { color: var(--text); }
 .stickers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 6px; }
 .sticker { display: grid; justify-items: center; align-content: start; gap: 5px; text-align: center; min-width: 0; transform: rotate(var(--r, 0deg)); }
 .sticker .die { position: relative; width: 52px; height: 52px; display: grid; place-items: center; padding: 6px; background: var(--sticker); border-radius: 50%;

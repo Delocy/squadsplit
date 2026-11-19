@@ -114,4 +114,10 @@ describe('narrow-screen layout rules', () => {
     expect(rule('.need.row')).toContain('flex-wrap: wrap')
     expect(rule('.need .acts')).toContain('flex-basis: 100%')
   })
+
+  it('keeps .sheet for the sheet dialog alone: the sticker book has its own class', () => {
+    const fun = readFileSync(resolve(__dirname, '../src/design/fun.css'), 'utf8')
+    for (const sheet of [css, fun]) expect(sheet).not.toMatch(/(^|[\s,}])\.sheet(-h)?\s*[{,]/m)
+    expect(fun).toMatch(/^\.sticker-sheet \{/m)
+  })
 })

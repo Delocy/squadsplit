@@ -88,8 +88,8 @@ export function LeaderboardSkeleton({ rows }: { rows: number }) {
           </div>
         ))}
       </div>
-      <div className="sheet" aria-hidden="true">
-        <div className="sheet-h">
+      <div className="sticker-sheet" aria-hidden="true">
+        <div className="sticker-sheet-h">
           <SkText w={90} />
           <b>
             <SkText w={36} />
