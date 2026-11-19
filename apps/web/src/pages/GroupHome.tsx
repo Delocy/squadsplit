@@ -33,6 +33,8 @@ export function GroupHome() {
   const g = group.data
   const people = peopleOf(g, me)
   const money = (cents: number) => formatMoney(cents, g.currency)
+  // Without the expenses (they failed to load) the stats are unknown, not zero.
+  const stat = (cents: number) => (expenses.data ? money(cents) : '—')
   const all = expenses.data ?? []
   const totalSpent = all.reduce((t, e) => t + e.amountCents, 0)
   const myShare = all.reduce((t, e) => t + (e.shares.find((s) => s.userId === me)?.amountCents ?? 0), 0)
@@ -55,15 +57,15 @@ export function GroupHome() {
           <div className="stats">
             <div className="stat">
               <div className="k">Group spend</div>
-              <div className="v">{money(totalSpent)}</div>
+              <div className="v">{stat(totalSpent)}</div>
             </div>
             <div className="stat">
               <div className="k">Your share</div>
-              <div className="v">{money(myShare)}</div>
+              <div className="v">{stat(myShare)}</div>
             </div>
             <div className="stat">
               <div className="k">You paid</div>
-              <div className="v">{money(myPaid)}</div>
+              <div className="v">{stat(myPaid)}</div>
             </div>
           </div>
           <div className="quick">
@@ -106,7 +108,16 @@ export function GroupHome() {
               />
             )}
           </section>
-          <Feed groupId={id} items={feed.data} me={me} ownerId={g.ownerId} people={people} currency={g.currency} />
+          <Feed
+            groupId={id}
+            items={feed.data}
+            error={feed.error}
+            onRetry={() => void feed.refetch()}
+            me={me}
+            ownerId={g.ownerId}
+            people={people}
+            currency={g.currency}
+          />
         </div>
 
         <div className="col">

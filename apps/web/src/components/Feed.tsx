@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { CATEGORY_ART, CategoryIcon, categoryLabel, UiIcon } from '../design/icons'
 import { formerMemberIn, type People } from '../groupData'
+import { ErrorNote } from './ErrorNote'
 import { RowSkeletons } from './Skeletons'
 
 type Tab = 'all' | 'expenses' | 'paybacks'
@@ -23,10 +24,12 @@ const shortDate = (spentOn: string) => DAY.format(new Date(`${spentOn}T00:00:00Z
 const itemKey = (i: FeedItem) =>
   i.type === 'expense' ? `e:${i.expense.id}` : i.type === 'settlement' ? `s:${i.settlement.id}` : i.type === 'spin' ? `w:${i.spin.id}` : `j:${i.userId}`
 
-/** The group's activity, newest first (the API's order), filtered by tab. */
+/** The group's activity, newest first (the API's order), filtered by tab. Says so, with a retry, if it failed to load. */
 export function Feed({
   groupId,
   items,
+  error,
+  onRetry,
   me,
   ownerId,
   people,
@@ -34,6 +37,9 @@ export function Feed({
 }: {
   groupId: string
   items: FeedItem[] | undefined
+  /** Why the activity didn't load, if it didn't. */
+  error?: unknown
+  onRetry?: () => void
   me: string
   ownerId: string
   people: People
@@ -147,19 +153,30 @@ export function Feed({
           ))}
         </span>
       </h3>
-      <ul className="list">
-        {items === undefined ? (
-          <RowSkeletons count={4} lead="tile" />
-        ) : shown.length ? (
-          shown.map((i) => (
-            <li className="row" key={itemKey(i)}>
-              {row(i)}
-            </li>
-          ))
-        ) : (
-          <li className="empty">Nothing here yet.</li>
-        )}
-      </ul>
+      {items === undefined && error ? (
+        <div className="feed-error">
+          <ErrorNote error={error} />
+          {onRetry && (
+            <button type="button" className="btn small" onClick={onRetry}>
+              Try again
+            </button>
+          )}
+        </div>
+      ) : (
+        <ul className="list">
+          {items === undefined ? (
+            <RowSkeletons count={4} lead="tile" />
+          ) : shown.length ? (
+            shown.map((i) => (
+              <li className="row" key={itemKey(i)}>
+                {row(i)}
+              </li>
+            ))
+          ) : (
+            <li className="empty">Nothing here yet.</li>
+          )}
+        </ul>
+      )}
     </section>
   )
 }
