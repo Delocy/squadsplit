@@ -19,7 +19,9 @@ import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
 import { EXIT_MS, useReducedMotion } from '../design/motion'
 import {
+  addOtherItem,
   applyScan,
+  centsToInput,
   chargesHint,
   isSgCharges,
   draftFromExpense,
@@ -286,10 +288,20 @@ function ExpenseFields({
         </div>
         {draft.mode === 'itemized' ? (
           <div>
-            <span className="f">Total ({currency})</span>
-            <output className="amount total-out" data-testid="bill-total">
-              {money(summary.bill?.total ?? 0)}
-            </output>
+            <label className="f" htmlFor="exp-total">
+              Total ({currency})
+            </label>
+            <input
+              id="exp-total"
+              className="amount"
+              type="text"
+              inputMode="decimal"
+              data-testid="bill-total"
+              placeholder={summary.bill ? centsToInput(summary.bill.total) : '0.00'}
+              value={draft.amount}
+              onChange={(e) => update({ amount: e.target.value })}
+            />
+            <span className="field-hint">Leave blank to use the items' total.</span>
           </div>
         ) : (
           <div>
@@ -454,6 +466,19 @@ function ExpenseFields({
             <UiIcon name="plus" />
             Add item
           </button>
+          {summary.check && (
+            <p className="left" role="status">
+              {summary.check.message}
+              {summary.check.diff > 0 && (
+                <>
+                  {' '}
+                  <button type="button" className="btn small" onClick={() => update(addOtherItem(draft, activeIds))}>
+                    Add {money(summary.check.diff)} as 'Other', shared by all
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           {summary.bill && draft.restaurantBill && (
             <p className="preview">
               Subtotal <b>{money(summary.bill.subtotal)}</b>
@@ -518,7 +543,7 @@ function ExpenseFields({
           ref={submitRef}
           type="submit"
           className="btn primary"
-          disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0)}
+          disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0) || summary.check !== null}
         >
           <BusyLabel busy={save.isPending} label={expense ? 'Saving…' : 'Adding…'}>
             {expense ? 'Save changes' : 'Add expense'}

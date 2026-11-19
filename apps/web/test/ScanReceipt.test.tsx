@@ -113,7 +113,7 @@ describe('Scan receipt', () => {
     expect(dialog.getByRole('button', { name: 'By item' }).getAttribute('aria-pressed')).toBe('true')
     expect(itemRows(dialog)).toEqual([['Laksa', '60.00'], ['Satay x10', '18.00']])
     expect(sgToggle(dialog).checked).toBe(true)
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$93.52')
+    expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe('93.52')
     // The receipt total is the amount too, should the split go back to Equally.
     fireEvent.click(dialog.getByRole('button', { name: 'Equally' }))
     expect((dialog.getByLabelText('Amount (SGD)') as HTMLInputElement).value).toBe('93.52')
@@ -166,12 +166,37 @@ describe('Scan receipt', () => {
       ['Satay x10', '18.00'],
     ])
     expect(sgToggle(dialog).checked).toBe(true)
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$93.52')
+    expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe('93.52')
     expect(calls.find((c) => c.key === 'POST /groups/g1/receipts/scan')!.body).toEqual({ imageBase64: 'SMALL1024', mimeType: 'image/jpeg' })
     expect(tesseract.createWorker).not.toHaveBeenCalled()
     // Nothing is saved until the user assigns people and adds the expense.
     expect(calls.filter((c) => c.key === 'POST /groups/g1/expenses')).toEqual([])
     expect(screen.getByRole('dialog').textContent).not.toMatch(EMOJI)
+  })
+
+  it('after a scan that missed a line, shows the receipt total, blocks saving and adds the rest as Other', async () => {
+    const { dialog } = await openByItem(() => ({
+      status: 200,
+      body: { ...AI_SCAN, items: [{ name: 'Laksa', amountCents: 6000 }], totalCents: 9352, totalMatches: false },
+    }))
+    choose(dialog.getByLabelText('Scan receipt'))
+    await dialog.findByText(/^Receipt says/)
+    const total = dialog.getByLabelText('Total (SGD)') as HTMLInputElement
+    expect(total.value).toBe('93.52')
+    expect(total.placeholder).toBe('71.94')
+    fireEvent.change(dialog.getByLabelText('Description'), { target: { value: 'Dinner' } })
+    fireEvent.click(within(dialog.getByRole('group', { name: 'Who had item 1' })).getByRole('button', { name: 'Alice' }))
+    const save = dialog.getByRole('button', { name: 'Add expense' }) as HTMLButtonElement
+    expect(dialog.getByText(/Items \+ charges come to \$71\.94, \$21\.58 not on any item/)).toBeTruthy()
+    expect(save.disabled).toBe(true)
+
+    fireEvent.click(dialog.getByRole('button', { name: "Add $21.58 as 'Other', shared by all" }))
+    expect(itemRows(dialog).at(-1)![0]).toBe('Other')
+    expect(save.disabled).toBe(false)
+
+    fireEvent.change(total, { target: { value: '120' } })
+    expect(dialog.getByText(/not on any item/)).toBeTruthy()
+    expect(save.disabled).toBe(true)
   })
 
   it('asks to check the items when they do not add up to the receipt total', async () => {
@@ -192,7 +217,7 @@ describe('Scan receipt', () => {
     const toggle = sgToggle(dialog)
     expect(toggle.checked).toBe(true)
     expect(toggle.closest('label')!.textContent).toBe(`Receipt charges${hint}`)
-    expect(dialog.getByTestId('bill-total').textContent).toBe(total)
+    expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe(total.replace('$', ''))
     expect(dialog.getByText(/^Subtotal/).textContent).toBe(breakdown)
 
     // Assign both items and save: the expense carries the receipt's rates and total.

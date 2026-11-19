@@ -11,6 +11,7 @@ afterEach(() => {
 })
 
 const type = (el: HTMLElement, value: string) => fireEvent.change(el, { target: { value } })
+const totalField = (dialog: ReturnType<typeof within>) => dialog.getByLabelText('Total (SGD)') as HTMLInputElement
 const pressed = (el: HTMLElement) => el.getAttribute('aria-pressed') === 'true'
 
 async function openNewExpense(extra = {}) {
@@ -134,7 +135,7 @@ describe('Expense form', () => {
     type(second.getByLabelText('Price'), '20.00')
     fireEvent.click(second.getByRole('button', { name: 'Bob' }))
 
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$35.97')
+    expect(totalField(dialog).placeholder).toBe('35.97')
     expect(dialog.getByTestId('preview').textContent).toBe('Each share: Alice $11.99 · Bob $23.98')
 
     fireEvent.click(dialog.getByRole('button', { name: 'Add expense' }))
@@ -162,8 +163,72 @@ describe('Expense form', () => {
     type(first.getByLabelText('Price'), '12.50')
     fireEvent.click(first.getByRole('button', { name: 'Alice' }))
     fireEvent.click(first.getByRole('button', { name: 'Bob' }))
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$12.50')
+    expect(totalField(dialog).placeholder).toBe('12.50')
     expect(dialog.getByTestId('preview').textContent).toBe('Each share: Alice $6.25 · Bob $6.25')
+  })
+
+  it('by item: a typed total is checked against the items, and one tap adds the rest as Other', async () => {
+    const { calls, dialog } = await openNewExpense({ 'POST /groups/g1/expenses': () => ({ status: 201, body: expense() }) })
+    type(dialog.getByLabelText('Description'), 'Hawker dinner')
+    fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    const first = within(dialog.getByRole('group', { name: 'Item 1' }))
+    type(first.getByLabelText('Item name'), 'Laksa')
+    type(first.getByLabelText('Price'), '10.00')
+    fireEvent.click(first.getByRole('button', { name: 'Alice' }))
+    const save = dialog.getByRole('button', { name: 'Add expense' }) as HTMLButtonElement
+
+    // Blank: the total follows the items, with a hint, and nothing to check.
+    expect(totalField(dialog).value).toBe('')
+    expect(dialog.getByText("Leave blank to use the items' total.")).toBeTruthy()
+    expect(dialog.queryByRole('status')).toBeNull()
+    expect(save.disabled).toBe(false)
+
+    type(totalField(dialog), '50.00')
+    expect(dialog.getByRole('status').textContent).toContain('Items + charges come to $11.99, $38.01 not on any item.')
+    expect(save.disabled).toBe(true)
+
+    fireEvent.click(dialog.getByRole('button', { name: "Add $38.01 as 'Other', shared by all" }))
+    const other = within(dialog.getByRole('group', { name: 'Item 2' }))
+    expect((other.getByLabelText('Item name') as HTMLInputElement).value).toBe('Other')
+    expect(other.getByRole('button', { name: 'Alice' }).getAttribute('aria-pressed')).toBe('true')
+    expect(other.getByRole('button', { name: 'Bob' }).getAttribute('aria-pressed')).toBe('true')
+    expect(dialog.queryByRole('status')).toBeNull()
+    expect(save.disabled).toBe(false)
+
+    // A total below the items offers no fix-up, only the check.
+    type(totalField(dialog), '10.00')
+    expect(dialog.getByRole('status').textContent).toMatch(/more than the total\.$/)
+    expect(dialog.queryByRole('button', { name: /as 'Other'/ })).toBeNull()
+    expect(save.disabled).toBe(true)
+
+    type(totalField(dialog), '')
+    fireEvent.click(save)
+    await vi.waitFor(() => expect(calls.some((c) => c.key === 'POST /groups/g1/expenses')).toBe(true))
+  })
+
+  it('keeps a total typed in Equally as the target when switched to By item', async () => {
+    const { dialog } = await openNewExpense()
+    type(dialog.getByLabelText('Amount (SGD)'), '40')
+    fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    expect(totalField(dialog).value).toBe('40')
+  })
+
+  it('edits a saved itemized expense with the total following the items', async () => {
+    const existing = expense({
+      id: 'e8',
+      amountCents: 3597,
+      splitType: 'itemized',
+      serviceChargeBps: 1000,
+      gstBps: 900,
+      items: [{ name: 'Laksa', amountCents: 3000, userIds: [ME] }],
+    })
+    fakeApi(groupHandlers({ expenses: [existing] }))
+    renderApp('/groups/g1/expenses/e8')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    expect(totalField(dialog).value).toBe('')
+    type(within(dialog.getByRole('group', { name: 'Item 1' })).getByLabelText('Price'), '31.00')
+    expect(dialog.queryByRole('status')).toBeNull()
+    expect((dialog.getByRole('button', { name: 'Save changes' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('shows the API message when saving fails', async () => {
@@ -230,7 +295,7 @@ describe('Expense form', () => {
     renderApp('/groups/g1/expenses/e9')
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
     expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(false)
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$10.00')
+    expect(totalField(dialog).placeholder).toBe('10.00')
   })
 
   it('edits an itemized expense with its items and the SG toggle filled in', async () => {
@@ -250,7 +315,7 @@ describe('Expense form', () => {
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
     expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(true)
     expect((within(dialog.getByRole('group', { name: 'Item 2' })).getByLabelText('Item name') as HTMLInputElement).value).toBe('Satay')
-    expect(dialog.getByTestId('bill-total').textContent).toBe('$35.97')
+    expect(totalField(dialog).placeholder).toBe('35.97')
   })
 
   it('deletes an expense after a second tap', async () => {
