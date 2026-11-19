@@ -2,6 +2,7 @@ import {
   CreateExpenseInput,
   formatMoney,
   itemizedTotal,
+  receiptChargesIncluded,
   SG_PRESET,
   splitEqual,
   SplitError,
@@ -132,19 +133,22 @@ export const hasEnteredAmounts = (d: ExpenseDraft) =>
 /**
  * The form filled in from a scanned receipt: the split becomes By item and its items replace the rows (nobody
  * assigned yet). Each charge the receipt has is switched on at the receipt's own rate, whatever it is, so the saved
- * total is what the receipt adds up to; one it lacks is off, at the SG rate for if it is switched on. The receipt's
- * total, when it shows one, becomes the amount too, for a switch back to Equally or Exact amounts.
+ * total is what the receipt adds up to; one it lacks is off, at the SG rate for if it is switched on. When its
+ * prices already include the charges (receiptChargesIncluded), both are off, so the total stays the items' sum; the
+ * rates are kept for switching one on by hand. The receipt's total, when it shows one, becomes the amount too, for a
+ * switch back to Equally or Exact amounts.
  */
 export function applyScan(d: ExpenseDraft, scan: ReceiptScanResult): ExpenseDraft {
   const service = scan.serviceChargeBps ?? 0
   const gst = scan.gstBps ?? 0
+  const included = receiptChargesIncluded(scan)
   return {
     ...d,
     mode: 'itemized',
     amount: scan.totalCents === null ? d.amount : centsToInput(scan.totalCents),
     items: scan.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents) })),
-    serviceOn: service > 0,
-    gstOn: gst > 0,
+    serviceOn: !included && service > 0,
+    gstOn: !included && gst > 0,
     charges: { serviceChargeBps: service || SG_PRESET.serviceChargeBps, gstBps: gst || SG_PRESET.gstBps },
   }
 }

@@ -154,6 +154,21 @@ describe('draft from a saved or scanned expense', () => {
     expect(draftFromExpense(expense({ amountCents: 1000 }), IDS).amount).toBe('10.00')
   })
 
+  it('applyScan switches both charges off when the receipt prices already include them, keeping its rates', () => {
+    const scan: ReceiptScanResult = {
+      items: [{ name: 'Gratin', amountCents: 650 }, { name: 'Set', amountCents: 900 }, { name: 'Set', amountCents: 900 }, { name: 'Set', amountCents: 900 }],
+      serviceChargeBps: null,
+      gstBps: 900,
+      totalCents: 3350,
+    }
+    const d = applyScan(newDraft(ME, IDS, '2026-11-19'), scan)
+    expect(d).toMatchObject({ serviceOn: false, gstOn: false, charges: { serviceChargeBps: 1000, gstBps: 900 } })
+    const assigned = { ...d, description: 'Lunch', items: d.items.map((i) => ({ ...i, userIds: [ME] })) }
+    const s = summarize(assigned, IDS, 'SGD')
+    expect(s.amountCents).toBe(3350)
+    expect(s.check).toBeNull()
+  })
+
   it('applyScan still pins the receipt total', () => {
     const scan: ReceiptScanResult = { items: [{ name: 'Laksa', amountCents: 6000 }], serviceChargeBps: 1000, gstBps: 900, totalCents: 9352 }
     expect(applyScan(newDraft(ME, IDS, '2026-11-19'), scan).amount).toBe('93.52')

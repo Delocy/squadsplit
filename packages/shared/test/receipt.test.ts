@@ -4,6 +4,7 @@ import {
   ReceiptScanResult,
   ScanReceiptInput,
   normalizeReceiptScan,
+  receiptChargesIncluded,
   receiptItemsTotal,
   receiptTotalMatches,
 } from '../src/index'
@@ -130,5 +131,42 @@ describe('receipt total check', () => {
 
   it('is null when the receipt shows no total', () => {
     expect(receiptTotalMatches({ ...base, serviceChargeBps: 1000, gstBps: 900, totalCents: null })).toBeNull()
+  })
+})
+
+describe('receipts whose prices already include the charges', () => {
+  const cafe = {
+    items: [
+      { name: 'Scallop Cream Gratin', amountCents: 650 },
+      { name: 'Lunch set', amountCents: 900 },
+      { name: 'Lunch set', amountCents: 900 },
+      { name: 'Lunch set', amountCents: 900 },
+    ],
+    serviceChargeBps: null,
+    gstBps: 900,
+    totalCents: 3350,
+  }
+
+  it('spots a total that equals the plain items although a charge is listed, and counts it as matching', () => {
+    expect(receiptChargesIncluded(cafe)).toBe(true)
+    expect(receiptTotalMatches(cafe)).toBe(true)
+  })
+
+  it('is false for a receipt whose total has the charges on top, which matches as before', () => {
+    const sg = { items: [{ name: 'Laksa', amountCents: 6000 }, { name: 'Satay', amountCents: 1800 }], serviceChargeBps: 1000, gstBps: 900, totalCents: 9352 }
+    expect(receiptChargesIncluded(sg)).toBe(false)
+    expect(receiptTotalMatches(sg)).toBe(true)
+  })
+
+  it('is false without charges or without a total', () => {
+    expect(receiptChargesIncluded({ ...cafe, gstBps: null })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, gstBps: 0, serviceChargeBps: 0 })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, totalCents: null })).toBe(false)
+  })
+
+  it('is false, and does not match, when the items are off from the total both ways', () => {
+    const off = { ...cafe, totalCents: 3400 }
+    expect(receiptChargesIncluded(off)).toBe(false)
+    expect(receiptTotalMatches(off)).toBe(false)
   })
 })
