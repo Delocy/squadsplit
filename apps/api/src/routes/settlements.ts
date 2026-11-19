@@ -1,28 +1,13 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { z } from 'zod'
-import { CreateSettlementInput, maxSettlementAmount, type SettlementDTO } from '@squadsplit/shared'
+import { CreateSettlementInput, ListSettlementsQuery, maxSettlementAmount } from '@squadsplit/shared'
 import { findActiveRole, requireMember } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
-import { SETTLEMENT_STATUSES, settlements } from '../db/schema'
+import { settlements } from '../db/schema'
+import { toSettlementDTO } from '../db/settlements'
 import type { AppEnv } from '../env'
 import { HttpError, parseBody } from '../errors'
-
-const ListSettlementsQuery = z.object({ status: z.enum(SETTLEMENT_STATUSES).optional() })
-
-type SettlementRow = typeof settlements.$inferSelect
-
-const toDTO = (s: SettlementRow): SettlementDTO => ({
-  id: s.id,
-  groupId: s.groupId,
-  fromUserId: s.fromUserId,
-  toUserId: s.toUserId,
-  amountCents: s.amountCents,
-  status: s.status,
-  createdAt: s.createdAt,
-  resolvedAt: s.resolvedAt,
-})
 
 /** Who may move a pending settlement to which status: the creditor confirms or rejects, the debtor cancels. */
 const TRANSITIONS = {
@@ -49,7 +34,7 @@ async function transition(d: Db, settlementId: string, userId: string, action: k
     .where(and(eq(settlements.id, settlementId), eq(settlements.status, 'pending')))
     .returning()
   if (!updated) throw new HttpError(409, 'not_pending', 'This settlement is no longer pending')
-  return toDTO(updated)
+  return toSettlementDTO(updated)
 }
 
 /** Routes under /groups/:id: start and list the group's settlements. */
@@ -65,7 +50,7 @@ export function groupSettlementRoutes() {
         .from(settlements)
         .where(and(eq(settlements.groupId, groupId), status ? eq(settlements.status, status) : undefined))
         .orderBy(desc(settlements.createdAt), desc(settlements.id))
-      return c.json(rows.map(toDTO))
+      return c.json(rows.map(toSettlementDTO))
     })
 
     .post('/:id/settlements', async (c) => {
@@ -96,7 +81,7 @@ export function groupSettlementRoutes() {
           resolvedAt: null,
         })
         .returning()
-      return c.json(toDTO(created!), 201)
+      return c.json(toSettlementDTO(created!), 201)
     })
 }
 

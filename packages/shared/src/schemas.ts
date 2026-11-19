@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { CATEGORIES, CURRENCIES, type Category, type Currency } from './money'
-import type { SettlementStatus, Transfer } from './ledger'
+import { SETTLEMENT_STATUSES, type SettlementStatus, type Transfer } from './ledger'
 import type { Badge } from './fun'
 import { itemizedTotal, type BillItem } from './itemized'
 
@@ -98,6 +98,9 @@ export type UpdateExpenseInput = CreateExpenseInput
 
 export const CreateSettlementInput = z.object({ toUserId: id, amountCents })
 export type CreateSettlementInput = z.infer<typeof CreateSettlementInput>
+/** Query string of `GET /groups/:id/settlements`. */
+export const ListSettlementsQuery = z.object({ status: z.enum(SETTLEMENT_STATUSES).optional() })
+export type ListSettlementsQuery = z.infer<typeof ListSettlementsQuery>
 
 // ---- DTOs (types only) ----
 

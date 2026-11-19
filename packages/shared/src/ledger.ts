@@ -1,6 +1,7 @@
 import type { Cents } from './money'
 
-export type SettlementStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled'
+export const SETTLEMENT_STATUSES = ['pending', 'confirmed', 'rejected', 'cancelled'] as const
+export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number]
 export interface LedgerShare { userId: string; amountCents: Cents }
 export interface LedgerExpense {
   id: string

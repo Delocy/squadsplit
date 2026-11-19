@@ -27,11 +27,16 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
 }
 
 /**
- * A group's expenses (newest `spentOn` first, then newest `createdAt`), or the one expense with that id
- * (an empty array if there is none). `locked` is worked out against the group's confirmed settlements.
+ * A group's expenses (newest `spentOn` first, then newest `createdAt`), the one expense with that id
+ * (an empty array if there is none), or the expenses with those ids (at most ~90, D1's parameter limit). `locked` is worked out against the group's confirmed settlements.
  */
-export async function loadExpenses(d: Db, filter: { groupId: string } | { expenseId: string }): Promise<ExpenseDTO[]> {
-  const where = 'groupId' in filter ? eq(expenses.groupId, filter.groupId) : eq(expenses.id, filter.expenseId)
+export async function loadExpenses(d: Db, filter: { groupId: string } | { expenseId: string } | { expenseIds: string[] }): Promise<ExpenseDTO[]> {
+  const where =
+    'groupId' in filter
+      ? eq(expenses.groupId, filter.groupId)
+      : 'expenseId' in filter
+        ? eq(expenses.id, filter.expenseId)
+        : inArray(expenses.id, filter.expenseIds)
   const [rows, shareRows, itemRows, itemUserRows, settlementRows] = await d.batch([
     d
       .select()

@@ -7,6 +7,7 @@ import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
 import { HttpError, errorBody, handleError } from './errors'
 import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
+import { funRoutes } from './routes/fun'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
@@ -65,6 +66,7 @@ export function createApp(deps: AuthDeps) {
   app.route('/groups', groupRoutes())
   app.route('/groups', groupExpenseRoutes())
   app.route('/groups', groupSettlementRoutes())
+  app.route('/groups', funRoutes())
   app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
   app.route('/settlements', settlementRoutes())
