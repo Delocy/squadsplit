@@ -257,6 +257,7 @@ describe('a guest token', () => {
     expect((await as(`/groups/${other.id}`)).status).toBe(404)
     expect((await as(`/groups/${other.id}/expenses`)).status).toBe(404)
     expect((await expense(other.id, { amountCents: 100, paidBy: 'alice', split: { type: 'equal', participantIds: ['alice'] } }, as)).status).toBe(404)
+    expect((await as('/groups/%E0%A4%A')).status).toBe(404)
   })
 
   it('is 403 on owner-only routes', async () => {
