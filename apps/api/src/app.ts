@@ -9,8 +9,10 @@ import { funRoutes } from './routes/fun'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
-import { RECEIPT_SCAN_PATH, receiptRoutes } from './routes/receipts'
+import { quickSplitRoutes } from './routes/quickSplits'
+import { RECEIPT_SCAN_PATH, receiptRoutes, standaloneReceiptRoutes } from './routes/receipts'
 import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
+import { shareLinkRoutes } from './routes/shareLinks'
 import { ensureUser, isPlaceholderId } from './users'
 
 /** The largest request body on every route except a receipt scan. */
@@ -40,7 +42,7 @@ export function createApp(deps: AuthDeps) {
     cors({
       origin: (origin, c) => (origin === (c.env as AppEnv['Bindings']).WEB_ORIGIN ? origin : null),
       allowHeaders: ['Authorization', 'Content-Type'],
-      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     }),
   )
 
@@ -49,6 +51,10 @@ export function createApp(deps: AuthDeps) {
   // Bodies are small JSON everywhere except a receipt scan, which brings its photo and sets its own larger limit.
   const smallBodies = bodyLimit({ maxSize: BODY_LIMIT, onError: payloadTooLarge })
   app.use('*', (c, next) => (RECEIPT_SCAN_PATH.test(c.req.path) ? next() : smallBodies(c, next)))
+
+  // A quick split's share link works with no sign-in, so it is mounted before authentication: its handlers answer
+  // without ever reaching the middleware below.
+  app.route('/s', shareLinkRoutes())
 
   app.use('*', authenticate(deps))
   // /me upserts the user itself with a fresh profile, so it is mounted before ensureUser.
@@ -63,6 +69,8 @@ export function createApp(deps: AuthDeps) {
   app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
   app.route('/settlements', settlementRoutes())
+  app.route('/quick-splits', quickSplitRoutes())
+  app.route('/receipts', standaloneReceiptRoutes())
 
   return app
 }

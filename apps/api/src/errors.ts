@@ -6,7 +6,7 @@ import type { ApiErrorBody } from '@squadsplit/shared'
 
 export class HttpError extends Error {
   constructor(
-    readonly status: 401 | 403 | 404 | 409 | 413 | 422 | 429 | 503,
+    readonly status: 401 | 403 | 404 | 409 | 410 | 413 | 422 | 429 | 503,
     readonly code: string,
     message: string,
   ) {

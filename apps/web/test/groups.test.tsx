@@ -74,7 +74,7 @@ describe('Groups page', () => {
     it.each([['a code that is too short', 'ABC234'], ['a code with letters that codes never use', 'ABCD0I1L']])(
       'explains %s and stays put',
       async (_, typed) => {
-        const calls = fakeApi({ 'GET /groups': () => ({ status: 200, body: [group({})] }) })
+        const calls = fakeApi({ 'GET /groups': () => ({ status: 200, body: [group({})] }), 'GET /quick-splits': () => ({ status: 200, body: [] }) })
         const router = renderApp('/groups')
 
         const form = await joinForm()
@@ -83,7 +83,7 @@ describe('Groups page', () => {
 
         expect(form.getByRole('alert').textContent).toMatch(/8 letters and numbers/)
         expect(router.state.location.pathname).toBe('/groups')
-        expect(calls.map((c) => c.key)).toEqual(['GET /groups'])
+        expect(calls.map((c) => c.key).sort()).toEqual(['GET /groups', 'GET /quick-splits'])
       },
     )
 

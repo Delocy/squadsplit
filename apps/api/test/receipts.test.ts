@@ -369,3 +369,39 @@ describe('POST /groups/:id/receipts/scan', () => {
     expect(await scansOf('alice')).toBe(1)
   })
 })
+
+describe('POST /receipts/scan (no group, for a quick split)', () => {
+  const scanAlone = (as = alice, body: unknown = { imageBase64: JPEG, mimeType: 'image/jpeg' }) => as('/receipts/scan', json('POST', body))
+
+  it('reads the receipt the same way, for any signed-in user', async () => {
+    const res = await scanAlone(carol)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ...SG_RECEIPT, totalMatches: true, source: 'ai' })
+    expect(await scansOf('carol')).toBe(1)
+  })
+
+  it('shares the daily quota with the group route', async () => {
+    const group = await newGroup()
+    await setScans('alice', RECEIPT_SCANS_PER_USER_PER_DAY - 2)
+    expect((await scan(group.id)).status).toBe(200)
+    expect((await scanAlone()).status).toBe(200)
+    const over = await scanAlone()
+    expect(over.status).toBe(429)
+    expect(((await over.json()) as ApiErrorBody).error.code).toBe('scan_limit')
+    expect((await scan(group.id)).status).toBe(429)
+    expect(await scansOf('alice')).toBe(RECEIPT_SCANS_PER_USER_PER_DAY)
+  })
+
+  it('takes a photo bigger than 64 KB, and refuses a body over 2 MB with 413', async () => {
+    const bigButFine = await scanAlone(alice, { imageBase64: JPEG + 'A'.repeat(100_000), mimeType: 'image/jpeg' })
+    expect(bigButFine.status).not.toBe(413)
+    const tooBig = await scanAlone(alice, { imageBase64: 'A'.repeat(2 * 1024 * 1024), mimeType: 'image/jpeg' })
+    expect(tooBig.status).toBe(413)
+    expect(ai.run).not.toHaveBeenCalled()
+  })
+
+  it('answers 422 not_an_image and 401 without a session, like the group route', async () => {
+    expect((await scanAlone(alice, { imageBase64: btoa('hello world!'), mimeType: 'image/png' })).status).toBe(422)
+    expect((await app.anon('/receipts/scan', json('POST', { imageBase64: JPEG, mimeType: 'image/jpeg' }))).status).toBe(401)
+  })
+})

@@ -10,6 +10,7 @@ import { PageLink } from '../components/PageLink'
 import { GroupsSkeleton } from '../components/Skeletons'
 import { lookOf } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
+import { QuickSplitButton, RecentQuickSplits } from '../quick/RecentQuickSplits'
 import { queryKeys } from '../queryKeys'
 
 function balanceText(cents: number): { label: string; mood: Mood } {
@@ -61,7 +62,12 @@ export function Groups() {
     <main className="narrow page">
       <div className="page-h">
         <h2>Your groups</h2>
-        {groups.data?.length !== 0 && <NewGroupButton />}
+        {groups.data?.length !== 0 && (
+          <div className="qs-entry">
+            <NewGroupButton />
+            <QuickSplitButton />
+          </div>
+        )}
       </div>
       {groups.data?.length !== 0 && (
         <div className="page-h">
@@ -77,7 +83,10 @@ export function Groups() {
           </div>
           <h3>No groups yet</h3>
           <p className="empty">Start one for your next trip or dinner, or join a friend's with their invite code.</p>
-          <NewGroupButton />
+          <div className="qs-entry">
+            <NewGroupButton />
+            <QuickSplitButton />
+          </div>
           <JoinWithCode />
         </section>
       )}
@@ -88,6 +97,7 @@ export function Groups() {
           ))}
         </ul>
       )}
+      <RecentQuickSplits />
     </main>
   )
 }

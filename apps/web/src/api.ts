@@ -21,6 +21,7 @@ export interface ApiClient {
   get<T>(path: string): Promise<T>
   post<T>(path: string, body?: unknown): Promise<T>
   patch<T>(path: string, body: unknown): Promise<T>
+  put<T>(path: string, body: unknown): Promise<T>
   del(path: string): Promise<void>
 }
 
@@ -30,7 +31,8 @@ const isErrorBody = (v: unknown): v is ApiErrorBody =>
 export function createApiClient(
   baseUrl: string,
   getToken: () => Promise<string | null>,
-  fetchFn: typeof fetch = fetch,
+  // Looked up on each request, not when the client is made (publicApi is made once, at load).
+  fetchFn: typeof fetch = (input, init) => fetch(input, init),
 ): ApiClient {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers = new Headers()
@@ -70,6 +72,7 @@ export function createApiClient(
     get: (path) => request('GET', path),
     post: (path, body) => request('POST', path, body),
     patch: (path, body) => request('PATCH', path, body),
+    put: (path, body) => request('PUT', path, body),
     del: async (path) => {
       await request<void>('DELETE', path)
     },
@@ -88,6 +91,9 @@ export function apiBaseUrl(raw: string | undefined): string {
 }
 
 const API_URL = apiBaseUrl(import.meta.env.VITE_API_URL)
+
+/** The API client for pages anyone may open without signing in (a quick split's share link). It never needs Clerk. */
+export const publicApi: ApiClient = createApiClient(API_URL, async () => null)
 
 /** The API client for the signed-in user: every request carries their Clerk session token. */
 export function useApi(): ApiClient {

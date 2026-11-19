@@ -26,6 +26,21 @@ function cacheControlFor(path: string): string | undefined {
   return value
 }
 
+/** Every value the `_headers` rules give `name` for `path`, in order. */
+function headerValues(path: string, name: string): string[] {
+  const values: string[] = []
+  let applies = false
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    if (line.trim() === '' || line.trim().startsWith('#')) continue
+    if (!/^\s/.test(line)) applies = new RegExp(`^${line.trim().replace(/[.]/g, '\\.').replace(/\*/g, '.*')}$`).test(path)
+    else if (applies) {
+      const m = new RegExp(`^${name}:\\s*(.+)$`, 'i').exec(line.trim())
+      if (m) values.push(m[1]!)
+    }
+  }
+  return values
+}
+
 // Pages publishes `public/` as is, so these are the live site's caching rules.
 describe('Cloudflare Pages cache headers', () => {
   it('exists', () => {
@@ -39,5 +54,11 @@ describe('Cloudflare Pages cache headers', () => {
   it('caches the hashed build assets for a year', () => {
     expect(cacheControlFor('/assets/index-3f9a1c.js')).toBe('public, max-age=31536000, immutable')
     expect(cacheControlFor('/assets/index-3f9a1c.css')).toBe('public, max-age=31536000, immutable')
+  })
+
+  it("keeps quick split share links out of search engines, and nothing else", () => {
+    expect(headerValues('/s/7fK2qaAAAAAAAAAAAAAAAA', 'X-Robots-Tag')).toEqual(['noindex'])
+    for (const path of ['/', '/groups/g1', '/quick/q1']) expect(headerValues(path, 'X-Robots-Tag')).toEqual([])
+    expect(cacheControlFor('/s/7fK2qaAAAAAAAAAAAAAAAA')).toBe('no-cache')
   })
 })

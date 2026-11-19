@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { expect, it } from 'vitest'
 
-const TABLES = ['receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
+const TABLES = ['quick_split_ticks', 'quick_split_item_people', 'quick_split_items', 'quick_split_people', 'quick_splits', 'receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
 
 it('0001_itemized_currency keeps existing expenses and their shares, taking the currency from the group', async () => {
   for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
@@ -138,4 +138,34 @@ it('0005_named_members_profile_look makes every existing user a person with no p
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expense_shares').first('n')).toBe(1)
   await env.DB.prepare(`INSERT INTO users (id, display_name, created_at, kind) VALUES ('ph_1', 'Dave', '2026-11-19T00:00:00.000Z', 'placeholder')`).run()
   expect(await env.DB.prepare(`SELECT kind FROM users WHERE id = 'ph_1'`).first('kind')).toBe('placeholder')
+})
+
+it('0006_quick_splits adds empty quick-split tables without touching existing rows, with one payer per split', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 6))
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', NULL, '2026-11-01T00:00:00.000Z', 'person', 'fox', 'peach')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first('n')).toBe(1)
+  for (const table of ['quick_splits', 'quick_split_people', 'quick_split_items', 'quick_split_item_people', 'quick_split_ticks']) {
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first('n')).toBe(0)
+  }
+  const now = '2026-11-19T00:00:00.000Z'
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO quick_splits (id, owner_id, title, spent_on, service_charge_bps, gst_bps, share_token, created_at, updated_at) VALUES ('q1', 'alice', 'Lunch', '2026-11-19', 1000, 900, 'tok', ?, ?)`).bind(now, now),
+    env.DB.prepare(`INSERT INTO quick_split_people (id, split_id, name, animal, color, position, is_payer) VALUES ('p1', 'q1', 'Dan', 'fox', 'peach', 0, 1)`),
+    env.DB.prepare(`INSERT INTO quick_split_people (id, split_id, name, animal, color, position) VALUES ('p2', 'q1', 'Wei Ling', 'koala', 'lilac', 1)`),
+  ])
+  expect(await env.DB.prepare(`SELECT currency FROM quick_splits WHERE id = 'q1'`).first('currency')).toBe('SGD')
+  expect(await env.DB.prepare(`SELECT is_payer FROM quick_split_people WHERE id = 'p2'`).first('is_payer')).toBe(0)
+  await expect(env.DB.prepare(`UPDATE quick_split_people SET is_payer = 1 WHERE id = 'p2'`).run()).rejects.toThrow(/UNIQUE constraint failed/)
+  await expect(
+    env.DB.prepare(`INSERT INTO quick_splits (id, owner_id, title, spent_on, share_token, created_at, updated_at) VALUES ('q2', 'alice', 'Again', '2026-11-19', 'tok', ?, ?)`).bind(now, now).run(),
+  ).rejects.toThrow(/UNIQUE constraint failed/)
+  await env.DB.prepare(`DELETE FROM quick_splits WHERE id = 'q1'`).run()
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM quick_split_people').first('n')).toBe(0)
 })

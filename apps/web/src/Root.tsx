@@ -6,21 +6,34 @@ import { RouterProvider } from 'react-router/dom'
 import { isRetryable } from './api'
 import { LogoPup } from './components/Logo'
 import { Setup } from './pages/Setup'
-import { routes } from './routes'
+import { PUBLIC_PATH, routes } from './routes'
 
 /** The whole app. Without a Clerk key it shows setup steps instead, so it can be previewed before Clerk exists. */
 export function Root({ publishableKey }: { publishableKey: string | undefined }) {
+  // A share link opened by a friend with no account: it must work even if Clerk never loads, so Clerk isn't started.
+  if (PUBLIC_PATH.test(window.location.pathname)) return <PublicApp />
   if (!publishableKey) return <Setup />
   return <App publishableKey={publishableKey} />
 }
 
-function App({ publishableKey }: { publishableKey: string }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: { queries: { retry: (count, error) => count < 2 && isRetryable(error) } },
-      }),
+const newQueryClient = () =>
+  new QueryClient({
+    defaultOptions: { queries: { retry: (count, error) => count < 2 && isRetryable(error) } },
+  })
+
+/** The public pages alone, with no ClerkProvider. Their links back into the app reload the page, which starts Clerk. */
+function PublicApp() {
+  const [queryClient] = useState(newQueryClient)
+  const [router] = useState(() => createBrowserRouter(routes))
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   )
+}
+
+function App({ publishableKey }: { publishableKey: string }) {
+  const [queryClient] = useState(newQueryClient)
   const [router] = useState(() => createBrowserRouter(routes))
   return (
     <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">

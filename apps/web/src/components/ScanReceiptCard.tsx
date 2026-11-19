@@ -21,8 +21,8 @@ type State =
 const PHOTO_TYPES = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif'
 
 /**
- * The receipt card at the top of a new expense: take a photo (camera, or one from the gallery), read it, and hand
- * the items to `onScan`, which fills the form in By item. Asks first if the user has entered amounts or items
+ * The receipt card at the top of a new expense or a quick split's bill: take a photo (camera, or one from the
+ * gallery), read it, and hand the items to `onScan`, which fills in the items. Asks first if the user has entered amounts or items
  * already. Never saves anything.
  */
 export function ScanReceiptCard({
@@ -31,7 +31,8 @@ export function ScanReceiptCard({
   hasEnteredAmounts,
   onScan,
 }: {
-  groupId: string
+  /** The group the expense is in; null for a quick split, which has none. */
+  groupId: string | null
   currency: Currency
   /** Whether a scan would replace something the user typed. */
   hasEnteredAmounts: boolean
