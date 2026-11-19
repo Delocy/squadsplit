@@ -10,14 +10,13 @@ import { CategoryIcon, UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
 import { Check } from './art'
-import { clockTime, dayLabel, money, shareUrl, shortLink, titleWithPlace } from './format'
+import { clockTime, dayLabel, localToday, money, shareUrl, shortLink, titleWithPlace } from './format'
 import { useStoreQuickSplit } from './quickData'
 
 type Person = QuickSplitDTO['people'][number]
 
-const today = () => new Date().toLocaleDateString('en-CA')
 /** "Today", or "Thu 19 Nov". */
-export const whenLabel = (spentOn: string) => (spentOn === today() ? 'Today' : dayLabel(spentOn))
+export const whenLabel = (spentOn: string) => (spentOn === localToday() ? 'Today' : dayLabel(spentOn))
 
 /** "2 of 3 paid" (the payer counts as paid), or "All paid". */
 export const progressLabel = (paid: number, of: number) => (paid === of ? 'All paid' : `${paid} of ${of} paid`)

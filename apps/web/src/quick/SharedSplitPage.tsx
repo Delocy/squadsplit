@@ -66,11 +66,10 @@ function TopStrip() {
 /** The page instead of the split: a link that's off (410), unknown (404), or a read that failed. */
 function ProblemCard({ error }: { error: unknown }) {
   const status = error instanceof ApiError ? error.status : 0
+  // A stopped or expired link: the API's message names who to ask.
   const message =
-    status === 410
-      ? error instanceof ApiError
-        ? error.message
-        : ''
+    error instanceof ApiError && status === 410
+      ? error.message
       : status === 404
         ? "We can't find this split. Check you copied the whole link, or ask whoever paid for it again."
         : "Can't load this split right now. Check your connection and try again."

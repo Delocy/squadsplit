@@ -12,6 +12,9 @@ export const payerOf = (s: SplitView) => s.people.find((p) => p.id === s.payerId
 /** Everyone who owes the payer, in the order entered. */
 export const guestsOf = (s: SplitView) => s.people.filter((p) => p.id !== s.payerId)
 
+/** Today as YYYY-MM-DD, in the viewer's own time zone. */
+export const localToday = () => new Date().toLocaleDateString('en-CA')
+
 /** "Thu 19 Nov" for a YYYY-MM-DD day, whatever the time zone. */
 export function dayLabel(spentOn: string): string {
   return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })

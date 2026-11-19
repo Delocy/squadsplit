@@ -75,7 +75,7 @@ export function removePerson(d: QuickDraft, key: string): QuickDraft {
 }
 
 /** A fresh split: you (on your profile look) paid, both SG charges on. */
-export function newQuickDraft(myName: string, today: string, myLook: AvatarChoice = defaultAvatar('me')): QuickDraft {
+export function newQuickDraft(myName: string, today: string, myLook: AvatarChoice): QuickDraft {
   const me: DraftPerson = { key: newKey('p'), name: myName, avatar: myLook }
   return {
     title: '',

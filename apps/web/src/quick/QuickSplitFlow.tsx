@@ -13,12 +13,11 @@ import { useMe } from '../useProfileRefresh'
 import { AssignStep } from './AssignStep'
 import { BillStep } from './BillStep'
 import { billProblem, draftFromSplit, newQuickDraft, peopleProblem, toInput, type QuickDraft } from './draft'
+import { localToday } from './format'
 import { PeopleStep } from './PeopleStep'
 import { useQuickSplit, useStoreQuickSplit } from './quickData'
 import { StepBar, type Step } from './StepBar'
 import './quick.css'
-
-const today = () => new Date().toLocaleDateString('en-CA') // YYYY-MM-DD in the local time zone
 
 /** Your profile name as it can go on the card (24 characters, no emoji), or nothing for you to type it. */
 const cardName = (displayName: string | undefined) =>
@@ -117,7 +116,7 @@ export function NewQuickSplit() {
     )
   }
   const look = me.data?.profileAvatar ?? defaultAvatar(userId ?? '')
-  return <Flow initial={newQuickDraft(cardName(me.data?.displayName), today(), look)} />
+  return <Flow initial={newQuickDraft(cardName(me.data?.displayName), localToday(), look)} />
 }
 
 /** `/quick/:splitId/edit`: back into the flow with the split as saved; saving replaces it. */

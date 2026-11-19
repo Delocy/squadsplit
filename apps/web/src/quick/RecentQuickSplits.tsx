@@ -1,6 +1,6 @@
 import { PageLink } from '../components/PageLink'
 import { CategoryIcon, UiIcon } from '../design/icons'
-import { money } from './format'
+import { money, titleWithPlace } from './format'
 import { progressLabel, whenLabel } from './QuickHistory'
 import { useQuickSplits } from './quickData'
 import './quick.css'
@@ -33,7 +33,7 @@ export function RecentQuickSplits() {
                 <CategoryIcon category="🍕" />
               </span>
               <span className="grow">
-                <span className="t">{s.place ? `${s.title}, ${s.place}` : s.title}</span>
+                <span className="t">{titleWithPlace(s)}</span>
                 <span className="s">
                   {whenLabel(s.spentOn)} · {s.peopleCount} people{s.link === 'off' && ' · Link off'}
                 </span>

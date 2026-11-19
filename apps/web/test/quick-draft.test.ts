@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReceiptScanResult } from '@squadsplit/shared'
 import { applyScan, billSoFar, newQuickDraft, ratesOf } from '../src/quick/draft'
 
-const draft = () => newQuickDraft('Dan', '2026-11-19')
+const draft = () => newQuickDraft('Dan', '2026-11-19', { animal: 'fox', color: 'peach' })
 
 describe('applyScan', () => {
   it('starts both charges off when the prices already include them (the café example), keeping the rates to turn on by hand', () => {
