@@ -8,6 +8,7 @@ import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
 import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
+import { WheelCard } from '../components/WheelCard'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 
@@ -46,7 +47,7 @@ export function GroupHome() {
     <main className="page">
       <div className="summary">
         {balances.data ? (
-          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} userId={me} seed={feed.data?.length ?? 0} />
+          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
         ) : (
           <section className="card balance even" aria-label="Your balance">
             {balances.isError ? <ErrorNote error={balances.error} /> : <p className="empty">Working out balances…</p>}
@@ -112,17 +113,12 @@ export function GroupHome() {
 
         <div className="col">
           <Leaderboard fun={fun.data} people={people} currency={g.currency} />
-          <section className="card wheel-card" aria-labelledby="wheel-h">
-            <h3 id="wheel-h">
-              <UiIcon name="wheel" />
-              Who pays next?
-            </h3>
-            <p className="s">Can't decide who gets the next round? Spin the wheel. People who owe more are more likely to be picked.</p>
-            <Link to={wheel} className="btn">
-              <UiIcon name="star" />
-              Spin the wheel
+          <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} compact>
+            <Link to={wheel} className="btn small ghost recent-spins">
+              <UiIcon name="clock" />
+              Recent spins
             </Link>
-          </section>
+          </WheelCard>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import {
   computeLeaderboard,
   pickWeighted,
   spinWeights,
+  spinWeightsFromBalances,
 } from '../src/index'
 
 let n = 0
@@ -154,6 +155,13 @@ describe('spinWeights', () => {
     const l = ledger({ currentMemberIds: ['A', 'B'], expenses: [exp('A', 900, { B: 300, X: 600 })] })
     expect(spinWeights(l)).toEqual({ A: 1, B: 4 })
     expect(spinWeights(ledger({ currentMemberIds: [] }))).toEqual({})
+  })
+})
+
+describe('spinWeightsFromBalances', () => {
+  test('gives the same weights as spinWeights, from balances the client already has', () => {
+    expect(spinWeightsFromBalances({ A: 450, B: -300, C: -150, X: -999 }, ['A', 'B', 'C'])).toEqual({ A: 1, B: 4, C: 2.5 })
+    expect(spinWeightsFromBalances({}, ['A', 'B'])).toEqual({ A: 1, B: 1 })
   })
 })
 

@@ -4,8 +4,8 @@ import type { ReactNode } from 'react'
 
 export const ME = 'user_me'
 export const signIn = { state: true }
-/** Set `loaded` to false to see the app while Clerk is still loading. */
-export const clerk = { loaded: true }
+/** Set `loaded` to false to see the app while Clerk is still loading, or `failed` to true when Clerk could not load. */
+export const clerk = { loaded: true, failed: false }
 
 export const useAuth = () => ({
   isLoaded: true,
@@ -21,8 +21,9 @@ export const RedirectToSignIn = (props: { signInForceRedirectUrl?: string }) => 
   <p>Redirecting to sign-in, then back to {props.signInForceRedirectUrl}</p>
 )
 
-export const ClerkLoading = ({ children }: { children: ReactNode }) => (clerk.loaded ? null : <>{children}</>)
-export const ClerkLoaded = ({ children }: { children: ReactNode }) => (clerk.loaded ? <>{children}</> : null)
+export const ClerkLoading = ({ children }: { children: ReactNode }) => (clerk.loaded || clerk.failed ? null : <>{children}</>)
+export const ClerkLoaded = ({ children }: { children: ReactNode }) => (clerk.loaded && !clerk.failed ? <>{children}</> : null)
+export const ClerkFailed = ({ children }: { children: ReactNode }) => (clerk.failed ? <>{children}</> : null)
 
 const passThrough = ({ children }: { children?: ReactNode }) => <>{children}</>
 export const SignInButton = passThrough

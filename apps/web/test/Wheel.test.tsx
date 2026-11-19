@@ -32,18 +32,26 @@ const odds = () => within(screen.getByRole('list', { name: 'Odds' }))
 const count = (calls: { key: string }[], key: string) => calls.filter((c) => c.key === key).length
 
 describe('Wheel', () => {
-  it('draws an equal slice per current member before the first spin', async () => {
-    fakeApi(groupHandlers())
+  it('draws a slice per current member, with the odds from the balances, before the first spin', async () => {
+    fakeApi(groupHandlers({ balances: { balances: { [ME]: 3000, [BOB]: -3000 }, suggestions: [] } }))
     renderApp('/groups/g1/wheel')
 
     expect(await screen.findByRole('heading', { name: 'Who pays next?' })).toBeTruthy()
     // Carol has left the group, so she is not on the wheel. Slices go in user-id order, as after a spin.
     expect(slices()).toEqual([BOB, ME])
-    expect(odds().getByText('Alice')).toBeTruthy()
+    // Bob owes the most: weight 1 + 3 = 4 against your 1.
+    expect(await odds().findByText('80%')).toBeTruthy()
+    expect(odds().getByText('Alice').querySelector('b')!.textContent).toBe('20%')
     expect(odds().getByText('Bob')).toBeTruthy()
-    expect(odds().queryByText(/%/)).toBeNull()
     expect(screen.getByText('Spin to find out')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+
+  it('gives everyone an equal slice when nobody owes anything', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1/wheel')
+    await screen.findByRole('heading', { name: 'Who pays next?' })
+    expect(odds().getAllByText('50%')).toHaveLength(2)
   })
 
   it("spins to the server's winner and announces them when the 3s animation ends", async () => {

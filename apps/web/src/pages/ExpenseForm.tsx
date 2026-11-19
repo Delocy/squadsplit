@@ -136,7 +136,7 @@ function MemberChips({
           aria-pressed={isOn(m.userId)}
           onClick={() => onToggle(m.userId)}
         >
-          <Avatar userId={m.userId} size="sm" />
+          <Avatar avatar={m.avatar} size="sm" />
           {m.displayName}
         </button>
       ))}
@@ -310,7 +310,7 @@ function ExpenseFields({
           <div className="exact">
             {active.map((m) => (
               <div className="exact-row" key={m.userId}>
-                <Avatar userId={m.userId} size="sm" />
+                <Avatar avatar={m.avatar} size="sm" />
                 <span className="who">{m.displayName}</span>
                 <input
                   id={`exact-${m.userId}`}

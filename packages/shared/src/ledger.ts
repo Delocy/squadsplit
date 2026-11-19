@@ -72,15 +72,27 @@ export function simplifyDebts(balances: Record<string, Cents>): Transfer[] {
   return out
 }
 
+/**
+ * Largest amount `from` may newly settle to `to`, from the current net balances:
+ * min(from's debt, to's credit) minus everything `from` already has waiting for confirmation.
+ */
+export function settlementCap(
+  balances: Record<string, Cents>,
+  pendingOutgoingCents: Cents,
+  fromUserId: string,
+  toUserId: string,
+): Cents {
+  if (fromUserId === toUserId) return 0
+  const cap = Math.min(-(balances[fromUserId] ?? 0), balances[toUserId] ?? 0) - pendingOutgoingCents
+  return Math.max(0, cap)
+}
+
 /** Largest amount `from` may newly settle to `to`: min(debt, credit) minus from's pending outgoing. */
 export function maxSettlementAmount(l: Ledger, fromUserId: string, toUserId: string): Cents {
-  if (fromUserId === toUserId) return 0
-  const net = computeBalances(l)
   const pending = l.settlements
     .filter((s) => s.status === 'pending' && s.fromUserId === fromUserId)
     .reduce((sum, s) => sum + s.amountCents, 0)
-  const cap = Math.min(-(net[fromUserId] ?? 0), net[toUserId] ?? 0) - pending
-  return Math.max(0, cap)
+  return settlementCap(computeBalances(l), pending, fromUserId, toUserId)
 }
 
 /** Locked once a confirmed settlement involving the payer or a participant resolved after the expense was created. */

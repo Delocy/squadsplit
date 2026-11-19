@@ -1,7 +1,8 @@
-import type { InvitePreviewDTO } from '@squadsplit/shared'
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { defaultAvatar, firstFreeAvatar, type InvitePreviewDTO } from '@squadsplit/shared'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { signIn } from './clerk-mock'
+import { animalLabel, colorLabel } from '../src/design/Avatar'
+import { ME, signIn } from './clerk-mock'
 import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -12,8 +13,17 @@ afterEach(() => {
 })
 
 const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
-  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, ...over,
+  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], ...over,
 })
+
+const animalButton = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Animal' })).getByRole('button', { name })
+const colourButton = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Colour' })).getByRole('button', { name })
+const pressed = (group: 'Animal' | 'Colour') =>
+  within(screen.getByRole('group', { name: group }))
+    .getAllByRole('button')
+    .filter((b) => b.getAttribute('aria-pressed') === 'true')
+    .map((b) => b.getAttribute('aria-label'))
+const joinBody = (calls: { key: string; body: unknown }[]) => calls.find((c) => c.key === 'POST /invites/ABCD2345/join')?.body
 
 describe('Join page', () => {
   it('previews the group, joins it and opens it', async () => {
@@ -29,7 +39,81 @@ describe('Join page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
-    expect(calls.map((c) => c.key)).toContain('POST /invites/ABCD2345/join')
+    // Your default look, and no nickname since the name was left as your profile name.
+    expect(joinBody(calls)).toEqual({ avatar: defaultAvatar(ME) })
+  })
+
+  it('pre-selects the first free look, starting from your default', async () => {
+    const taken = [defaultAvatar(ME), { animal: 'bear', color: 'sky' } as const]
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ takenAvatars: taken }) }) })
+    renderApp('/join/ABCD2345')
+
+    const expected = firstFreeAvatar(defaultAvatar(ME), taken)
+    await screen.findByRole('group', { name: 'Animal' })
+    expect(pressed('Animal')).toEqual([animalLabel(expected.animal)])
+    expect(pressed('Colour')).toEqual([colorLabel(expected.color)])
+  })
+
+  it('greys out looks other members have', async () => {
+    fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ takenAvatars: [{ animal: 'koala', color: 'mint' }] }) }),
+    })
+    renderApp('/join/ABCD2345')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Koala' }))
+    expect((colourButton(/Mint/) as HTMLButtonElement).disabled).toBe(true)
+    expect(colourButton(/Mint/).getAttribute('title')).toBe('Taken')
+  })
+
+  it('joins with the chosen look and nickname, previewing them together', async () => {
+    const calls = fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview() }),
+      'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+    })
+    renderApp('/join/ABCD2345')
+
+    const nickname = (await screen.findByLabelText('What should this group call you?')) as HTMLInputElement
+    await vi.waitFor(() => expect(nickname.value).toBe('Me'))
+    expect(nickname.placeholder).toBe('Me')
+    fireEvent.change(nickname, { target: { value: '  Captain ' } })
+    fireEvent.click(animalButton('Koala'))
+    fireEvent.click(colourButton('Mint'))
+
+    const you = screen.getByRole('img', { name: 'You: Koala on Mint' })
+    expect(you.parentElement!.textContent).toContain('Captain')
+    fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+
+    await vi.waitFor(() => expect(joinBody(calls)).toEqual({ avatar: { animal: 'koala', color: 'mint' }, nickname: 'Captain' }))
+  })
+
+  it('asks for a shorter nickname without emoji instead of joining', async () => {
+    const calls = fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview() }) })
+    renderApp('/join/ABCD2345')
+
+    fireEvent.change(await screen.findByLabelText('What should this group call you?'), { target: { value: 'Cap 🍕' } })
+    fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+
+    expect(await screen.findByText('Keep it to 24 characters, with no emoji.')).toBeTruthy()
+    expect(joinBody(calls)).toBeUndefined()
+  })
+
+  it('explains a look taken just before joining, refetches, and moves to a free one', async () => {
+    let taken: InvitePreviewDTO['takenAvatars'] = []
+    const calls = fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ takenAvatars: taken }) }),
+      'POST /invites/ABCD2345/join': () => {
+        taken = [defaultAvatar(ME)]
+        return { status: 409, body: { error: { code: 'avatar_taken', message: 'Conflict' } } }
+      },
+    })
+    renderApp('/join/ABCD2345')
+    fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+
+    expect(await screen.findByText('Someone in this group already looks like that — pick another.')).toBeTruthy()
+    await vi.waitFor(() => expect(calls.filter((c) => c.key === 'GET /invites/ABCD2345')).toHaveLength(2))
+    const next = firstFreeAvatar(defaultAvatar(ME), [defaultAvatar(ME)])
+    await vi.waitFor(() => expect(pressed('Colour')).toEqual([colorLabel(next.color)]))
+    expect(pressed('Animal')).toEqual([animalLabel(next.animal)])
   })
 
   it('shows the loading state inside the page container', async () => {
@@ -45,6 +129,34 @@ describe('Join page', () => {
     expect(await screen.findByText(/already in this group/)).toBeTruthy()
     expect(screen.getByText('1 member')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Open group/ }).getAttribute('href')).toBe('/groups/g1')
+  })
+
+  it('says the group is full instead of offering to join', async () => {
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 12 }) }) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByText(/This group is full/)).toBeTruthy()
+    expect(screen.getByText('12 members')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
+  })
+
+  it('still opens a full group for someone already in it', async () => {
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 12, alreadyMember: true }) }) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByRole('link', { name: /Open group/ })).toBeTruthy()
+    expect(screen.queryByText(/This group is full/)).toBeNull()
+  })
+
+  it('says the group is full when it fills up before you join', async () => {
+    fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 11 }) }),
+      'POST /invites/ABCD2345/join': () => ({
+        status: 409, body: { error: { code: 'group_full', message: 'This group is full (12 people).' } },
+      }),
+    })
+    renderApp('/join/ABCD2345')
+    fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+    expect(await screen.findByText(/This group is full/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
   })
 
   it('explains a dead invite link', async () => {

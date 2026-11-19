@@ -39,6 +39,11 @@ export const memberships = sqliteTable(
     role: text('role', { enum: ROLES }).notNull(),
     joinedAt: text('joined_at').notNull(),
     leftAt: text('left_at'),
+    /** The member's look in this group. Null (rows from before 0002) means their default; see effectiveAvatar. */
+    avatarAnimal: text('avatar_animal'),
+    avatarColor: text('avatar_color'),
+    /** What the member is called in this group. Null means their profile name (users.display_name). */
+    nickname: text('nickname'),
   },
   (t) => [
     primaryKey({ columns: [t.groupId, t.userId] }),

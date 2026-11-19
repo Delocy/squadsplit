@@ -3,7 +3,10 @@ import {
   CreateExpenseInput,
   CreateGroupInput,
   CreateSettlementInput,
+  JoinGroupInput,
+  Nickname,
   UpdateGroupInput,
+  UpdateMemberInput,
 } from '../src/schemas'
 
 const base = {
@@ -181,5 +184,69 @@ describe('CreateExpenseInput itemized', () => {
     expect(CreateExpenseInput.safeParse({ ...base, currency: 'USD' }).success).toBe(true)
     expect(CreateExpenseInput.safeParse({ ...base, currency: 'JPY' }).success).toBe(false)
     expect(CreateExpenseInput.safeParse(base).success).toBe(true)
+  })
+})
+
+describe('Nickname', () => {
+  it('trims and keeps 1 to 24 characters', () => {
+    expect(Nickname.parse('  Bobby  ')).toBe('Bobby')
+    expect(Nickname.parse('x'.repeat(24))).toBe('x'.repeat(24))
+    expect(Nickname.safeParse('x'.repeat(25)).success).toBe(false)
+  })
+
+  it('reads an empty or blank string as "no nickname" (null)', () => {
+    expect(Nickname.parse('')).toBeNull()
+    expect(Nickname.parse('   ')).toBeNull()
+  })
+
+  it('rejects control characters and emoji', () => {
+    expect(Nickname.safeParse('Bob\u0000by').success).toBe(false)
+    expect(Nickname.safeParse('Bob\nby').success).toBe(false)
+    expect(Nickname.safeParse('Bob 🍕').success).toBe(false)
+    expect(Nickname.safeParse('Zoë-Ann').success).toBe(true)
+  })
+})
+
+describe('CreateGroupInput nickname', () => {
+  it('is optional, trimmed, and blank means none', () => {
+    expect(CreateGroupInput.parse({ name: 'NYC', emoji: '🧡' }).nickname).toBeUndefined()
+    expect(CreateGroupInput.parse({ name: 'NYC', emoji: '🧡', nickname: ' Al ' }).nickname).toBe('Al')
+    expect(CreateGroupInput.parse({ name: 'NYC', emoji: '🧡', nickname: '' }).nickname).toBeNull()
+    // Its own output parses again, so the web can send what it validated.
+    expect(CreateGroupInput.parse({ name: 'NYC', emoji: '🧡', nickname: null }).nickname).toBeNull()
+    expect(CreateGroupInput.safeParse({ name: 'NYC', emoji: '🧡', nickname: 'Al 🍕' }).success).toBe(false)
+  })
+})
+
+describe('JoinGroupInput', () => {
+  it('accepts no avatar or a palette avatar', () => {
+    expect(JoinGroupInput.parse({})).toEqual({})
+    expect(JoinGroupInput.parse({ avatar: { animal: 'fox', color: 'peach' } })).toEqual({ avatar: { animal: 'fox', color: 'peach' } })
+  })
+
+  it('takes an optional nickname', () => {
+    expect(JoinGroupInput.parse({ nickname: ' Bobby ' })).toEqual({ nickname: 'Bobby' })
+    expect(JoinGroupInput.parse({ nickname: null })).toEqual({ nickname: null })
+    expect(JoinGroupInput.safeParse({ nickname: 'x'.repeat(25) }).success).toBe(false)
+  })
+
+  it('rejects an avatar outside the palette', () => {
+    expect(JoinGroupInput.safeParse({ avatar: { animal: 'dog', color: 'peach' } }).success).toBe(false)
+  })
+})
+
+describe('UpdateMemberInput', () => {
+  it('takes an avatar, a nickname, or both', () => {
+    expect(UpdateMemberInput.parse({ avatar: { animal: 'fox', color: 'peach' } })).toEqual({ avatar: { animal: 'fox', color: 'peach' } })
+    expect(UpdateMemberInput.parse({ nickname: 'Bobby' })).toEqual({ nickname: 'Bobby' })
+  })
+
+  it('clears the nickname with null or an empty string', () => {
+    expect(UpdateMemberInput.parse({ nickname: null })).toEqual({ nickname: null })
+    expect(UpdateMemberInput.parse({ nickname: '' })).toEqual({ nickname: null })
+  })
+
+  it('needs at least one field', () => {
+    expect(UpdateMemberInput.safeParse({}).success).toBe(false)
   })
 })

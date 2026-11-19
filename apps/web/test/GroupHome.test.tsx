@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { AVATAR_COLORS, defaultAvatar } from '@squadsplit/shared'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
-import { BOB, CAROL, expense, group, groupHandlers, settlement } from './group-fixtures'
+import { BOB, BOB_AVATAR, CAROL, expense, group, groupHandlers, member, ME_AVATAR, settlement } from './group-fixtures'
 import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -38,13 +39,55 @@ describe('Group home', () => {
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
   })
 
-  it('links Add expense to the form and Who pays next to the wheel', async () => {
+  it('links Add expense to the form, and Who pays next and Recent spins to the wheel page', async () => {
     fakeApi(groupHandlers())
     renderApp('/groups/g1')
     const add = await screen.findAllByRole('link', { name: /Add expense/ })
     expect(add[0]!.getAttribute('href')).toBe('/groups/g1/expenses/new')
-    const wheel = screen.getAllByRole('link', { name: /Who pays next|Spin the wheel/ })
-    expect(wheel.every((a) => a.getAttribute('href') === '/groups/g1/wheel')).toBe(true)
+    expect(screen.getByRole('link', { name: /Who pays next/ }).getAttribute('href')).toBe('/groups/g1/wheel')
+    expect(region(/Who pays next/).getByRole('link', { name: /Recent spins/ }).getAttribute('href')).toBe('/groups/g1/wheel')
+  })
+
+  describe('inline wheel', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows everyone on the wheel with their odds, spins in place and announces the winner when it stops', async () => {
+      // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the 3s spin.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const calls = fakeApi(
+        groupHandlers(
+          { balances: { balances: { [ME]: 3000, [BOB]: -3000 }, suggestions: [{ fromUserId: BOB, toUserId: ME, amountCents: 3000 }] } },
+          {
+            'POST /groups/g1/spins': () => ({
+              status: 201,
+              body: { id: 'w1', groupId: 'g1', spunBy: ME, winnerId: BOB, weights: { [ME]: 1, [BOB]: 4 }, createdAt: '2026-11-19T10:00:00.000Z' },
+            }),
+          },
+        ),
+      )
+      renderApp('/groups/g1')
+      const wheel = within(await screen.findByRole('region', { name: /Who pays next/ }))
+      const odds = within(wheel.getByRole('list', { name: 'Odds' }))
+      expect(await odds.findByText('80%')).toBeTruthy()
+      expect(odds.getByText('Bob')).toBeTruthy()
+      expect(odds.getByText('Alice')).toBeTruthy()
+      // One slice per current member, each with their animal.
+      expect(wheel.getByRole('img', { name: 'The wheel' }).querySelectorAll('path[data-user]')).toHaveLength(2)
+
+      fireEvent.click(wheel.getByRole('button', { name: 'Spin' }))
+      expect(await wheel.findByText('Spinning…')).toBeTruthy()
+      expect(wheel.getByRole('img', { name: 'The wheel' }).style.transform).not.toBe('rotate(0deg)')
+      act(() => vi.advanceTimersByTime(2900))
+      expect(wheel.queryByText('Bob pays next')).toBeNull()
+      act(() => vi.advanceTimersByTime(200))
+      const status = within(wheel.getByRole('status'))
+      expect(status.getByText('Bob pays next')).toBeTruthy()
+      expect(wheel.getByRole('status').querySelector('.av')).toBeTruthy()
+      expect(count(calls, 'POST /groups/g1/spins')).toBe(1)
+      expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+    })
   })
 
   it('says the group cannot be found when you are not a member', async () => {
@@ -106,7 +149,7 @@ describe('Group home', () => {
       await vi.waitFor(() => expect(count(calls, 'POST /settlements/s2/cancel')).toBe(1))
     })
 
-    it('marks a suggested transfer paid, minus what is already waiting for confirmation', async () => {
+    it('opens a settle form pre-filled with the suggestion, minus what is already waiting for confirmation', async () => {
       const calls = fakeApi(
         groupHandlers(
           {
@@ -120,8 +163,83 @@ describe('Group home', () => {
       const settle = await screen.findByRole('region', { name: /Settle up/ })
       expect(await within(settle).findByText('You → Bob')).toBeTruthy()
       fireEvent.click(within(settle).getByRole('button', { name: 'Mark paid' }))
+      // Nothing is sent until the form is submitted.
+      expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
+      const form = within(within(settle).getByRole('form', { name: 'Mark a payment' }))
+      expect((form.getByLabelText('Paid to') as HTMLSelectElement).value).toBe(BOB)
+      expect((form.getByLabelText('Amount') as HTMLInputElement).value).toBe('20.00')
+      fireEvent.click(form.getByRole('button', { name: 'Submit' }))
       await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
       expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: BOB, amountCents: 2000 })
+      await vi.waitFor(() => expect(within(settle).queryByRole('form', { name: 'Mark a payment' })).toBeNull())
+    })
+
+    it('posts a partial amount as typed', async () => {
+      const calls = fakeApi(
+        groupHandlers(
+          { balances: { balances: { [ME]: -3000, [BOB]: 3000 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 3000 }] } },
+          { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ id: 's3', fromUserId: ME, toUserId: BOB }) }) },
+        ),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: ' 12.5 ' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
+      expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: BOB, amountCents: 1250 })
+    })
+
+    it('lets you pay a creditor other than the suggested one, up to what they are owed', async () => {
+      const DAVE = 'user_dave'
+      const withDave = group()
+      withDave.members.push(member(DAVE, 'Dave', { animal: 'bear', color: 'lemon' }))
+      const calls = fakeApi(
+        groupHandlers(
+          {
+            group: withDave,
+            balances: { balances: { [ME]: -3000, [BOB]: 2500, [DAVE]: 500, [CAROL]: 0 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 2500 }] },
+          },
+          { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ id: 's3', fromUserId: ME, toUserId: DAVE }) }) },
+        ),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      const payee = screen.getByLabelText('Paid to') as HTMLSelectElement
+      // Only current members who are owed money (and never you).
+      expect([...payee.options].map((o) => o.textContent)).toEqual(['Bob', 'Dave'])
+      fireEvent.change(payee, { target: { value: DAVE } })
+      expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('5.00')
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
+      expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: DAVE, amountCents: 500 })
+    })
+
+    it('explains an amount over the cap, or not an amount, without posting; Cancel closes the form', async () => {
+      const calls = fakeApi(
+        groupHandlers({
+          balances: { balances: { [ME]: -3000, [BOB]: 3000 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 3000 }] },
+          pending: [settlement({ id: 's2', fromUserId: ME, toUserId: BOB, amountCents: 1000 })],
+        }),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      const amount = screen.getByLabelText('Amount')
+      fireEvent.change(amount, { target: { value: '25.00' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('You can mark at most $20.00 as paid to Bob right now.')
+
+      fireEvent.change(amount, { target: { value: '0' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('Enter an amount of at least $0.01.')
+
+      fireEvent.change(amount, { target: { value: '12.345' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('Enter an amount like 12.50.')
+      expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
     })
 
     it('disables Mark paid while the whole debt is waiting for confirmation', async () => {
@@ -150,6 +268,7 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
       expect(await screen.findByText('You can mark at most $30.00 as paid right now.')).toBeTruthy()
       expect(screen.queryByText(/cents/)).toBeNull()
     })
@@ -168,6 +287,7 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
       expect(await screen.findByText('You can only settle up with a current member of the group')).toBeTruthy()
     })
 
@@ -266,6 +386,14 @@ describe('Group home', () => {
       }
     })
 
+    it('shows the date each expense was spent on', async () => {
+      fakeApi(groupHandlers({ feed: [{ type: 'expense', at: '2026-11-19T12:00:00.000Z', expense: expense({ spentOn: '2026-01-05' }) }] }))
+      renderApp('/groups/g1')
+      const activity = await screen.findByRole('region', { name: /Activity/ })
+      const [row] = await within(activity).findAllByRole('listitem')
+      expect(row!.querySelector('.s')!.textContent).toBe('5 Jan · You paid · Food · split 2 ways')
+    })
+
     it('filters by tab', async () => {
       fakeApi(groupHandlers({ feed }))
       renderApp('/groups/g1')
@@ -296,5 +424,35 @@ describe('Group home', () => {
     expect(within(board).getByText('−$42.50')).toBeTruthy()
     expect(within(board).getByText('Debt Goblin').nextElementSibling!.textContent).toBe('Bob')
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+
+  it('draws everyone with their look and name in this group', async () => {
+    const g = group()
+    g.members[1] = member(BOB, 'Bobby', BOB_AVATAR)
+    fakeApi(
+      groupHandlers({
+        group: g,
+        balances: { balances: { [ME]: 100, [BOB]: -100 }, suggestions: [] },
+        fun: { leaderboard: [{ userId: ME, netCents: 100, rank: 1 }, { userId: BOB, netCents: -100, rank: 2 }], badges: [] },
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const board = await screen.findByRole('region', { name: /Leaderboard/ })
+    const bobRow = (await within(board).findByText('Bobby')).closest('.lb-row')!
+    const bobAv = bobRow.querySelector<HTMLElement>('.av')!
+    expect(bobAv.querySelector('svg.mascot-koala')).toBeTruthy()
+    expect(bobAv.style.getPropertyValue('--c')).toBe(AVATAR_COLORS.mint)
+    expect((await screen.findByRole('region', { name: 'Your balance' })).querySelector('svg.mascot-fox')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'You' }).style.getPropertyValue('--c')).toBe(AVATAR_COLORS[ME_AVATAR.color])
+    expect(document.querySelector(`.wheel path[data-user="${BOB}"]`)!.getAttribute('fill')).toBe(AVATAR_COLORS.mint)
+  })
+
+  it('shows your default look in the top bar outside a group', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups')
+    const you = await screen.findByRole('img', { name: 'You' })
+    expect(you.querySelector(`svg.mascot-${defaultAvatar(ME).animal}`)).toBeTruthy()
+    expect(you.style.getPropertyValue('--c')).toBe(AVATAR_COLORS[defaultAvatar(ME).color])
   })
 })

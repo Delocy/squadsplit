@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ApiErrorBody, GroupDTO, GroupSummaryDTO } from '@squadsplit/shared'
+import { defaultAvatar, type ApiErrorBody, type GroupDTO, type GroupSummaryDTO } from '@squadsplit/shared'
 import { loadLedger } from '../src/db/ledger'
 import { expenseShares, expenses, groups, memberships, settlements, spins } from '../src/db/schema'
 import { db, json, testApp } from './helpers'
@@ -70,7 +70,7 @@ describe('POST /groups', () => {
     expect(group).toMatchObject({ name: 'Bali trip', emoji: '🏝️', currency: 'SGD', ownerId: 'alice' })
     expect(group.inviteCode).toMatch(INVITE_CODE)
     expect(group.members).toEqual([
-      { userId: 'alice', displayName: 'User alice', avatarUrl: null, role: 'owner', active: true },
+      { userId: 'alice', displayName: 'User alice', nickname: null, avatarUrl: null, role: 'owner', active: true, avatar: defaultAvatar('alice') },
     ])
 
     const list = await alice('/groups')

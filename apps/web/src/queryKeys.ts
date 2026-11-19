@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 
 /** Every TanStack Query key the app uses, in one place. */
 export const queryKeys = {
+  me: (userId: string) => ['me', userId] as const,
   groups: ['groups'] as const,
   invite: (code: string) => ['invite', code] as const,
   group: (id: string) => ['group', id] as const,
@@ -24,4 +25,19 @@ export function invalidateGroup(queryClient: QueryClient, id: string): Promise<v
     queryKeys.feed(id),
   ]
   return Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))).then(() => undefined)
+}
+
+/** After the signed-in user's profile is refreshed: their name shows in every group they're in, so refetch them all. */
+export function invalidateAllGroups(queryClient: QueryClient): Promise<void> {
+  const groupKeys = [
+    queryKeys.groups,
+    queryKeys.group(''),
+    queryKeys.balances(''),
+    queryKeys.expenses(''),
+    queryKeys.pendingSettlements(''),
+    queryKeys.fun(''),
+    queryKeys.feed(''),
+  ]
+  const roots = new Set<unknown>(groupKeys.map((key) => key[0]))
+  return queryClient.invalidateQueries({ predicate: (query) => roots.has(query.queryKey[0]) })
 }

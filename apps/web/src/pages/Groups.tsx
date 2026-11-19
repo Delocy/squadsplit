@@ -1,11 +1,12 @@
-import type { GroupSummaryDTO } from '@squadsplit/shared'
+import { defaultAvatar, type GroupSummaryDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
-import { avatarFor } from '../design/Avatar'
+import { lookOf } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
 import { queryKeys } from '../queryKeys'
 
@@ -16,7 +17,7 @@ function balanceText(cents: number): { label: string; mood: Mood } {
 }
 
 function GroupCard({ group }: { group: GroupSummaryDTO }) {
-  const look = avatarFor(group.id)
+  const look = lookOf(defaultAvatar(group.id))
   const { label, mood } = balanceText(group.myBalanceCents)
   return (
     <li>
@@ -60,6 +61,11 @@ export function Groups() {
         <h2>Your groups</h2>
         {groups.data?.length !== 0 && <NewGroupButton />}
       </div>
+      {groups.data?.length !== 0 && (
+        <div className="page-h">
+          <JoinWithCode />
+        </div>
+      )}
       {groups.isPending && <p className="empty">Loading your groups…</p>}
       {groups.isError && <ErrorNote error={groups.error} />}
       {groups.data?.length === 0 && (
@@ -68,8 +74,9 @@ export function Groups() {
             <Mascot kind="panda" face="#ffffff" mood="calm" />
           </div>
           <h3>No groups yet</h3>
-          <p className="empty">Start one for your next trip or dinner, or open an invite link from a friend.</p>
+          <p className="empty">Start one for your next trip or dinner, or join a friend's with their invite code.</p>
           <NewGroupButton />
+          <JoinWithCode />
         </section>
       )}
       {!!groups.data?.length && (

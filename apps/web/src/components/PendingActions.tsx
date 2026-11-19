@@ -40,7 +40,7 @@ export function PendingActions({
       {mine.map((s) =>
         s.toUserId === me ? (
           <div className="need row" key={s.id}>
-            <Avatar userId={s.fromUserId} mood="happy" />
+            <Avatar avatar={people.avatar(s.fromUserId)} mood="happy" />
             <div className="grow">
               <div className="t">
                 {people.name(s.fromUserId)} says they paid you {formatMoney(s.amountCents, currency)}
@@ -58,7 +58,7 @@ export function PendingActions({
           </div>
         ) : (
           <div className="need row" key={s.id}>
-            <Avatar userId={s.toUserId} />
+            <Avatar avatar={people.avatar(s.toUserId)} />
             <div className="grow">
               <div className="t">Waiting for {people.name(s.toUserId)} to confirm</div>
               <div className="s">You marked {formatMoney(s.amountCents, currency)} as paid.</div>

@@ -5,7 +5,7 @@ import { BalanceCard } from '../src/components/BalanceCard'
 afterEach(cleanup)
 
 const card = (cents: number) => {
-  render(<BalanceCard cents={cents} currency="SGD" userId="user_me" seed={0} />)
+  render(<BalanceCard cents={cents} currency="SGD" avatar={{ animal: 'fox', color: 'peach' }} seed={0} />)
   return screen.getByRole('region', { name: 'Your balance' })
 }
 
@@ -32,7 +32,7 @@ describe('BalanceCard', () => {
   })
 
   it('formats in the group currency', () => {
-    render(<BalanceCard cents={1234} currency="USD" userId="user_me" seed={0} />)
+    render(<BalanceCard cents={1234} currency="USD" avatar={{ animal: 'fox', color: 'peach' }} seed={0} />)
     expect(screen.getByText('US$12.34')).toBeTruthy()
   })
 })

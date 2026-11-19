@@ -26,7 +26,7 @@ export function Leaderboard({ fun, people, currency }: { fun: FunDTO | undefined
             <div className="lb-row" key={b.userId}>
               <Medal rank={b.rank} />
               <span className="who">
-                <Avatar userId={b.userId} size="sm" />
+                <Avatar avatar={people.avatar(b.userId)} size="sm" />
                 <span>{people.name(b.userId)}</span>
               </span>
               <span className="bar">

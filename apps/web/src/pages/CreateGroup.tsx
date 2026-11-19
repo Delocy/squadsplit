@@ -4,8 +4,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
+import { useMe } from '../useProfileRefresh'
 
 // The API requires an emoji for every group. The UI never shows it, so every group gets the same one.
 const GROUP_EMOJI = '🧡'
@@ -16,6 +18,8 @@ export function CreateGroup() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<Currency>('SGD')
+  const profileName = useMe().data?.displayName ?? ''
+  const nickname = useNicknameDraft(profileName)
   const [formError, setFormError] = useState<string | null>(null)
 
   const create = useMutation({
@@ -29,9 +33,17 @@ export function CreateGroup() {
   function submit(e: FormEvent) {
     e.preventDefault()
     setFormError(null)
-    const parsed = CreateGroupInput.safeParse({ name, emoji: GROUP_EMOJI, currency })
+    // Your nickname goes along only if you changed it from your profile name.
+    const parsed = CreateGroupInput.safeParse({
+      name,
+      emoji: GROUP_EMOJI,
+      currency,
+      ...(nickname.change !== undefined && { nickname: nickname.change }),
+    })
     if (!parsed.success) {
-      setFormError(name.trim() ? 'Keep the name to 50 characters or fewer.' : 'Give the group a name.')
+      if (!name.trim()) setFormError('Give the group a name.')
+      else if (nickname.invalid) setFormError(NICKNAME_HINT)
+      else setFormError('Keep the name to 50 characters or fewer.')
       return
     }
     create.mutate(parsed.data)
@@ -66,6 +78,7 @@ export function CreateGroup() {
             </option>
           ))}
         </select>
+        <NicknameField id="group-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
         {formError ? (
           <p className="err" role="alert">
             {formError}

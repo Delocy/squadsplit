@@ -2,7 +2,10 @@ import { useAuth } from '@clerk/react'
 import { useMemo } from 'react'
 import type { ApiErrorBody } from '@squadsplit/shared'
 
-/** A non-2xx API response. `code` and `message` come from the API's `{ error }` body when it has one. */
+/**
+ * A failed API call. For a non-2xx response, `code` and `message` come from the API's `{ error }` body when it has one.
+ * When the request never reached the API (offline, DNS, CORS), `status` is 0 and `code` is `network`.
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -35,11 +38,18 @@ export function createApiClient(
     if (token) headers.set('Authorization', `Bearer ${token}`)
     if (body !== undefined) headers.set('Content-Type', 'application/json')
 
-    const res = await fetchFn(`${baseUrl}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
+    let res: Response
+    try {
+      res = await fetchFn(`${baseUrl}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+    } catch (err) {
+      // fetch rejects with a TypeError when the request fails before any response.
+      if (err instanceof TypeError) throw new ApiError(0, 'network', "Can't reach SquadSplit right now.")
+      throw err
+    }
     const text = await res.text()
     let data: unknown = undefined
     if (text) {
@@ -64,6 +74,11 @@ export function createApiClient(
       await request<void>('DELETE', path)
     },
   }
+}
+
+/** A 4xx (not a member, dead invite, validation) will not change on retry; network and 5xx errors might. */
+export function isRetryable(error: unknown): boolean {
+  return !(error instanceof ApiError && error.status >= 400 && error.status < 500)
 }
 
 /** The API origin from VITE_API_URL: empty counts as unset, and trailing slashes are dropped. */

@@ -10,6 +10,7 @@ import { Groups } from './pages/Groups'
 import { Join } from './pages/Join'
 import { Landing } from './pages/Landing'
 import { Wheel } from './pages/Wheel'
+import { useProfileRefresh } from './useProfileRefresh'
 
 /** `/`: the landing page when signed out, your groups when signed in. */
 function Home() {
@@ -25,8 +26,9 @@ function Home() {
   )
 }
 
-/** Every page behind sign-in gets the top bar. */
+/** Every page behind sign-in gets the top bar, and the user's profile is refreshed once after sign-in. */
 function SignedInLayout() {
+  useProfileRefresh()
   return (
     <RequireSignIn>
       <div className="wrap">

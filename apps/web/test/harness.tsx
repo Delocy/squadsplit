@@ -3,20 +3,31 @@ import { render } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { vi } from 'vitest'
 import { routes } from '../src/routes'
+import { ME } from './clerk-mock'
 
 const API = 'http://localhost:8787'
 
 type Reply = { status: number; body?: unknown }
 export type Handler = (body: unknown) => Reply | Promise<Reply>
 
-/** Stubs global fetch with handlers keyed by "METHOD /path". Unknown routes fail the request loudly. */
+/** What `GET /me` answers unless a test brings its own handler: the signed-in user's profile. */
+const defaultMe: Handler = () => ({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null } })
+
+/**
+ * Stubs global fetch with handlers keyed by "METHOD /path". Unknown routes fail the request loudly.
+ *
+ * Every signed-in page refreshes the profile with `GET /me`. Unless the test passes its own `GET /me` handler, that
+ * call succeeds with a default profile and is left out of `calls`, so `calls` holds only what the page itself sent.
+ */
 export function fakeApi(handlers: Record<string, Handler>) {
   const calls: { key: string; body: unknown; auth: string | null }[] = []
+  const recordMe = 'GET /me' in handlers
+  const all: Record<string, Handler> = { 'GET /me': defaultMe, ...handlers }
   const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
     const key = `${init?.method ?? 'GET'} ${String(input).replace(API, '')}`
     const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    calls.push({ key, body, auth: new Headers(init?.headers).get('Authorization') })
-    const handler = handlers[key]
+    if (key !== 'GET /me' || recordMe) calls.push({ key, body, auth: new Headers(init?.headers).get('Authorization') })
+    const handler = all[key]
     if (!handler) throw new Error(`No fake API handler for ${key}`)
     const res = await handler(body)
     return new Response(res.body === undefined ? null : JSON.stringify(res.body), {

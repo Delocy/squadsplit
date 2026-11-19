@@ -31,7 +31,37 @@ describe('Create group page', () => {
     fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
     fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'USD' } })
     fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
-    await vi.waitFor(() => expect(calls[0]?.body).toMatchObject({ currency: 'USD' }))
+    await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ currency: 'USD' }))
+  })
+
+  it('sends a nickname for you in the group when you change it from your profile name', async () => {
+    const calls = fakeApi({ 'POST /groups': () => ({ status: 201, body: { id: 'g9' } }) })
+    renderApp('/groups/new')
+    fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
+    const nickname = screen.getByLabelText('What should this group call you?') as HTMLInputElement
+    await vi.waitFor(() => expect(nickname.value).toBe('Me'))
+    fireEvent.change(nickname, { target: { value: ' Captain ' } })
+    fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
+    await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ name: 'NYC', nickname: 'Captain' }))
+  })
+
+  it('sends no nickname (null) when you clear the field', async () => {
+    const calls = fakeApi({ 'POST /groups': () => ({ status: 201, body: { id: 'g9' } }) })
+    renderApp('/groups/new')
+    fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
+    fireEvent.change(screen.getByLabelText('What should this group call you?'), { target: { value: '  ' } })
+    fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
+    await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ nickname: null }))
+  })
+
+  it('asks for a shorter nickname without emoji instead of calling the API', async () => {
+    const calls = fakeApi({})
+    renderApp('/groups/new')
+    fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
+    fireEvent.change(screen.getByLabelText('What should this group call you?'), { target: { value: 'Cap 🍕' } })
+    fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
+    expect(await screen.findByText('Keep it to 24 characters, with no emoji.')).toBeTruthy()
+    expect(calls.some((c) => c.key === 'POST /groups')).toBe(false)
   })
 
   it('asks for a name instead of calling the API when it is blank', async () => {
@@ -40,7 +70,7 @@ describe('Create group page', () => {
     fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: '   ' } })
     fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
     expect(await screen.findByText('Give the group a name.')).toBeTruthy()
-    expect(calls).toHaveLength(0)
+    expect(calls.some((c) => c.key === 'POST /groups')).toBe(false)
   })
 
   it('shows the API error message when creating fails', async () => {

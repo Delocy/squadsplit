@@ -1,4 +1,4 @@
-import { createClerkClient, verifyToken } from '@clerk/backend'
+import { createClerkClient, verifyToken, type User } from '@clerk/backend'
 import type { Bindings } from './env'
 
 export interface Profile {
@@ -20,6 +20,8 @@ export function clerkDeps(env: Bindings): AuthDeps {
           secretKey: env.CLERK_SECRET_KEY,
           authorizedParties: [env.WEB_ORIGIN],
         })
+        // A pending session has signed in but not finished a required step (e.g. a session task), so it isn't a user yet.
+        if (payload.sts === 'pending') return null
         return payload.sub
       } catch (err) {
         // Log only the reason (e.g. token-expired vs jwk-remote-failed-to-load), never the token,
@@ -32,9 +34,18 @@ export function clerkDeps(env: Bindings): AuthDeps {
       const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY })
       const user = await clerk.users.getUser(userId)
       return {
-        displayName: user.fullName || user.username || user.emailAddresses[0]?.emailAddress || 'Someone',
+        displayName: displayNameOf(user),
         avatarUrl: user.imageUrl ?? null,
       }
     },
   }
+}
+
+/** The name other members see. Falls back to the email's local part, never the whole address. */
+function displayNameOf(
+  user: Pick<User, 'fullName' | 'firstName' | 'username' | 'primaryEmailAddress' | 'emailAddresses'>,
+): string {
+  const email = (user.primaryEmailAddress ?? user.emailAddresses[0])?.emailAddress
+  const emailName = email?.split('@')[0]
+  return user.fullName || user.firstName || user.username || emailName || 'Someone'
 }

@@ -13,8 +13,15 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
 - People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
 - Every participant has an account. There are no guest placeholders.
+- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
 - Leaving is a soft delete (`membership.left_at`), so past expenses still show their names.
+- **You in a group** (added 2026-11-19 at the user's request): each membership has its own **animal + colour** avatar and an optional **nickname**.
+  - The avatar is one of the 8 member animals (bunny, bear, panda, kitty, fox, hamster, penguin, koala) on one of 6 pastel colours, so 48 combinations. Among a group's **active** members every avatar is unique; former members don't hold theirs.
+  - Joining (and creating a group) lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free. Picking a taken one is 409 `avatar_taken`.
+  - The nickname is 1–24 characters after trimming, with no control characters and no emoji. Empty clears it. Nicknames don't need to be unique.
+  - Inside the group your name is your nickname if you set one, otherwise your profile name. Outside a group (your groups list) the profile name and default look are used.
+  - You can change both later in the group's settings.
 
 ### Expenses
 - Fields: description, amount, payer, date, category emoji, and the participants it's split between (any non-empty subset of current members).
@@ -89,8 +96,10 @@ No live connection. TanStack Query refetches when the tab regains focus and afte
 ```
 users          id (pk, text: Clerk user id), display_name, avatar_url, created_at
 groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner_id → users, created_at
-memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable)
+memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable),
+               avatar_animal (nullable), avatar_color (nullable), nickname (nullable)
                pk(group_id, user_id)
+               avatar_* null (rows from before migration 0002) means the user's default look; nickname null means the profile name
 expenses       id (pk), group_id, description, amount_cents (int > 0), paid_by → users, created_by → users,
                category (emoji text), spent_on (date), split_type ('equal'|'exact'|'itemized'),
                currency, fx_rate_ppm (int, default 1000000), service_charge_bps (int, nullable), gst_bps (int, nullable),
@@ -125,12 +134,13 @@ Error responses:
 |---|---|
 | `GET /me` | any user |
 | `GET /groups` | any user (returns their own groups) |
-| `POST /groups` | any user (they become the owner) |
+| `POST /groups` (optional `nickname` for the owner) | any user (they become the owner) |
 | `GET /groups/:id` | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
 | `POST /groups/:id/invite/reset` | owner |
-| `GET /invites/:code` (preview: group name, emoji, member count) | any user |
-| `POST /invites/:code/join` | any user (does nothing if already a member) |
+| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken) | any user |
+| `POST /invites/:code/join` (optional body `{ avatar?, nickname? }`) | any user (does nothing if already a member) |
+| `PATCH /groups/:id/members/me` (`{ avatar?, nickname? }`, at least one; `nickname: null` or `""` clears) | member |
 | `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0 |
 | `GET /groups/:id/balances` (nets + suggested transfers) | member |
 | `GET /groups/:id/expenses`, `POST /groups/:id/expenses` | member |
