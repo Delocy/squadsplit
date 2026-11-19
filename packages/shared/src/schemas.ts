@@ -3,6 +3,7 @@ import { CATEGORIES, CURRENCIES, type Category, type Currency } from './money'
 import { SETTLEMENT_STATUSES, type SettlementStatus, type Transfer } from './ledger'
 import type { Badge } from './fun'
 import { itemizedTotal, type BillItem } from './itemized'
+import { AvatarChoice } from './avatar'
 
 const MAX_CENTS = 100_000_000
 
@@ -10,6 +11,18 @@ const amountCents = z.number().int().min(1).max(MAX_CENTS)
 const id = z.string().min(1)
 
 const groupName = z.string().trim().min(1).max(50)
+
+/**
+ * What a member is called inside one group. Trimmed, at most 24 characters; empty means "no nickname" (null),
+ * so the profile name shows instead. No control characters, and no emoji (the app shows none).
+ */
+export const Nickname = z
+  .string()
+  .trim()
+  .max(24)
+  .refine((s) => !/\p{Cc}/u.test(s), { message: 'No control characters' })
+  .refine((s) => !/\p{Extended_Pictographic}/u.test(s), { message: 'No emoji' })
+  .transform((s) => (s === '' ? null : s))
 const groupEmoji = z.string().min(1).max(8)
 const currency = z.enum(CURRENCIES)
 
@@ -17,6 +30,8 @@ export const CreateGroupInput = z.object({
   name: groupName,
   emoji: groupEmoji,
   currency: currency.default('SGD'),
+  /** The owner's nickname in the new group; null or "" for none. */
+  nickname: Nickname.nullable().optional(),
 })
 export type CreateGroupInput = z.infer<typeof CreateGroupInput>
 
@@ -102,13 +117,34 @@ export type CreateSettlementInput = z.infer<typeof CreateSettlementInput>
 export const ListSettlementsQuery = z.object({ status: z.enum(SETTLEMENT_STATUSES).optional() })
 export type ListSettlementsQuery = z.infer<typeof ListSettlementsQuery>
 
+/**
+ * Body of `POST /invites/:code/join`; the whole body is optional. Without an avatar the server picks a free one.
+ * Without a nickname a former member keeps theirs; null or "" means none.
+ */
+export const JoinGroupInput = z.object({ avatar: AvatarChoice.optional(), nickname: Nickname.nullable().optional() })
+export type JoinGroupInput = z.infer<typeof JoinGroupInput>
+
+/** Body of `PATCH /groups/:id/members/me`. `nickname: null` (or "") clears it. */
+export const UpdateMemberInput = z
+  .object({ avatar: AvatarChoice.optional(), nickname: Nickname.nullable().optional() })
+  .refine((v) => v.avatar !== undefined || v.nickname !== undefined, { message: 'At least one field is required' })
+export type UpdateMemberInput = z.infer<typeof UpdateMemberInput>
+
 // ---- DTOs (types only) ----
 
 export interface MeDTO { id: string; displayName: string; avatarUrl: string | null }
-export interface MemberDTO { userId: string; displayName: string; avatarUrl: string | null; role: 'owner' | 'member'; active: boolean }
+/**
+ * A member as the group sees them. `displayName` is the effective name: their `nickname` in this group if they set
+ * one, otherwise their profile name. `avatar` is their look in this group: what they picked, or their default.
+ */
+export interface MemberDTO {
+  userId: string; displayName: string; nickname: string | null; avatarUrl: string | null
+  role: 'owner' | 'member'; active: boolean; avatar: AvatarChoice
+}
 export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string | null; ownerId: string; members: MemberDTO[] }
 export interface GroupSummaryDTO { id: string; name: string; emoji: string; currency: Currency; role: 'owner' | 'member'; myBalanceCents: number }
-export interface InvitePreviewDTO { groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean }
+/** `takenAvatars`: the looks of the group's active members, which a joiner can't pick. */
+export interface InvitePreviewDTO { groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean; takenAvatars: AvatarChoice[] }
 export interface ExpenseDTO {
   id: string; groupId: string; description: string; amountCents: number; paidBy: string; createdBy: string
   category: Category; spentOn: string; splitType: 'equal' | 'exact' | 'itemized'; shares: { userId: string; amountCents: number }[]
