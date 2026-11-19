@@ -8,6 +8,7 @@ import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
+import { SquadNap } from '../components/SquadNap'
 import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
 import { WheelCard } from '../components/WheelCard'
@@ -47,7 +48,15 @@ export function GroupHome() {
     <main className="page">
       <div className="summary">
         {balances.data ? (
-          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
+          <BalanceCard
+            cents={balances.data.balances[me] ?? 0}
+            currency={g.currency}
+            avatar={people.avatar(me)}
+            seed={feed.data?.length ?? 0}
+            squad={people.active
+              .filter((m) => m.userId !== me)
+              .map((m) => ({ userId: m.userId, name: m.displayName, avatar: m.avatar, cents: balances.data.balances[m.userId] ?? 0 }))}
+          />
         ) : (
           <section className="card balance even" aria-label="Your balance">
             <ErrorNote error={balances.error} />
@@ -86,6 +95,7 @@ export function GroupHome() {
 
       <div className="main">
         <div className="col">
+          {expenses.data?.length === 0 && <SquadNap people={people} addExpense={addExpense} />}
           <section className="card" aria-labelledby="settle-h">
             <h3 id="settle-h">
               <UiIcon name="heart" />

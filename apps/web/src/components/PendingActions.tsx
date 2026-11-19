@@ -1,17 +1,18 @@
 import { formatMoney, type SettlementDTO } from '@squadsplit/shared'
-import type { MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
+import { SettleMoment } from './SettleMoment'
 
 type Action = 'confirm' | 'reject' | 'cancel'
 
 /**
  * Pending settlements that involve you: as the creditor you confirm or reject them,
- * as the debtor you can undo (cancel) them while they wait.
+ * as the debtor you can undo (cancel) them while they wait. Confirming one plays the settle-up moment.
  */
 export function PendingActions({
   groupId,
@@ -30,9 +31,20 @@ export function PendingActions({
   const resolve = useGroupMutation(groupId, ({ id, action }: { id: string; action: Action }) =>
     api.post<SettlementDTO>(`/settlements/${id}/${action}`),
   )
-  const act = (id: string, action: Action) => (e: MouseEvent<HTMLButtonElement>) => {
+  /** The payback you just confirmed, celebrated until you close it. */
+  const [confirmed, setConfirmed] = useState<SettlementDTO | null>(null)
+  const act = (s: SettlementDTO, action: Action) => (e: MouseEvent<HTMLButtonElement>) => {
     const button = e.currentTarget
-    resolve.mutate({ id, action }, { onSuccess: () => action === 'confirm' && confetti(button) })
+    resolve.mutate(
+      { id: s.id, action },
+      {
+        onSuccess: () => {
+          if (action !== 'confirm') return
+          confetti(button)
+          setConfirmed(s)
+        },
+      },
+    )
   }
 
   const busy = (id: string, action: Action) =>
@@ -41,6 +53,9 @@ export function PendingActions({
   const mine = pending.filter((s) => s.toUserId === me || s.fromUserId === me)
   return (
     <>
+      {confirmed && (
+        <SettleMoment settlement={confirmed} me={me} people={people} currency={currency} onClose={() => setConfirmed(null)} />
+      )}
       {mine.map((s) =>
         s.toUserId === me ? (
           <div className="need row" key={s.id}>
@@ -52,12 +67,12 @@ export function PendingActions({
               <div className="s">Confirm once the money has arrived.</div>
             </div>
             <div className="acts">
-              <button className="btn small primary" onClick={act(s.id, 'confirm')} disabled={resolve.isPending}>
+              <button className="btn small primary" onClick={act(s, 'confirm')} disabled={resolve.isPending}>
                 <BusyLabel busy={busy(s.id, 'confirm')} label="Confirming…">
                   Confirm
                 </BusyLabel>
               </button>
-              <button className="btn small" onClick={act(s.id, 'reject')} disabled={resolve.isPending}>
+              <button className="btn small" onClick={act(s, 'reject')} disabled={resolve.isPending}>
                 <BusyLabel busy={busy(s.id, 'reject')} label="Rejecting…">
                   Reject
                 </BusyLabel>
@@ -71,7 +86,7 @@ export function PendingActions({
               <div className="t">Waiting for {people.name(s.toUserId)} to confirm</div>
               <div className="s">You marked {formatMoney(s.amountCents, currency)} as paid.</div>
             </div>
-            <button className="btn small" onClick={act(s.id, 'cancel')} disabled={resolve.isPending}>
+            <button className="btn small" onClick={act(s, 'cancel')} disabled={resolve.isPending}>
               <BusyLabel busy={busy(s.id, 'cancel')} label="Undoing…">
                 Undo
               </BusyLabel>

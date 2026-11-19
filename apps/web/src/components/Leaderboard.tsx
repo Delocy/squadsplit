@@ -2,6 +2,7 @@ import type { FunDTO } from '@squadsplit/shared'
 import type { CSSProperties } from 'react'
 import { Avatar } from '../design/Avatar'
 import { BadgeArt, Medal, UiIcon } from '../design/icons'
+import { balanceMood } from '../design/mood'
 import type { People } from '../groupData'
 import { Money } from './Money'
 import { LeaderboardSkeleton } from './Skeletons'
@@ -35,7 +36,7 @@ function Board({ fun, people, currency }: { fun: FunDTO; people: People; currenc
             <div className="lb-row" key={b.userId}>
               <Medal rank={b.rank} />
               <span className="who">
-                <Avatar avatar={people.avatar(b.userId)} size="sm" />
+                <Avatar avatar={people.avatar(b.userId)} size="sm" {...balanceMood(b.netCents)} />
                 <span>{people.name(b.userId)}</span>
               </span>
               <span className="bar">

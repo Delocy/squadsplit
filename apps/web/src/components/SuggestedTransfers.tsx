@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { ApiError, useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
+import { balanceMood } from '../design/mood'
 import { useExitTransition } from '../design/useExitTransition'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
@@ -43,6 +44,7 @@ export function SuggestedTransfers({
   const pendingOutgoing = pending.filter((s) => s.fromUserId === me).reduce((sum, s) => sum + s.amountCents, 0)
   const cap = (toUserId: string) => settlementCap(balances.balances, pendingOutgoing, me, toUserId)
   const mine = balances.suggestions.filter((t) => t.fromUserId === me)
+  const mood = (userId: string) => balanceMood(balances.balances[userId] ?? 0)
 
   function open(toUserId: string, e: MouseEvent<HTMLElement>) {
     settle.reset()
@@ -62,11 +64,11 @@ export function SuggestedTransfers({
     const amount = Math.min(t.amountCents, cap(t.toUserId))
     return (
       <li className="row" key={`${t.fromUserId}>${t.toUserId}`}>
-        <Avatar avatar={people.avatar(t.fromUserId)} size="sm" faded={people.isFormer(t.fromUserId)} />
+        <Avatar avatar={people.avatar(t.fromUserId)} size="sm" faded={people.isFormer(t.fromUserId)} {...mood(t.fromUserId)} />
         <span className="arrow">
           <UiIcon name="arrow" />
         </span>
-        <Avatar avatar={people.avatar(t.toUserId)} size="sm" faded={people.isFormer(t.toUserId)} />
+        <Avatar avatar={people.avatar(t.toUserId)} size="sm" faded={people.isFormer(t.toUserId)} {...mood(t.toUserId)} />
         <div className="grow">
           <div className="t">
             {people.you(t.fromUserId)} → {people.you(t.toUserId)}

@@ -3,7 +3,8 @@ import { defaultAvatar } from '@squadsplit/shared'
 import { useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { SkText } from '../design/Skeleton'
-import { useGroup } from '../groupData'
+import { balanceMood } from '../design/mood'
+import { useCachedBalances, useGroup } from '../groupData'
 import { Logo } from './Logo'
 
 export function TopBar() {
@@ -25,11 +26,13 @@ export function TopBar() {
   )
 }
 
-/** Inside a group you look the way that group sees you (your default until it loads, or if you're not in it). */
+/** Inside a group you look the way that group sees you (your default until it loads, or if you're not in it), in your mood there. */
 function MyGroupAvatar({ groupId, userId }: { groupId: string; userId: string }) {
   const group = useGroup(groupId)
+  // Your mood in the group, once a page in it has loaded the balances (the top bar never fetches them itself).
+  const net = useCachedBalances(groupId).data?.balances[userId]
   const avatar = group.data?.members.find((m) => m.userId === userId)?.avatar ?? defaultAvatar(userId)
-  return <Avatar avatar={avatar} title="You" />
+  return <Avatar avatar={avatar} title="You" {...(net === undefined ? {} : balanceMood(net))} />
 }
 
 /** "/ Bali Trip · 4 members" on every page inside a group. Its place is held while it loads, so the page doesn't move. */

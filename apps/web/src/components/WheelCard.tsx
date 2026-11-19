@@ -6,6 +6,7 @@ import { Avatar } from '../design/Avatar'
 import { Spinner } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { UiIcon } from '../design/icons'
+import { balanceMood } from '../design/mood'
 import { prefersReducedMotion } from '../design/motion'
 import type { People } from '../groupData'
 import { invalidateGroup } from '../queryKeys'
@@ -93,7 +94,7 @@ export function WheelCard({
           <ul className="odds" aria-label="Odds">
             {slices.map((s) => (
               <li key={s.userId}>
-                <Avatar avatar={people.avatar(s.userId)} size="sm" />
+                <Avatar avatar={people.avatar(s.userId)} size="sm" {...balanceMood(balances?.[s.userId] ?? 0)} />
                 {people.name(s.userId)}
                 <b>{s.percent}%</b>
               </li>
