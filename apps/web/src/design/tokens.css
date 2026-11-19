@@ -479,6 +479,10 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .row.transfer .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .row.transfer .tags .status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .row-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+/* "Mark paid" opens its form right under the row it's in. */
+.settle-in-row { flex-basis: 100%; min-width: 0; }
+/* Scrolled into view clear of the Add expense bar. */
+.settle-in-row .settle-form { margin-top: 4px; scroll-margin: 16px 0 calc(var(--fab-bar) + 16px + env(safe-area-inset-bottom)); }
 @media (max-width: 480px) { .row-end { flex-direction: column; align-items: flex-end; gap: 4px; } }
 .lb-row .who { flex-wrap: wrap; row-gap: 2px; }
 .lb-row .who > span:not(.av) { min-width: 0; overflow-wrap: anywhere; }

@@ -64,13 +64,42 @@ describe('the expense dialog', () => {
 })
 
 describe('the settle form', () => {
-  it('focuses its first field, slides out on Cancel and gives focus back to Mark paid', async () => {
+  it('opens inside the row you tapped, scrolls to it and focuses the amount', async () => {
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
     fakeApi(groupHandlers({ balances: owing }))
     renderApp('/groups/g1')
     const markPaid = await screen.findByRole('button', { name: 'Mark paid' })
     fireEvent.click(markPaid)
     const form = screen.getByRole('form', { name: 'Mark a payment' })
-    await vi.waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText('Paid to')))
+
+    expect(form.closest('li')).toBe(markPaid.closest('li'))
+    await vi.waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText('Amount')))
+    expect(scrolled.mock.contexts[0]).toBe(form)
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  })
+
+  it('names what its button will record, and never says Submit', async () => {
+    fakeApi(groupHandlers({ balances: owing }))
+    renderApp('/groups/g1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+    const form = within(screen.getByRole('form', { name: 'Mark a payment' }))
+
+    expect(form.getByRole('button', { name: 'Record $30.00 to Bob' })).toBeTruthy()
+    fireEvent.change(form.getByLabelText('Amount'), { target: { value: '12.4' } })
+    expect(form.getByRole('button', { name: 'Record $12.40 to Bob' })).toBeTruthy()
+    fireEvent.change(form.getByLabelText('Amount'), { target: { value: '' } })
+    expect(form.getByRole('button', { name: 'Mark as paid' })).toBeTruthy()
+    expect(document.body.textContent).not.toContain('Submit')
+  })
+
+  it('slides out on Cancel and gives focus back to Mark paid', async () => {
+    fakeApi(groupHandlers({ balances: owing }))
+    renderApp('/groups/g1')
+    const markPaid = await screen.findByRole('button', { name: 'Mark paid' })
+    fireEvent.click(markPaid)
+    const form = screen.getByRole('form', { name: 'Mark a payment' })
+    await vi.waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText('Amount')))
 
     fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
     expect(form.classList.contains('out')).toBe(true)

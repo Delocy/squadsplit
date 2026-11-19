@@ -67,7 +67,7 @@ describe('buttons waiting on the server', () => {
     renderApp('/groups/g1')
     fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
     const form = within(screen.getByRole('form', { name: 'Mark a payment' }))
-    doublePress(form.getByRole('button', { name: 'Submit' }))
+    doublePress(form.getByRole('button', { name: /^Record / }))
     expect(((await form.findByRole('button', { name: 'Saving…' })) as HTMLButtonElement).disabled).toBe(true)
     post.release()
     await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))

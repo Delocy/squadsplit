@@ -91,7 +91,7 @@ describe('Your mix with someone who has not joined', () => {
     recordWithDave(settlement({ id: 's7', fromUserId: DAVE, toUserId: ME, amountCents: 500, status: 'confirmed' }), { [ME]: 500, [DAVE]: -500 })
     const settle = within(await screen.findByRole('region', { name: /Settle up/ }))
     fireEvent.click(await settle.findByRole('button', { name: 'Mark paid' }))
-    fireEvent.click(settle.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(settle.getByRole('button', { name: /^Record / }))
 
     const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.textContent).toContain('Dave paid you back. The squad approves.')
@@ -107,7 +107,7 @@ describe('Your mix with someone who has not joined', () => {
   it('celebrates paying them, with the heart hopping from you to them', async () => {
     recordWithDave(settlement({ id: 's8', fromUserId: ME, toUserId: DAVE, amountCents: 500, status: 'confirmed' }), { [ME]: -500, [DAVE]: 500 })
     fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Record / }))
 
     const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.textContent).toContain('You paid Dave back. The squad approves.')
@@ -121,7 +121,7 @@ describe('Your mix with someone who has not joined', () => {
   it('does not celebrate a payment that still needs confirming', async () => {
     recordWithDave(settlement({ id: 's9', fromUserId: ME, toUserId: DAVE, amountCents: 500, status: 'pending' }), { [ME]: -500, [DAVE]: 500 })
     fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Record / }))
     await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull())
     expect(screen.queryByRole('region', { name: 'Payback confirmed' })).toBeNull()
   })

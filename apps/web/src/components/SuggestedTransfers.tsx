@@ -94,6 +94,38 @@ export function SuggestedTransfers({
     )
   }
 
+  // The form opens inside the row whose "Mark paid" was tapped, right under it.
+  const settleForm = form.shown && (
+    <div className="settle-in-row">
+      <SettleForm
+        key={`${form.shown.direction}:${form.shown.other}`}
+        leaving={form.leaving}
+        balances={balances.balances}
+        pendingOutgoingCents={pendingOutgoing}
+        suggestions={balances.suggestions}
+        me={me}
+        direction={form.shown.direction}
+        initialPayee={form.shown.other}
+        people={people}
+        currency={currency}
+        busy={settle.isPending}
+        onSubmit={(input) => settle.mutate(input, { onSuccess: () => setFormFor(null) })}
+        onCancel={() => {
+          settle.reset()
+          setFormFor(null)
+        }}
+      />
+      {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables)} />}
+    </div>
+  )
+
+  /** Whether the open form belongs under this transfer: its "Mark paid" opened it. */
+  const formIsFor = (t: Transfer) =>
+    form.shown !== null &&
+    (form.shown.direction === 'paid'
+      ? t.fromUserId === me && t.toUserId === form.shown.other
+      : t.toUserId === me && t.fromUserId === form.shown.other)
+
   const row = (t: Transfer) => {
     const amount = Math.min(t.amountCents, cap(t.toUserId))
     return (
@@ -140,6 +172,7 @@ export function SuggestedTransfers({
             </button>
           )}
         </div>
+        {formIsFor(t) && settleForm}
       </li>
     )
   }
@@ -154,27 +187,6 @@ export function SuggestedTransfers({
           <li className="empty">Everyone is settled up.</li>
         )}
       </ul>
-      {form.shown && (
-        <SettleForm
-          key={`${form.shown.direction}:${form.shown.other}`}
-          leaving={form.leaving}
-          balances={balances.balances}
-          pendingOutgoingCents={pendingOutgoing}
-          suggestions={balances.suggestions}
-          me={me}
-          direction={form.shown.direction}
-          initialPayee={form.shown.other}
-          people={people}
-          currency={currency}
-          busy={settle.isPending}
-          onSubmit={(input) => settle.mutate(input, { onSuccess: () => setFormFor(null) })}
-          onCancel={() => {
-            settle.reset()
-            setFormFor(null)
-          }}
-        />
-      )}
-      {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables)} />}
     </>
   )
 }

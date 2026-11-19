@@ -16,8 +16,9 @@ export type SettleDirection = 'paid' | 'received'
 
 /**
  * "Mark paid": who you paid and how much, from 1¢ up to what you can settle with them right now
- * (see settlementCap). Opens on a suggested transfer and starts from it; any creditor can be picked.
- * Received: which of the people who haven't joined paid you, up to what they owe you.
+ * (see settlementCap). Opens inside the suggested transfer you tapped and starts from it, scrolled into view with the
+ * amount focused; any creditor can be picked. Received: which of the people who haven't joined paid you, up to what
+ * they owe you. Its button says what it will record ("Record $12.40 to Mei").
  */
 export function SettleForm({
   balances,
@@ -67,8 +68,17 @@ export function SettleForm({
   const [payee, setPayee] = useState(initialPayee)
   const [amount, setAmount] = useState(() => prefill(initialPayee))
   const [error, setError] = useState<string | null>(null)
-  const firstField = useRef<HTMLSelectElement>(null)
-  useEffect(() => firstField.current?.focus(), [])
+  const formRef = useRef<HTMLFormElement>(null)
+  const amountField = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    formRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    amountField.current?.focus({ preventScroll: true })
+  }, [])
+  const typed = parseAmount(amount)
+  const action =
+    typed === null || typed < 1
+      ? 'Mark as paid'
+      : `Record ${formatMoney(typed, currency)} ${received ? 'from' : 'to'} ${people.name(payee)}`
 
   function choosePayee(userId: string) {
     setPayee(userId)
@@ -94,13 +104,13 @@ export function SettleForm({
   }
 
   return (
-    <form className={leaving ? 'settle-form out' : 'settle-form'} aria-label="Mark a payment" onSubmit={submit}>
+    <form ref={formRef} className={leaving ? 'settle-form out' : 'settle-form'} aria-label="Mark a payment" onSubmit={submit}>
       <div className="settle-fields">
         <div>
           <label className="f" htmlFor="settle-payee">
             {received ? 'Who paid you' : 'Paid to'}
           </label>
-          <select ref={firstField} id="settle-payee" value={payee} onChange={(e) => choosePayee(e.target.value)}>
+          <select id="settle-payee" value={payee} onChange={(e) => choosePayee(e.target.value)}>
             {others.map((m) => (
               <option key={m.userId} value={m.userId}>
                 {received ? `${m.displayName} paid me` : m.displayName}
@@ -113,6 +123,7 @@ export function SettleForm({
             Amount
           </label>
           <input
+            ref={amountField}
             id="settle-amount"
             type="text"
             inputMode="decimal"
@@ -130,12 +141,12 @@ export function SettleForm({
         </p>
       )}
       <div className="form-f">
-        <button type="button" className="btn small ghost" onClick={onCancel}>
+        <button type="button" className="btn ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn small primary" disabled={busy || leaving}>
+        <button type="submit" className="btn primary" disabled={busy || leaving}>
           <BusyLabel busy={busy} label="Saving…">
-            Submit
+            {action}
           </BusyLabel>
         </button>
       </div>
