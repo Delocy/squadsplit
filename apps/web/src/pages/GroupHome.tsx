@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/react'
 import { formatMoney } from '@squadsplit/shared'
 import { Link, Outlet, useParams } from 'react-router'
 import { BalanceCard } from '../components/BalanceCard'
@@ -14,11 +13,12 @@ import { SuggestedTransfers } from '../components/SuggestedTransfers'
 import { WheelCard } from '../components/WheelCard'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
+import { useMyId } from '../guest/GroupAccess'
 
 /** `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog opens over it. */
 export function GroupHome() {
   const id = useParams().id ?? ''
-  const me = useAuth().userId ?? ''
+  const me = useMyId()
   const group = useGroup(id)
   const balances = useBalances(id)
   const expenses = useExpenses(id)

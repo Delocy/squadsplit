@@ -1,17 +1,19 @@
-import { useAuth } from '@clerk/react'
+import { SignInButton, useAuth } from '@clerk/react'
 import {
   defaultAvatar,
   firstFreeAvatar,
   MAX_GROUP_MEMBERS,
   sameAvatar,
   type AvatarChoice,
+  type GuestJoinDTO,
+  type GuestJoinInput,
   type InvitePreviewDTO,
   type JoinGroupInput,
   type PlaceholderDTO,
 } from '@squadsplit/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { useParams } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
@@ -22,6 +24,8 @@ import { JoinSkeleton } from '../components/Skeletons'
 import { Avatar, lookOf } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { Mascot } from '../design/icons'
+import { saveGuestPass, useGuestPass } from '../guest/guestPass'
+import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberName'
 import { queryKeys } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
@@ -31,18 +35,29 @@ type Who = { kind: 'new' } | { kind: 'claim'; placeholder: PlaceholderDTO }
 
 const isCode = (error: unknown, code: string) => error instanceof ApiError && error.code === code
 
+/** What the form sends: a signed-in join, or a guest's (which also carries the name of someone new). */
+type JoinInput = JoinGroupInput & { name?: string }
+
 export function Join() {
   const code = useParams().code ?? ''
   const path = `/invites/${encodeURIComponent(code)}`
   const api = useApi()
   const navigate = usePageNavigate()
   const queryClient = useQueryClient()
+  // Signed out, you join as a guest: no account, and this phone remembers you.
+  const asGuest = !useAuth().isSignedIn
   /** Your answer to "Which one are you?"; null until you answer (or when there is nothing to ask). */
   const [answer, setAnswer] = useState<Who | null>(null)
 
   const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(path) })
+  const onThisPhone = useGuestPass(invite.data?.groupId ?? '')
   const join = useSingleFlightMutation({
-    mutationFn: (input: JoinGroupInput) => api.post<{ groupId: string }>(`${path}/join`, input),
+    mutationFn: async (input: JoinInput): Promise<{ groupId: string }> => {
+      if (!asGuest) return api.post<{ groupId: string }>(`${path}/join`, input)
+      const joined = await api.post<GuestJoinDTO>(`${path}/guest`, input satisfies GuestJoinInput)
+      saveGuestPass(joined.groupId, { token: joined.token, userId: joined.member.userId, groupName: invite.data?.name ?? '', code })
+      return joined
+    },
     onSuccess: ({ groupId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       navigate(`/groups/${groupId}`, { replace: true })
@@ -71,9 +86,7 @@ export function Join() {
           ) : (
             <ErrorNote error={invite.error} />
           )}
-          <PageLink to="/groups" className="btn small">
-            Back to your groups
-          </PageLink>
+          <BackLink asGuest={asGuest} />
         </section>
       </main>
     )
@@ -88,10 +101,10 @@ export function Join() {
   const who: Who | null = answer ?? (names.length === 0 ? { kind: 'new' } : null)
 
   let body
-  if (g.alreadyMember) {
+  if (g.alreadyMember || (asGuest && onThisPhone)) {
     body = (
       <>
-        <p>You're already in this group.</p>
+        <p>{g.alreadyMember ? "You're already in this group." : "You're in this group on this phone."}</p>
         <GroupLink groupId={g.groupId} className="btn primary">
           Open group
         </GroupLink>
@@ -101,9 +114,7 @@ export function Join() {
     body = (
       <>
         <p>This group is full ({MAX_GROUP_MEMBERS} people), so there's no room to join right now.</p>
-        <PageLink to="/groups" className="btn small">
-          Back to your groups
-        </PageLink>
+        <BackLink asGuest={asGuest} />
       </>
     )
   } else {
@@ -126,11 +137,13 @@ export function Join() {
             key={who.kind === 'claim' ? who.placeholder.userId : 'new'}
             invite={g}
             who={who}
+            asGuest={asGuest}
             busy={join.isPending}
             onJoin={(input) => join.mutate(input)}
           />
         )}
         <ErrorNote error={join.error} />
+        {asGuest && <SignInInstead />}
       </>
     )
   }
@@ -195,64 +208,119 @@ function WhichOneAreYou({
   )
 }
 
-/** Your nickname and look in the group, then Join. Claiming a name starts from its name and look. */
+/**
+ * Your nickname and look in the group, then Join. Claiming a name starts from its name and look. A guest who is new
+ * gives their name first.
+ */
 function JoinForm({
   invite: g,
   who,
+  asGuest,
   busy,
   onJoin,
 }: {
   invite: InvitePreviewDTO
   who: Who
+  asGuest: boolean
   busy: boolean
-  onJoin: (input: JoinGroupInput) => void
+  onJoin: (input: JoinInput) => void
 }) {
   const me = useAuth().userId ?? ''
   const profile = useMe().data
-  const profileName = profile?.displayName ?? ''
   const claimed = who.kind === 'claim' ? who.placeholder : null
-  const nickname = useNicknameDraft(claimed?.name ?? profileName)
+  const newGuest = asGuest && !claimed
+  const [name, setName] = useState('')
+  const profileName = newGuest ? name.trim() : (profile?.displayName ?? '')
+  const nickname = useNicknameDraft(claimed?.name ?? (newGuest ? '' : profileName))
   /** The look you picked; null until you pick one. */
   const [choice, setChoice] = useState<AvatarChoice | null>(null)
-  const [showHint, setShowHint] = useState(false)
+  const [showHint, setShowHint] = useState<'name' | 'nickname' | null>(null)
 
   // A name you claim gives up its look to you, so it isn't taken from you.
   const taken = claimed ? withoutOne(g.takenAvatars, claimed.avatar) : g.takenAvatars
   // What the server gives you if you don't pick: the name's look when you claim one; otherwise the look you left
-  // with (if you're rejoining), else your profile look, moved on to the first free look if someone has it.
-  const given = claimed?.avatar ?? firstFreeAvatar(g.myFormerAvatar ?? profile?.profileAvatar ?? defaultAvatar(me), taken)
+  // with (if you're rejoining), else your profile look, moved on to the first free look if someone has it. A new
+  // guest has no look yet, so they start on one from the group and always send what they see.
+  const start = newGuest ? defaultAvatar(`gs_${g.groupId}`) : (g.myFormerAvatar ?? profile?.profileAvatar ?? defaultAvatar(me))
+  const given = claimed?.avatar ?? firstFreeAvatar(start, taken)
   // Your pick while it's free; if someone took it, the first free look from it; with no pick, what you're given.
   const avatar = choice ? firstFreeAvatar(choice, taken) : given
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    setShowHint(nickname.invalid)
-    if (nickname.invalid) return
+    const newName = newGuest ? parseMemberName(name) : null
+    const hint = newGuest && newName === null ? 'name' : nickname.invalid ? 'nickname' : null
+    setShowHint(hint)
+    if (hint) return
     // The avatar only goes when it differs from what you're given, so the server's rule applies.
     onJoin({
       ...(claimed && { claim: claimed.userId }),
-      ...(!sameAvatar(avatar, given) && { avatar }),
+      ...(newName !== null && { name: newName }),
+      ...((newGuest || !sameAvatar(avatar, given)) && { avatar }),
       ...(nickname.change !== undefined && { nickname: nickname.change }),
     })
   }
 
   return (
     <form className="you-fields" onSubmit={submit} noValidate>
+      {newGuest && (
+        <>
+          <label className="f" htmlFor="join-name">
+            Your name
+          </label>
+          <input
+            id="join-name"
+            type="text"
+            maxLength={MEMBER_NAME_MAX}
+            autoComplete="given-name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              setShowHint(null)
+            }}
+          />
+        </>
+      )}
       <NicknameField id="join-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
       <span className="f">Your animal in this group</span>
       <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
       <AvatarPicker value={avatar} taken={taken} onChange={setChoice} />
-      {showHint && nickname.invalid && (
+      {showHint && (
         <p className="err" role="alert">
-          {NICKNAME_HINT}
+          {showHint === 'name' ? MEMBER_NAME_HINT : NICKNAME_HINT}
         </p>
       )}
       <button className="btn primary" type="submit" disabled={busy}>
         <BusyLabel busy={busy} label="Joining…">
-          Join group
+          {asGuest ? 'Join as guest' : 'Join group'}
         </BusyLabel>
       </button>
     </form>
+  )
+}
+
+/** Under a guest's join form: join with an account instead, so the group shows in your list on every device. */
+function SignInInstead() {
+  const { pathname, search } = useLocation()
+  const here = `${window.location.origin}${pathname}${search}`
+  return (
+    <div className="guest-note">
+      <p className="s">No account needed. This phone remembers you.</p>
+      <SignInButton mode="modal" forceRedirectUrl={here} signUpForceRedirectUrl={here}>
+        <button type="button" className="btn ghost">
+          Sign in to keep it in your list
+        </button>
+      </SignInButton>
+    </div>
+  )
+}
+
+/** Away from an invite that can't be joined: your groups, or the home page for a guest. */
+function BackLink({ asGuest }: { asGuest: boolean }) {
+  return (
+    <PageLink to={asGuest ? '/' : '/groups'} className="btn small">
+      {asGuest ? 'Home' : 'Back to your groups'}
+    </PageLink>
   )
 }
 

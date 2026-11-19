@@ -1,0 +1,236 @@
+import { defaultAvatar, firstFreeAvatar, type GroupDTO, type InvitePreviewDTO } from '@squadsplit/shared'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { saveGuestPass } from '../src/guest/guestPass'
+import { ME, signIn } from './clerk-mock'
+import { BOB, BOB_AVATAR, group, groupHandlers, member, ME_AVATAR } from './group-fixtures'
+import { fakeApi, renderApp } from './harness'
+
+vi.mock('@clerk/react', () => import('./clerk-mock'))
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  localStorage.clear()
+  sessionStorage.clear()
+  signIn.state = true
+})
+
+const TOKEN = 'G'.repeat(43)
+const DAVE = 'ph_dave'
+const DAVE_LOOK = { animal: 'bear', color: 'lemon' } as const
+const ERIN_LOOK = { animal: 'kitty', color: 'sky' } as const
+
+const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
+  groupId: 'g1',
+  name: 'Bali Trip',
+  emoji: '🧡',
+  memberCount: 4,
+  alreadyMember: false,
+  takenAvatars: [ME_AVATAR, BOB_AVATAR, DAVE_LOOK, ERIN_LOOK],
+  myFormerAvatar: null,
+  placeholders: [
+    { userId: DAVE, name: 'Dave', avatar: DAVE_LOOK },
+    { userId: 'ph_erin', name: 'Erin', avatar: ERIN_LOOK },
+  ],
+  ...over,
+})
+
+/** The group as its guest Dave sees it: the owner is someone else (Alice). */
+const guestView = (over: Partial<GroupDTO> = {}) =>
+  group({
+    inviteCode: null,
+    members: [
+      member(ME, 'Alice', ME_AVATAR, { role: 'owner' }),
+      member(BOB, 'Bob', BOB_AVATAR),
+      member(DAVE, 'Dave', DAVE_LOOK, { guest: true }),
+    ],
+    ...over,
+  })
+
+const passFor = (userId = DAVE) => ({ token: TOKEN, userId, groupName: 'Bali Trip', code: 'ABCD2345' })
+const storedPass = () => JSON.parse(localStorage.getItem('squadsplit.guest.g1') ?? 'null') as unknown
+const whoAreYou = async () => within(await screen.findByRole('group', { name: 'Which one are you?' }))
+const ok = (body: unknown) => () => ({ status: 200, body })
+
+describe('the Join page, signed out', () => {
+  it('picks a name, joins as a guest and opens the group as them, with the token in a header only', async () => {
+    signIn.state = false
+    const calls = fakeApi(
+      groupHandlers(
+        { group: guestView() },
+        {
+          'GET /invites/ABCD2345': ok(preview()),
+          'POST /invites/ABCD2345/guest': () => ({
+            status: 201,
+            body: { token: TOKEN, groupId: 'g1', member: member(DAVE, 'Dave', DAVE_LOOK, { guest: true }) },
+          }),
+        },
+      ),
+    )
+    const router = renderApp('/join/ABCD2345')
+
+    expect(await screen.findByText('No account needed. This phone remembers you.')).toBeTruthy()
+    fireEvent.click((await whoAreYou()).getByRole('button', { name: 'Dave' }))
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+    expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).toEqual({ claim: DAVE })
+    expect(storedPass()).toEqual(passFor())
+    await screen.findByRole('region', { name: 'Group stats' })
+    const groupRead = calls.find((c) => c.key === 'GET /groups/g1')!
+    expect(groupRead).toMatchObject({ guest: TOKEN, auth: null })
+    expect(calls.some((c) => c.key.includes(TOKEN))).toBe(false)
+    const { pathname, search, hash } = router.state.location
+    expect(`${pathname}${search}${hash}`).not.toContain(TOKEN)
+  })
+
+  it("joins as someone new with I'm new: a name, then a look and nickname", async () => {
+    signIn.state = false
+    const calls = fakeApi(
+      groupHandlers(
+        { group: guestView() },
+        {
+          'GET /invites/ABCD2345': ok(preview()),
+          'POST /invites/ABCD2345/guest': () => ({
+            status: 201,
+            body: { token: TOKEN, groupId: 'g1', member: member('gs_zed', 'Zed', DAVE_LOOK, { guest: true }) },
+          }),
+        },
+      ),
+    )
+    const router = renderApp('/join/ABCD2345')
+
+    fireEvent.click((await whoAreYou()).getByRole('button', { name: "I'm new" }))
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Names are up to 24 characters/)
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: ' Zed ' } })
+    fireEvent.change(screen.getByLabelText('What should this group call you?'), { target: { value: 'Zeddy' } })
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+    // The look on screen is the one sent, so the server can't pick a different one.
+    const look = firstFreeAvatar(defaultAvatar('gs_g1'), preview().takenAvatars)
+    expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).toEqual({ name: 'Zed', avatar: look, nickname: 'Zeddy' })
+    expect(storedPass()).toEqual(passFor('gs_zed'))
+  })
+
+  it('offers signing in instead, to keep the group in a list', async () => {
+    signIn.state = false
+    fakeApi({ 'GET /invites/ABCD2345': ok(preview({ placeholders: [] })) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByRole('button', { name: 'Sign in to keep it in your list' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Join as guest/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+
+  it('opens the group for a phone that is already in it as a guest', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi({ 'GET /invites/ABCD2345': ok(preview()) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByText("You're in this group on this phone.")).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open group' }).getAttribute('href')).toBe('/groups/g1')
+  })
+})
+
+describe('a group page with a guest pass', () => {
+  it('opens with no account, as the guest, and hides what only the owner can do', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(groupHandlers({ group: guestView() }))
+    renderApp('/groups/g1/settings')
+
+    expect(await screen.findByRole('heading', { name: 'Group settings' })).toBeTruthy()
+    expect(screen.getByText('Dave (you)')).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: 'Invite link' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Reset invite link/ })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Add a name' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Free up name/ })).toBeNull()
+  })
+
+  it('shows the guest in the top bar with a Guest tag, and in the member list', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(groupHandlers({ group: guestView() }))
+    renderApp('/groups/g1/settings')
+
+    const bar = within(await screen.findByRole('banner'))
+    expect(await bar.findByText('Guest')).toBeTruthy()
+    expect(bar.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    const members = within(screen.getByRole('list', { name: 'Members' }))
+    expect(members.getAllByText('Guest')).toHaveLength(1)
+  })
+
+  it('forgets the pass and says why when the guest has been signed out (401)', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(groupHandlers({}, { 'GET /groups/g1': () => ({ status: 401, body: { error: { code: 'unauthenticated', message: 'Sign in required' } } }) }))
+    renderApp('/groups/g1')
+
+    const card = await screen.findByRole('alert')
+    expect(card.textContent).toContain("You've been signed out of Bali Trip. Ask for the new link to rejoin.")
+    expect(within(card).getByRole('link', { name: 'Go to the join page' }).getAttribute('href')).toBe('/join/ABCD2345')
+    expect(storedPass()).toBeNull()
+  })
+
+  it('sends a signed-out visitor with no pass to sign in, as before', async () => {
+    signIn.state = false
+    const calls = fakeApi({})
+    renderApp('/groups/g1')
+    expect(await screen.findByText(/Redirecting to sign-in, then back to .*\/groups\/g1/)).toBeTruthy()
+    expect(calls).toHaveLength(0)
+  })
+
+  it('uses the account, not the pass, when the signed-in account is in the group', async () => {
+    saveGuestPass('g1', passFor())
+    const calls = fakeApi(groupHandlers({}, { 'GET /groups': ok([{ id: 'g1', name: 'Bali Trip', emoji: '🧡', currency: 'SGD', role: 'owner', myBalanceCents: 0 }]) }))
+    renderApp('/groups/g1')
+    await screen.findByRole('region', { name: 'Group stats' })
+    expect(calls.find((c) => c.key === 'GET /groups/g1')).toMatchObject({ guest: null, auth: 'Bearer test_token' })
+  })
+
+  it('uses the pass for a signed-in account that is not in the group', async () => {
+    saveGuestPass('g1', passFor())
+    const calls = fakeApi(groupHandlers({ group: guestView() }))
+    renderApp('/groups/g1')
+    await screen.findByRole('region', { name: 'Group stats' })
+    expect(calls.find((c) => c.key === 'GET /groups/g1')).toMatchObject({ guest: TOKEN })
+  })
+})
+
+describe('the landing page, On this phone', () => {
+  it('lists the groups this phone is a guest in, dropping passes that no longer work', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    saveGuestPass('g2', { ...passFor('gs_2'), token: 'H'.repeat(43), groupName: 'Old trip' })
+    saveGuestPass('g3', { ...passFor('gs_3'), token: 'I'.repeat(43), groupName: 'Gone' })
+    const calls = fakeApi({
+      'GET /groups/g1': ok(guestView()),
+      'GET /groups/g2': () => ({ status: 401, body: { error: { code: 'unauthenticated', message: 'Sign in required' } } }),
+      'GET /groups/g3': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Group not found' } } }),
+    })
+    renderApp('/')
+
+    const list = within(await screen.findByRole('list', { name: 'On this phone' }))
+    expect(await list.findByRole('link', { name: /Bali Trip/ })).toBeTruthy()
+    await vi.waitFor(() => expect(localStorage.getItem('squadsplit.guest.g2')).toBeNull())
+    await vi.waitFor(() => expect(localStorage.getItem('squadsplit.guest.g3')).toBeNull())
+    expect(list.getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['/groups/g1'])
+    expect(calls.find((c) => c.key === 'GET /groups/g1')?.guest).toBe(TOKEN)
+    // Above the sign-in call to action.
+    const onPhone = screen.getByRole('heading', { name: 'On this phone' })
+    const getStarted = screen.getByRole('button', { name: 'Get started' })
+    expect(onPhone.compareDocumentPosition(getStarted) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows nothing extra on a phone with no passes', async () => {
+    signIn.state = false
+    fakeApi({})
+    renderApp('/')
+    await screen.findByRole('heading', { name: 'Split bills, not friendships.' })
+    expect(screen.queryByRole('heading', { name: 'On this phone' })).toBeNull()
+  })
+})

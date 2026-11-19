@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/react'
 import type { FeedItem } from '@squadsplit/shared'
 import { useParams } from 'react-router'
 import { GroupLink } from '../components/GroupLink'
@@ -8,13 +7,14 @@ import { WheelCard } from '../components/WheelCard'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useFeed, useGroup, type People } from '../groupData'
+import { useMyId } from '../guest/GroupAccess'
 
 const RECENT_SPINS = 5
 
 /** `/groups/:id/wheel`: the big "Who pays next?" wheel (the same one as on the group home) and the recent spins. */
 export function Wheel() {
   const id = useParams().id ?? ''
-  const me = useAuth().userId ?? ''
+  const me = useMyId()
   const group = useGroup(id)
   const balances = useBalances(id)
   const feed = useFeed(id)

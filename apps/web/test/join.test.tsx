@@ -208,14 +208,6 @@ describe('Join page', () => {
     expect(await screen.findByText(/This invite link doesn't work any more/)).toBeTruthy()
   })
 
-  it('sends a signed-out visitor to sign in and back to the invite link', async () => {
-    signIn.state = false
-    const calls = fakeApi({})
-    renderApp('/join/ABCD2345')
-    expect(await screen.findByText(/Redirecting to sign-in, then back to .*\/join\/ABCD2345/)).toBeTruthy()
-    expect(calls).toHaveLength(0)
-  })
-
   describe('which one are you?', () => {
     const DAVE_LOOK = { animal: 'bear', color: 'lemon' } as const
     const ERIN_LOOK = { animal: 'kitty', color: 'sky' } as const

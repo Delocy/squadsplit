@@ -1,0 +1,90 @@
+import { useAuth } from '@clerk/react'
+import type { GroupSummaryDTO } from '@squadsplit/shared'
+import { useQuery } from '@tanstack/react-query'
+import { Outlet, useParams } from 'react-router'
+import { useApi } from '../api'
+import { PageLink } from '../components/PageLink'
+import { RequireSignIn } from '../components/RequireSignIn'
+import { GroupHomeSkeleton } from '../components/Skeletons'
+import { TopBar } from '../components/TopBar'
+import { Mascot } from '../design/icons'
+import { queryKeys } from '../queryKeys'
+import { GroupAccessProvider, type GroupAccess } from './GroupAccess'
+import { useGuestPass, useSignedOutNotice, type GuestPass } from './guestPass'
+
+/**
+ * Around every page inside a group (`/groups/:id/...`). A signed-in member sees it as now. With this phone's guest
+ * pass for the group, it opens with no account, or for a signed-in account that isn't in the group itself (say,
+ * just signed in to save the guest). Anyone else goes to sign-in, unless their guest pass was just turned down: then
+ * they're told why.
+ */
+export function GroupLayout() {
+  const groupId = useParams().id ?? ''
+  const guest = useGuestFor(groupId)
+  const notice = useSignedOutNotice(groupId)
+
+  // No top bar yet: it would read the group before we know which way to ask for it.
+  if (guest === 'checking') {
+    return (
+      <div className="wrap">
+        <GroupHomeSkeleton />
+      </div>
+    )
+  }
+  if (!guest && notice) {
+    return (
+      <div className="wrap">
+        <TopBar />
+        <SignedOutCard groupName={notice.groupName} code={notice.code} />
+      </div>
+    )
+  }
+  const access: GroupAccess = { groupId, guest }
+  const page = (
+    <GroupAccessProvider value={access}>
+      <div className="wrap">
+        <TopBar />
+        <Outlet />
+      </div>
+    </GroupAccessProvider>
+  )
+  return guest ? page : <RequireSignIn>{page}</RequireSignIn>
+}
+
+/**
+ * The guest pass to open the group with, or null to open it as the signed-in account. A signed-in phone that also
+ * holds a pass uses it only when the account isn't in the group ('checking' while that is looked up).
+ */
+function useGuestFor(groupId: string): GuestPass | null | 'checking' {
+  const { isSignedIn } = useAuth()
+  const pass = useGuestPass(groupId)
+  const api = useApi()
+  const accountGroups = useQuery({
+    queryKey: queryKeys.groups,
+    queryFn: () => api.get<GroupSummaryDTO[]>('/groups'),
+    enabled: Boolean(isSignedIn && pass),
+  })
+  if (!pass) return null
+  if (!isSignedIn) return pass
+  if (accountGroups.isPending) return 'checking'
+  return accountGroups.data?.some((g) => g.id === groupId) ? null : pass
+}
+
+/** The owner reset the link or freed up the name, so this phone's guest pass stopped working. */
+function SignedOutCard({ groupName, code }: { groupName: string; code: string }) {
+  return (
+    <main className="narrow page">
+      <section className="card join" role="alert">
+        <div className="hero-mark shiver">
+          <Mascot kind="bunny" face="#ffd6e0" mood="nervous" />
+        </div>
+        <p>
+          You've been signed out of {groupName}. Ask for the new link to rejoin.
+        </p>
+        <PageLink to={`/join/${code}`} className="btn primary">
+          Go to the join page
+        </PageLink>
+      </section>
+    </main>
+  )
+}

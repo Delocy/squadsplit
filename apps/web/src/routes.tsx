@@ -2,6 +2,7 @@ import { Show } from '@clerk/react'
 import { Navigate, Outlet, ScrollRestoration, type RouteObject } from 'react-router'
 import { RequireSignIn } from './components/RequireSignIn'
 import { TopBar } from './components/TopBar'
+import { GroupLayout } from './guest/GroupLayout'
 import { CreateGroup } from './pages/CreateGroup'
 import { ExpenseForm } from './pages/ExpenseForm'
 import { GroupHome } from './pages/GroupHome'
@@ -30,9 +31,17 @@ function Home() {
   )
 }
 
-/** Every page behind sign-in gets the top bar, and the user's profile is refreshed once after sign-in. */
-function SignedInLayout() {
+/**
+ * Around the app's pages (all but the landing page and share links): the signed-in user's profile is refreshed once
+ * after sign-in. It stays mounted while moving between them, so that happens once.
+ */
+function ProfileRefresh() {
   useProfileRefresh()
+  return <Outlet />
+}
+
+/** Every page behind sign-in gets the top bar. */
+function SignedInLayout() {
   return (
     <RequireSignIn>
       <div className="wrap">
@@ -40,6 +49,16 @@ function SignedInLayout() {
         <Outlet />
       </div>
     </RequireSignIn>
+  )
+}
+
+/** Pages that work signed in or out (an invite: you can join it as a guest). */
+function OpenLayout() {
+  return (
+    <div className="wrap">
+      <TopBar />
+      <Outlet />
+    </div>
   )
 }
 
@@ -64,27 +83,40 @@ const pages: RouteObject[] = [
   // A quick split's share link: outside the signed-in pages, for friends with no account.
   { path: '/s/:token', element: <SharedSplitPage /> },
   {
-    element: <SignedInLayout />,
+    element: <ProfileRefresh />,
     children: [
-      { path: '/groups', element: <Groups /> },
-      { path: '/groups/new', element: <CreateGroup /> },
-      { path: '/join/:code', element: <Join /> },
-      { path: '/me', element: <Profile /> },
+      // An invite, for friends with or without an account.
+      { element: <OpenLayout />, children: [{ path: '/join/:code', element: <Join /> }] },
+      // A group's pages, for its signed-in members and for guests holding this phone's pass for it.
       {
         path: '/groups/:id',
-        element: <GroupHome />,
-        // The add/edit expense dialog opens over the group home.
+        element: <GroupLayout />,
         children: [
-          { path: 'expenses/new', element: <ExpenseForm /> },
-          { path: 'expenses/:expenseId', element: <ExpenseForm /> },
+          {
+            element: <GroupHome />,
+            // The add/edit expense dialog opens over the group home.
+            children: [
+              { index: true, element: null },
+              { path: 'expenses/new', element: <ExpenseForm /> },
+              { path: 'expenses/:expenseId', element: <ExpenseForm /> },
+            ],
+          },
+          { path: 'wheel', element: <Wheel /> },
+          { path: 'settings', element: <GroupSettings /> },
         ],
       },
-      { path: '/groups/:id/wheel', element: <Wheel /> },
-      { path: '/groups/:id/settings', element: <GroupSettings /> },
-      // Quick splits name their id `splitId`: the top bar reads `id` as a group's.
-      { path: '/quick/new', element: <NewQuickSplit /> },
-      { path: '/quick/:splitId', element: <QuickSplitPage /> },
-      { path: '/quick/:splitId/edit', element: <EditQuickSplit /> },
+      {
+        element: <SignedInLayout />,
+        children: [
+          { path: '/groups', element: <Groups /> },
+          { path: '/groups/new', element: <CreateGroup /> },
+          { path: '/me', element: <Profile /> },
+          // Quick splits name their id `splitId`: the top bar reads `id` as a group's.
+          { path: '/quick/new', element: <NewQuickSplit /> },
+          { path: '/quick/:splitId', element: <QuickSplitPage /> },
+          { path: '/quick/:splitId/edit', element: <EditQuickSplit /> },
+        ],
+      },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

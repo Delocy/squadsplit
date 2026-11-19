@@ -380,6 +380,12 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 
 /* names of people who haven't joined yet */
 .status.not-joined { flex: none; white-space: nowrap; }
+/* guests: in the group on their phone, with no account */
+.status.guest { flex: none; white-space: nowrap; background: var(--lav); border-color: var(--lav); color: var(--text); }
+.on-this-phone { width: 100%; max-width: 420px; text-align: left; display: grid; gap: 10px; }
+.on-this-phone h3 { margin: 0; font-size: 15px; color: var(--muted); }
+.guest-note { display: grid; justify-items: center; gap: 6px; margin-top: 12px; }
+.guest-note .s { margin: 0; }
 /* settle-up transfers: each name truncates on its own, the "Not joined yet" tags get their own line under the names,
    and the amount with its button wraps below as one when even that doesn't fit (320px). */
 .row.transfer { flex-wrap: wrap; row-gap: 6px; }
