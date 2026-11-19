@@ -17,9 +17,12 @@ export class HttpError extends Error {
 
 export const errorBody = (code: string, message: string): ApiErrorBody => ({ error: { code, message } })
 
-/** Reads the JSON request body and validates it. A malformed body or a schema mismatch becomes a 422 via handleError. */
+/** Reads the JSON request body and validates it. A malformed body or a schema mismatch becomes a 422. */
 export async function parseBody<S extends z.ZodType>(c: Context, schema: S): Promise<z.output<S>> {
-  return schema.parse(await c.req.json())
+  const raw: unknown = await c.req.json().catch(() => {
+    throw new HttpError(422, 'validation_failed', 'Request body must be valid JSON')
+  })
+  return schema.parse(raw)
 }
 
 // `instanceof` fails for a ZodError thrown by another copy of zod, so match the name too.
@@ -31,8 +34,6 @@ export const handleError: ErrorHandler = (err, c) => {
     const message = err.issues.map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message)).join('; ')
     return c.json(errorBody('validation_failed', message), 422)
   }
-  // c.req.json() throws a SyntaxError for a body that is not valid JSON.
-  if (err instanceof SyntaxError) return c.json(errorBody('validation_failed', 'Request body must be valid JSON'), 422)
   if (err instanceof HTTPException) {
     return c.json(errorBody('http_error', err.message || 'Request failed'), err.status as ContentfulStatusCode)
   }

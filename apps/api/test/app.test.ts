@@ -30,6 +30,10 @@ function appWithRoutes(deps: AuthDeps = fakeDeps) {
     // A ZodError from another copy of zod fails `instanceof`, but keeps its name and issues.
     throw Object.assign(new Error('invalid'), { name: 'ZodError', issues: [{ path: ['amount'], message: 'Too small' }] })
   })
+  app.get('/syntax-error', () => {
+    JSON.parse('{corrupt stored json')
+    return new Response()
+  })
   app.post('/echo', async (c) => c.json(await parseBody(c, z.object({ name: z.string() }))))
   const send = (path: string, userId = 'alice', init: RequestInit = {}) =>
     app.request(path, { ...init, headers: { Authorization: `Bearer ${userId}` } }, env)
@@ -118,6 +122,15 @@ describe('errors', () => {
     const res = await appWithRoutes().send('/echo', 'alice', { method: 'POST', body: '{not json' })
     expect(res.status).toBe(422)
     expect(((await res.json()) as ApiErrorBody).error.code).toBe('validation_failed')
+  })
+
+  it('treats a SyntaxError from server code as a 500, not a client error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await appWithRoutes().send('/syntax-error')
+    expect(res.status).toBe(500)
+    expect(((await res.json()) as ApiErrorBody).error.code).toBe('internal')
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 
   it('maps anything else to 500 internal without leaking the message', async () => {

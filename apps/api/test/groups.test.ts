@@ -43,12 +43,20 @@ async function seedExpense(groupId: string, paidBy: string, shares: Record<strin
   return id
 }
 
-async function seedSettlement(groupId: string, fromUserId: string, toUserId: string, amountCents: number, status: 'pending' | 'confirmed') {
+type SettlementStatus = (typeof settlements.$inferSelect)['status']
+
+async function seedSettlement(groupId: string, fromUserId: string, toUserId: string, amountCents: number, status: SettlementStatus) {
+  const id = crypto.randomUUID()
   const now = new Date().toISOString()
   await db().insert(settlements).values({
-    id: crypto.randomUUID(), groupId, fromUserId, toUserId, amountCents, status,
-    createdAt: now, resolvedAt: status === 'confirmed' ? now : null,
+    id, groupId, fromUserId, toUserId, amountCents, status,
+    createdAt: now, resolvedAt: status === 'pending' ? null : now,
   })
+  return id
+}
+
+async function resolveSettlement(id: string, status: SettlementStatus) {
+  await db().update(settlements).set({ status, resolvedAt: new Date().toISOString() }).where(eq(settlements.id, id))
 }
 
 afterEach(() => {
@@ -252,12 +260,36 @@ describe('DELETE /groups/:id/members/:userId', () => {
   it('counts confirmed settlements, not pending ones, towards a zero balance', async () => {
     const group = await groupWithBob()
     await seedExpense(group.id, 'alice', { alice: 500, bob: 500 })
-    await seedSettlement(group.id, 'bob', 'alice', 500, 'pending')
-    expect((await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })).status).toBe(409)
+    const settlementId = await seedSettlement(group.id, 'bob', 'alice', 500, 'pending')
+    const pending = await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })
+    expect(pending.status).toBe(409)
+    expect(await errorCode(pending)).toBe('balance_not_zero')
 
-    await seedSettlement(group.id, 'bob', 'alice', 500, 'confirmed')
+    await resolveSettlement(settlementId, 'confirmed')
     expect((await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })).status).toBe(204)
   })
+
+  it.each(['rejected', 'cancelled'] as const)(
+    'is 409 pending_settlement for a zero balance with a pending settlement, until it is %s',
+    async (outcome) => {
+      const group = await groupWithBob()
+      await carol(`/invites/${group.inviteCode}/join`, { method: 'POST' })
+      // Bob is owed 500 by carol and owes 500 to alice: balance 0, with carol's payment to him still pending.
+      await seedExpense(group.id, 'bob', { bob: 500, carol: 500 })
+      await seedExpense(group.id, 'alice', { alice: 500, bob: 500 })
+      const settlementId = await seedSettlement(group.id, 'carol', 'bob', 500, 'pending')
+
+      const leave = await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })
+      expect(leave.status).toBe(409)
+      expect(await errorCode(leave)).toBe('pending_settlement')
+      const remove = await alice(`/groups/${group.id}/members/bob`, { method: 'DELETE' })
+      expect(remove.status).toBe(409)
+      expect(await errorCode(remove)).toBe('pending_settlement')
+
+      await resolveSettlement(settlementId, outcome)
+      expect((await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })).status).toBe(204)
+    },
+  )
 
   it('is 409 owner_cannot_leave for the owner', async () => {
     const group = await createGroup()

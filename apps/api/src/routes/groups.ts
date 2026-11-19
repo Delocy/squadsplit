@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import {
   computeBalances,
@@ -11,13 +11,30 @@ import {
 import { findActiveRole, requireMember, requireOwner } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
-import { expenses, groups, memberships, users } from '../db/schema'
+import { expenses, groups, memberships, settlements, users } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, parseBody } from '../errors'
 import { withFreshInviteCode } from './invites'
 
 async function balanceOf(d: Db, groupId: string, userId: string): Promise<number> {
   return computeBalances(await loadLedger(d, groupId))[userId] ?? 0
+}
+
+/** Whether a settlement in the group is still pending with the user as debtor or creditor. */
+async function hasPendingSettlement(d: Db, groupId: string, userId: string): Promise<boolean> {
+  const pending = await d
+    .select({ id: settlements.id })
+    .from(settlements)
+    .where(
+      and(
+        eq(settlements.groupId, groupId),
+        eq(settlements.status, 'pending'),
+        or(eq(settlements.fromUserId, userId), eq(settlements.toUserId, userId)),
+      ),
+    )
+    .limit(1)
+    .get()
+  return pending !== undefined
 }
 
 /** The group as `viewerId` sees it: the invite code is for the owner's eyes only. */
@@ -136,6 +153,9 @@ export function groupRoutes() {
       if (targetRole === 'owner') throw new HttpError(409, 'owner_cannot_leave', "The owner can't leave the group")
       if ((await balanceOf(d, groupId, targetId)) !== 0) {
         throw new HttpError(409, 'balance_not_zero', 'Only a member whose balance is exactly 0 can leave the group')
+      }
+      if (await hasPendingSettlement(d, groupId, targetId)) {
+        throw new HttpError(409, 'pending_settlement', 'Confirm, reject or cancel pending settlements before leaving the group')
       }
 
       await d
