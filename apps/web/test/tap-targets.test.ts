@@ -38,6 +38,8 @@ describe('tap targets', () => {
     '.qs-tap',
     '.qs-steps button',
     '.qs-chip.ghost',
+    '.qs-tick',
+    '.pub-undo',
   ])('gives %s a 44×44 tap', (selector) => {
     expect(tappable(selector)).toBe(true)
   })

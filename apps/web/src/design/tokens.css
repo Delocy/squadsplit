@@ -399,8 +399,8 @@ dialog.sheet.expense-sheet .dlg-b { padding-bottom: 0; }
 
 /* Tap targets: every control takes a tap of at least 44×44px. One drawn smaller (a small button, a tab, a chip, a
    swatch) gets an invisible hit area of that size centred on it, so it can stay neat. */
-.btn.small, .tabs button, .chip, .chip-x, .x, .swatch, .me-button, .qs-tap, .qs-steps button, .qs-chip.ghost { position: relative; }
-.btn.small::after, .tabs button::after, .chip::after, .chip-x::after, .x::after, .swatch::after, .me-button::after, .qs-tap::after, .qs-steps button::after, .qs-chip.ghost::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+.btn.small, .tabs button, .chip, .chip-x, .x, .swatch, .me-button, .qs-tap, .qs-steps button, .qs-chip.ghost, .qs-tick, .pub-undo { position: relative; }
+.btn.small::after, .tabs button::after, .chip::after, .chip-x::after, .x::after, .swatch::after, .me-button::after, .qs-tap::after, .qs-steps button::after, .qs-chip.ghost::after, .qs-tick::after, .pub-undo::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
 /* A name chip isn't tapped itself: its × button is. */
 .name-chip::after { content: none; }
 
