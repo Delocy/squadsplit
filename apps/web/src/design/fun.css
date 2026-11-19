@@ -13,7 +13,7 @@
 .avw .sweat.s1 { right: -7px; top: 40%; }
 .avw .sweat.s2 { left: -5px; top: 0; }
 /* Room for the drops beside a name. */
-.who .avw, .slip-row .avw { margin-right: 4px; }
+.who .avw, .slip-row .avw, .odds .avw { margin-right: 4px; }
 .glint { position: absolute; right: -5px; top: -5px; width: 12px; height: 12px; pointer-events: none; }
 .glint svg { width: 100%; height: 100%; }
 @keyframes drip { 0%, 15% { transform: translateY(-3px) scale(.6); opacity: 0; } 30% { transform: none; opacity: 1; } 80% { transform: translateY(5px); opacity: 1; } 100% { transform: none; opacity: 1; } }
@@ -147,3 +147,28 @@
 .slots { display: grid; grid-template-columns: repeat(6, 34px); gap: 8px; margin: 0 0 12px; }
 .slot-s { width: 34px; height: 34px; }
 .slot-s svg { width: 100%; height: 100%; }
+
+/* ---------- B's wheel: pegs, a flicking pointer (WheelDisc animates both), and the ticket ---------- */
+.wheel .peg { filter: none; }
+/* The slot the ticket comes out of, its space held from the start so nothing moves when it does. */
+.slot { margin-top: 14px; min-height: 84px; border-top: 4px solid var(--ink); border-radius: 4px; overflow: hidden; display: grid; align-content: start; }
+.slot > .s { margin: 10px 0 0; text-align: center; font: 700 14px Fredoka, sans-serif; color: var(--muted); }
+.ticket { display: flex; align-items: stretch; margin: 0 10px; background: #fff8d6; color: #3d2c42; border: 2px solid var(--ink); border-top: 0;
+  border-radius: 0 0 14px 14px; animation: ticketOut .45s cubic-bezier(.3,1.3,.5,1) both; }
+@keyframes ticketOut { 0% { transform: translateY(-105%); } 100% { transform: none; } }
+.tk-l { position: relative; padding: 10px 14px; border-right: 2px dashed rgba(61, 44, 66, .35); display: grid; place-items: center; }
+.tk-l .avw .sweat.s0 { right: -6px; } .tk-l .avw .sweat svg { animation: drip 1.6s ease-in infinite; }
+.tk-r { padding: 8px 12px; display: grid; align-content: center; min-width: 0; }
+.tk-r .lbl { font-size: 10.5px; color: #7b6a80; }
+.tk-r b { font: 700 20px/1.15 Fredoka, sans-serif; overflow-wrap: anywhere; }
+.tk-r .s { font-size: 12.5px; color: #7b6a80; margin: 0; }
+/* The squad by the slot: they sigh "phew" after the ticket is out. */
+.relief { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin-top: 10px; min-height: 44px; }
+.sigh { display: grid; justify-items: center; gap: 1px; }
+.sigh em { font: 600 11.5px Fredoka, sans-serif; font-style: normal; color: var(--muted); visibility: hidden; }
+.relief.on .sigh em { visibility: visible; }
+.relief.on .sigh { animation: sigh .6s ease-in-out both; animation-delay: calc(.55s + var(--i) * 80ms); }
+.sigh.picked, .relief.on .sigh.picked em { visibility: hidden; }
+@keyframes sigh { 0%, 100% { transform: none; } 30% { transform: translateY(3px) scaleY(.92); } 65% { transform: translateY(-5px); } }
+.relief.on .sigh em { animation: phew .3s ease-out both; animation-delay: calc(.55s + var(--i) * 80ms); }
+@keyframes phew { 0% { opacity: 0; } 100% { opacity: 1; } }

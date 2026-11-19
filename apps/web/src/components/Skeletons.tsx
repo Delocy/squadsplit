@@ -140,9 +140,10 @@ function WheelCardSkeleton({ compact }: { compact: boolean }) {
           <div className="spin-row">
             <Skeleton w={78} h={37} r={12} />
           </div>
-          <div className="winner" />
         </div>
       </div>
+      <div className="slot" />
+      <div className="relief" />
       {compact && <Skeleton w={128} h={27} r={10} className="recent-spins" />}
     </div>
   )

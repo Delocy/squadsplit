@@ -1,7 +1,9 @@
 import type { AvatarChoice } from '@squadsplit/shared'
+import { useLayoutEffect, useRef } from 'react'
 import { mascot } from '../design/art'
 import { lookOf } from '../design/Avatar'
-import type { Slice } from '../wheel'
+import { useReducedMotion } from '../design/motion'
+import { overshootFor, pegTicks, pointerFrames, sliceAt, SPIN_DURATION_MS, spinFrames, type Slice } from '../wheel'
 
 const INK = '#3d2c42'
 const R = 100
@@ -34,7 +36,12 @@ function SliceArt({ slice, avatar }: { slice: Slice; avatar: AvatarChoice }) {
   )
 }
 
-/** The wheel: a dark rim, the slices, a white hub, and the pointer at the top. `rotation` turns it, with a 3s ease (see .wheel in tokens.css). */
+/**
+ * The wheel: a dark rim with a peg between every two slices, the slices, a white hub, and the pointer at the top.
+ * `rotation` is where it rests. When it changes the disc spins there (a long ease-out, an overshoot and a small
+ * wobble back) while the pointer flicks at each peg that passes; it always ends exactly on `rotation`, so the wheel
+ * only ever shows the winner the server picked. Under reduced motion it goes straight there.
+ */
 export function WheelDisc({
   slices,
   rotation,
@@ -45,18 +52,50 @@ export function WheelDisc({
   /** Each person's look in the group. */
   avatarOf: (userId: string) => AvatarChoice
 }) {
+  const reduced = useReducedMotion()
+  const disc = useRef<SVGSVGElement>(null)
+  const pointer = useRef<HTMLDivElement>(null)
+  const pegs = slices.length > 1 ? slices.map((s) => s.start) : []
+  // The spin to play: from where the wheel stood to `rotation`. Worked out while rendering (not in the effect), so
+  // an effect that runs twice (React's strict mode) plays the same spin both times.
+  const spin = useRef({ from: rotation, to: rotation })
+  if (spin.current.to !== rotation) spin.current = { from: spin.current.to, to: rotation }
+
+  useLayoutEffect(() => {
+    const { from, to } = spin.current
+    // jsdom and very old browsers have no Web Animations; the wheel just rests on its rotation there.
+    if (from === to || reduced || typeof disc.current?.animate !== 'function') return
+    const winner = sliceAt(slices, to)
+    const overshoot = winner ? overshootFor(winner) : 0
+    const options = { duration: SPIN_DURATION_MS, easing: 'linear' }
+    const turning = disc.current.animate(
+      spinFrames(from, to, overshoot).map((f) => ({ offset: f.offset, transform: `rotate(${f.rotate}deg)` })),
+      options,
+    )
+    const flicking = pointer.current?.animate(pointerFrames(pegTicks(from, to, overshoot, pegs), SPIN_DURATION_MS), options)
+    return () => {
+      turning.cancel()
+      flicking?.cancel()
+    }
+    // Only a new rotation starts a spin; the slices change with it (the server's weights).
+  }, [rotation, reduced])
+
   return (
     <div className="wheel">
-      <div className="ptr" aria-hidden="true">
+      <div className="ptr" aria-hidden="true" ref={pointer}>
         <svg viewBox="0 0 24 24">
           <path d="M4 3h16L12 21z" fill="#f0609a" stroke={INK} strokeWidth={2.4} strokeLinejoin="round" />
         </svg>
       </div>
-      <svg viewBox="-112 -112 224 224" role="img" aria-label="The wheel" style={{ transform: `rotate(${rotation}deg)` }}>
+      <svg viewBox="-112 -112 224 224" role="img" aria-label="The wheel" ref={disc} style={{ transform: `rotate(${rotation}deg)` }}>
         <circle r={104} fill={INK} />
         {slices.map((s) => (
           <SliceArt key={s.userId} slice={s} avatar={avatarOf(s.userId)} />
         ))}
+        {pegs.map((angle) => {
+          const [x, y] = point(angle, 103)
+          return <circle key={angle} className="peg" cx={x} cy={y} r={4.5} fill="#ffe08a" stroke={INK} strokeWidth={2} />
+        })}
         <circle r={13} fill="#fff" stroke={INK} strokeWidth={3} />
       </svg>
     </div>

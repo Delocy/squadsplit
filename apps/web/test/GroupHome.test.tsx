@@ -84,7 +84,7 @@ describe('Group home', () => {
     })
 
     it('shows everyone on the wheel with their odds, spins in place and announces the winner when it stops', async () => {
-      // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the 3s spin.
+      // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the spin.
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const calls = fakeApi(
         groupHandlers(
@@ -109,7 +109,7 @@ describe('Group home', () => {
       fireEvent.click(wheel.getByRole('button', { name: 'Spin' }))
       expect(await wheel.findByText('Spinning…')).toBeTruthy()
       expect(wheel.getByRole('img', { name: 'The wheel' }).style.transform).not.toBe('rotate(0deg)')
-      act(() => vi.advanceTimersByTime(2900))
+      act(() => vi.advanceTimersByTime(3400))
       expect(wheel.queryByText('Bob pays next')).toBeNull()
       act(() => vi.advanceTimersByTime(200))
       const status = within(wheel.getByRole('status'))
