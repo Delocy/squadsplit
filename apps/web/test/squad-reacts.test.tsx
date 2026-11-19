@@ -75,8 +75,20 @@ describe('squadQuip', () => {
     )
   })
 
+  it('only says sweating where the avatar shows sweat (20.00 owed or more)', () => {
+    expect(squadQuip({ animal: 'fox', cents: -1999, squad: [], seed: 0 })).toBe('Your fox is getting nervous. Time to pay up.')
+    expect(squadQuip({ animal: 'fox', cents: -2000, squad: [], seed: 0 })).toBe('Your fox is sweating. Time to pay up.')
+    const small = [{ name: 'Bob', cents: -500 }]
+    expect(squadQuip({ animal: 'bunny', cents: 500, squad: small, seed: 0 })).toBe('Your bunny is grinning. Bob is a little nervous.')
+    expect(squadQuip({ animal: 'bunny', cents: 0, squad: small, seed: 0 })).toBe('Your bunny is relaxed. Bob is a little nervous, though.')
+    for (let seed = 0; seed < 4; seed++) {
+      expect(squadQuip({ animal: 'fox', cents: -500, squad: [], seed })).not.toContain('sweating')
+      expect(squadQuip({ animal: 'fox', cents: -5000, squad: [], seed })).toContain('sweating')
+    }
+  })
+
   it('still reads well on your own, and the seed picks the wording', () => {
-    expect(squadQuip({ animal: 'fox', cents: -500, squad: [], seed: 0 })).toBe('Your fox is sweating. Time to pay up.')
+    expect(squadQuip({ animal: 'fox', cents: -2500, squad: [], seed: 0 })).toBe('Your fox is sweating. Time to pay up.')
     expect(squadQuip({ animal: 'fox', cents: -500, squad: [], seed: 1 })).not.toBe(squadQuip({ animal: 'fox', cents: -500, squad: [], seed: 0 }))
     for (let seed = 0; seed < 6; seed++) {
       expect(squadQuip({ animal: 'fox', cents: -500, squad, seed })).not.toMatch(/\p{Extended_Pictographic}/u)
@@ -166,7 +178,7 @@ describe('Squad Reacts on the group home', () => {
     const settle = within(await screen.findByRole('region', { name: /Settle up/ }))
     fireEvent.click(await settle.findByRole('button', { name: 'Confirm' }))
 
-    const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
+    const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     // The moment takes the confirmed row's place at once (this fake API keeps listing it as pending).
     expect(settle.queryByText('Bob says they paid you $12.00')).toBeNull()
     expect(moment.textContent).toContain('Bob paid you back. The squad approves.')
@@ -182,7 +194,7 @@ describe('Squad Reacts on the group home', () => {
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
 
     fireEvent.click(within(moment).getByRole('button', { name: 'Close' }))
-    expect(screen.queryByRole('status', { name: 'Payback confirmed' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Payback confirmed' })).toBeNull()
   })
 
   it('shows the moment’s final, still state under reduced motion', async () => {
@@ -195,7 +207,7 @@ describe('Squad Reacts on the group home', () => {
     )
     renderApp('/groups/g1')
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
-    const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
+    const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.classList.contains('still')).toBe(true)
     // Only the happy end of the face swap, with nothing left to fade.
     expect(moment.querySelector('.swap-from')).toBeNull()

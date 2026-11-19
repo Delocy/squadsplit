@@ -122,14 +122,13 @@
 @keyframes thunk { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
 
 /* the settle-up moment's payback slip: the stamp lands after the cheer wave, then a new sticker slaps on */
-.slip { position: relative; width: 100%; text-align: left; background: var(--card); border: 2px dashed var(--line); border-radius: 14px;
-  padding: 10px 104px 10px 14px; animation: slipShake .2s ease-out 2.3s both; }
+.slip { position: relative; width: 100%; text-align: left; background: var(--card); border: 2px dashed var(--line); border-radius: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 14px; animation: slipShake .2s ease-out 2.3s both; }
 .slip-h { display: flex; align-items: center; gap: 6px; font: 700 13px Fredoka, sans-serif; color: var(--muted); }
 .slip-h svg { width: 18px; height: 18px; }
 .slip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; font-size: 13.5px; }
-.slip-amt { font: 700 28px Fredoka, sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.big-stamp { position: absolute; right: 10px; top: 50%; width: 84px; height: 84px; margin-top: -42px; transform: rotate(-14deg); opacity: .9;
-  animation: stampDown .35s cubic-bezier(.5,0,.75,0) 2s both; }
+.slip-amt { font: 700 28px Fredoka, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Beside the amount while both fit, else below it: it never covers the amount. */
+.big-stamp { flex: none; margin-left: auto; width: 84px; height: 84px; transform: rotate(-14deg); opacity: .9; animation: stampDown .35s cubic-bezier(.5,0,.75,0) 2s both; }
 .big-stamp svg { width: 100%; height: 100%; }
 @keyframes stampDown { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
 @keyframes slipShake { 0%, 100% { transform: none; } 30% { transform: translateY(2px); } }
@@ -138,6 +137,12 @@
 .earned .sticker.slap { animation-delay: 2.6s; }
 .earned .sticker .die { width: 44px; height: 44px; padding: 5px; }
 .earned b { font: 700 11px/1.1 Fredoka, sans-serif; animation: phew .3s ease-out 2.8s both; }
+.slip-main { flex: 1 1 auto; min-width: min-content; }
+/* Focus lands here after Confirm and on the Settle-up heading after Close: a ring for keyboard users only. */
+.moment:focus, #settle-h:focus { outline: none; }
+.moment:focus-visible, #settle-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+/* On a phone the duo draws a little smaller and leaves the corner to the Good Egg sticker. */
+@media (max-width: 400px) { .moment .duo { gap: 24px; padding: 0 42px; } .moment .duo .av.xl { width: 56px; height: 56px; padding: 5px; } .earned { right: 2px; } .earned .sticker .die { width: 38px; height: 38px; } }
 
 /* the empty group's album page */
 .album { position: relative; padding-top: 24px; }
@@ -151,7 +156,7 @@
 /* ---------- B's wheel: pegs, a flicking pointer (WheelDisc animates both), and the ticket ---------- */
 .wheel .peg { filter: none; }
 /* The slot the ticket comes out of, its space held from the start so nothing moves when it does. */
-.slot { margin-top: 14px; min-height: 84px; border-top: 4px solid var(--ink); border-radius: 4px; overflow: hidden; display: grid; align-content: start; }
+.slot { margin-top: 14px; min-height: 108px; border-top: 4px solid var(--ink); border-radius: 4px; overflow: hidden; display: grid; align-content: start; }
 .slot > .s { margin: 10px 0 0; text-align: center; font: 700 14px Fredoka, sans-serif; color: var(--muted); }
 .ticket { display: flex; align-items: stretch; margin: 0 10px; background: #fff8d6; color: #3d2c42; border: 2px solid var(--ink); border-top: 0;
   border-radius: 0 0 14px 14px; animation: ticketOut .45s cubic-bezier(.3,1.3,.5,1) both; }
@@ -160,7 +165,8 @@
 .tk-l .avw .sweat.s0 { right: -6px; } .tk-l .avw .sweat svg { animation: drip 1.6s ease-in infinite; }
 .tk-r { padding: 8px 12px; display: grid; align-content: center; min-width: 0; }
 .tk-r .lbl { font-size: 10.5px; color: #7b6a80; }
-.tk-r b { font: 700 20px/1.15 Fredoka, sans-serif; overflow-wrap: anywhere; }
+/* A long name takes two lines at most (with the full line on hover), which the slot already holds. */
+.tk-r b { font: 700 20px/1.15 Fredoka, sans-serif; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tk-r .s { font-size: 12.5px; color: #7b6a80; margin: 0; }
 /* The squad by the slot: they sigh "phew" after the ticket is out. */
 .relief { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin-top: 10px; min-height: 44px; }

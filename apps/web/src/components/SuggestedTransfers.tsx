@@ -44,8 +44,10 @@ export function SuggestedTransfers({
   const settle = useGroupMutation(groupId, async (t: SettlementInput) => {
     const s = await api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t)
     if (s.status === 'confirmed') {
+      // The moment takes the form's place and focus; the Mark paid button that opened it doesn't take focus back.
+      opener.current = null
       setFormFor(null)
-      counted.celebrate(s)
+      counted.celebrate(s, { takeFocus: true })
     }
     return s
   })

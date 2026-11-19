@@ -56,13 +56,15 @@ export function WheelDisc({
   const disc = useRef<SVGSVGElement>(null)
   const pointer = useRef<HTMLDivElement>(null)
   const pegs = slices.length > 1 ? slices.map((s) => s.start) : []
-  // The spin to play: from where the wheel stood to `rotation`. Worked out while rendering (not in the effect), so
-  // an effect that runs twice (React's strict mode) plays the same spin both times.
-  const spin = useRef({ from: rotation, to: rotation })
-  if (spin.current.to !== rotation) spin.current = { from: spin.current.to, to: rotation }
+  // Where the wheel last rested. A new `rotation` spins from there; the spin is then marked as played, so nothing
+  // else (reduced motion switched on and off, say) can replay it. React's strict mode only re-runs effects on mount,
+  // when there is nothing to play.
+  const rested = useRef(rotation)
 
   useLayoutEffect(() => {
-    const { from, to } = spin.current
+    const from = rested.current
+    const to = rotation
+    rested.current = to
     // jsdom and very old browsers have no Web Animations; the wheel just rests on its rotation there.
     if (from === to || reduced || typeof disc.current?.animate !== 'function') return
     const winner = sliceAt(slices, to)
@@ -73,6 +75,7 @@ export function WheelDisc({
       options,
     )
     const flicking = pointer.current?.animate(pointerFrames(pegTicks(from, to, overshoot, pegs), SPIN_DURATION_MS), options)
+    // A new spin, reduced motion switched on, or the wheel going away stops this one where it is meant to end.
     return () => {
       turning.cancel()
       flicking?.cancel()

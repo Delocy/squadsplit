@@ -93,7 +93,7 @@ describe('Your mix with someone who has not joined', () => {
     fireEvent.click(await settle.findByRole('button', { name: 'Mark paid' }))
     fireEvent.click(settle.getByRole('button', { name: 'Submit' }))
 
-    const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
+    const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.textContent).toContain('Dave paid you back. The squad approves.')
     expect(moment.querySelector('.slip-amt')!.textContent).toBe('$5.00')
     // The heart hops from Dave (a bear) to you (a fox).
@@ -109,7 +109,7 @@ describe('Your mix with someone who has not joined', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
 
-    const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
+    const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.textContent).toContain('You paid Dave back. The squad approves.')
     expect([...moment.querySelectorAll('.slip-row > span:not([class])')].map((n) => n.textContent)).toEqual(['You', 'Dave'])
     expect(moment.querySelector('.hop-l svg.mascot-fox')).toBeTruthy()
@@ -123,6 +123,6 @@ describe('Your mix with someone who has not joined', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
     await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull())
-    expect(screen.queryByRole('status', { name: 'Payback confirmed' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Payback confirmed' })).toBeNull()
   })
 })

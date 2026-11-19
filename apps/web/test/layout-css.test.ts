@@ -38,6 +38,20 @@ describe('narrow-screen layout rules', () => {
     expect(css).toMatch(/@media \(max-width: 480px\) \{ \.row-end \{ flex-direction: column;/)
   })
 
+  it('keeps the fun bits from breaking money or covering people at 320px', () => {
+    const fun = readFileSync(resolve(__dirname, '../src/design/fun.css'), 'utf8')
+    const funRule = (selector: string) => fun.split('\n').find((l) => l.startsWith(`${selector} {`)) ?? ''
+    // The payback slip's amount never breaks between digits; the stamp moves below it when they don't fit side by side.
+    expect(funRule('.slip-amt')).toContain('white-space: nowrap')
+    expect(funRule('.slip')).toContain('flex-wrap: wrap')
+    // On a phone the duo makes room for the Good Egg sticker in the moment's corner.
+    expect(fun).toMatch(/@media \(max-width: 400px\) \{[^}]*\.duo \{[^}]*padding: 0 \d+px/)
+    // The ticket's name takes at most two lines, which the slot already holds, so the reveal moves nothing.
+    expect(funRule('.tk-r b')).toContain('-webkit-line-clamp: 2')
+    expect(funRule('.slot')).toMatch(/min-height: (\d+)px/)
+    expect(Number(funRule('.slot').match(/min-height: (\d+)px/)![1])).toBeGreaterThanOrEqual(104)
+  })
+
   it('does not ellipsize the nickname preview', () => {
     expect(rule('.you-preview b')).not.toContain('ellipsis')
   })

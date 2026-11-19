@@ -125,7 +125,9 @@ export function WheelCard({
             </div>
             <div className="tk-r">
               <span className="lbl">Next round</span>
-              <b>{result.winnerId === me ? 'You pay next' : `${people.name(result.winnerId)} pays next`}</b>
+              <b title={result.winnerId === me ? undefined : people.name(result.winnerId)}>
+                {result.winnerId === me ? 'You pay next' : `${people.name(result.winnerId)} pays next`}
+              </b>
               <span className="s">{slices.find((s) => s.userId === result.winnerId)?.percent ?? 0}% odds</span>
             </div>
           </div>

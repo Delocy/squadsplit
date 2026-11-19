@@ -53,6 +53,10 @@ describe('Sticker book on the leaderboard', () => {
     const stickers = screen.getByRole('group', { name: 'Sticker book' }).querySelectorAll('.sticker')
     expect(stickers).toHaveLength(6)
     expect(screen.getByRole('group', { name: 'Sticker book' }).querySelectorAll('.sticker.locked')).toHaveLength(2)
+    // An empty slot reads as what it is, not "??? keep going".
+    const locked = screen.getByRole('group', { name: 'Sticker book' }).querySelector('.sticker.locked')!
+    expect(locked.querySelector('.sr-only')!.textContent).toBe('Not collected yet')
+    expect([...locked.querySelectorAll('.cap > b, .cap > em')].every((el) => el.getAttribute('aria-hidden') === 'true')).toBe(true)
     // Stickers already in the book are simply there: nothing slaps on when the page loads.
     expect(screen.getByRole('group', { name: 'Sticker book' }).querySelectorAll('.sticker.slap')).toHaveLength(0)
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
@@ -110,8 +114,8 @@ describe('PAID stamp', () => {
     expect(await activity.findByText('pending')).toBeTruthy()
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
 
-    const moment = within(await screen.findByRole('status', { name: 'Payback confirmed' }))
-    const slip = screen.getByRole('status', { name: 'Payback confirmed' }).querySelector('.slip')!
+    const moment = within(await screen.findByRole('region', { name: 'Payback confirmed' }))
+    const slip = screen.getByRole('region', { name: 'Payback confirmed' }).querySelector('.slip')!
     expect(slip.querySelector('.slip-amt')!.textContent).toBe('$12.00')
     expect(within(slip as HTMLElement).getByRole('img', { name: 'Paid' }).classList.contains('big-stamp')).toBe(true)
     // The new sticker shows once the refetched titles say Bob earned it.
@@ -136,7 +140,7 @@ describe('PAID stamp', () => {
     )
     renderApp('/groups/g1')
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
-    const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
+    const moment = await screen.findByRole('region', { name: 'Payback confirmed' })
     expect(moment.classList.contains('still')).toBe(true)
     expect(within(moment).getByRole('img', { name: 'Paid' })).toBeTruthy()
   })

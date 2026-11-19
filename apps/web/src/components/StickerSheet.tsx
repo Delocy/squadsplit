@@ -66,8 +66,9 @@ export function StickerSheet({ badges, people }: { badges: Badge[]; people: Peop
                 <LockedStickerArt />
               </span>
               <span className="cap">
-                <b>???</b>
-                <em>keep going</em>
+                <b aria-hidden="true">???</b>
+                <em aria-hidden="true">keep going</em>
+                <span className="sr-only">Not collected yet</span>
               </span>
             </div>
           ),

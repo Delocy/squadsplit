@@ -40,9 +40,8 @@ export function fakeApi(handlers: Record<string, Handler>) {
   return calls
 }
 
-/** Renders the real route tree at `url`. */
-export function renderApp(url: string) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+/** Renders the real route tree at `url`. Pass `queryClient` to reach the cache from the test (to refetch, say). */
+export function renderApp(url: string, queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   const router = createMemoryRouter(routes, { initialEntries: [url] })
   render(
     <QueryClientProvider client={queryClient}>

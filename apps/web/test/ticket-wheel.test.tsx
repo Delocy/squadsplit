@@ -93,6 +93,26 @@ describe('WheelDisc', () => {
     expect(animate.mock.contexts.some((el) => (el as Element).classList.contains('ptr'))).toBe(true)
   })
 
+  it('stops the spin if the wheel goes away mid-spin', () => {
+    const cancel = vi.fn()
+    animate.mockImplementation(() => ({ cancel }))
+    const { rerender, unmount } = render(<WheelDisc slices={slices} rotation={0} avatarOf={avatarOf} />)
+    rerender(<WheelDisc slices={slices} rotation={2025} avatarOf={avatarOf} />)
+    expect(animate).toHaveBeenCalledTimes(2) // the disc and the pointer
+    unmount()
+    expect(cancel).toHaveBeenCalledTimes(2)
+  })
+
+  it('never replays the last spin when reduced motion is switched on and off again', () => {
+    const motion = mockReducedMotion(false)
+    const { rerender } = render(<WheelDisc slices={slices} rotation={0} avatarOf={avatarOf} />)
+    rerender(<WheelDisc slices={slices} rotation={2025} avatarOf={avatarOf} />)
+    expect(animate).toHaveBeenCalledTimes(2)
+    act(() => motion.set(true))
+    act(() => motion.set(false))
+    expect(animate).toHaveBeenCalledTimes(2)
+  })
+
   it('jumps straight to the rotation under reduced motion', () => {
     mockReducedMotion(true)
     const { rerender } = render(<WheelDisc slices={slices} rotation={0} avatarOf={avatarOf} />)

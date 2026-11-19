@@ -1,7 +1,10 @@
 // The balance card's line of personality: how your animal feels about your balance, next to someone in the squad.
+// "Sweating" is only said where the avatar shows sweat (sweatOf), so the words never contradict the art.
+import { sweatOf } from './design/mood'
 
 const FEELING = {
-  owe: ['is sweating', 'is sweating buckets', 'is getting nervous'],
+  owe: ['is sweating', 'is sweating buckets'],
+  uneasy: ['is getting nervous', 'is a little nervous'],
   owed: ['is grinning', 'is feeling smug', 'is living the dream'],
   even: ['is relaxed', 'is chilling', 'is having a nap'],
 }
@@ -29,12 +32,13 @@ export function squadQuip({
   seed: number
 }): string {
   const kind = cents < 0 ? 'owe' : cents > 0 ? 'owed' : 'even'
-  const feelings = FEELING[kind]
+  const feelings = FEELING[kind === 'owe' && !sweatOf(cents) ? 'uneasy' : kind]
   const you = `Your ${animal} ${feelings[seed % feelings.length]}.`
   const richest = most(squad, (c) => c)
   const poorest = most(squad, (c) => -c)
   if (kind === 'owe') return `${you} ${richest ? `${richest.name} is not.` : 'Time to pay up.'}`
-  if (kind === 'owed') return `${you} ${poorest ? `${poorest.name} is sweating.` : 'Enjoy it while it lasts.'}`
-  if (poorest) return `${you} ${poorest.name} is sweating, though.`
+  const sweats = (m: { cents: number }) => (sweatOf(m.cents) ? 'is sweating' : 'is a little nervous')
+  if (kind === 'owed') return `${you} ${poorest ? `${poorest.name} ${sweats(poorest)}.` : 'Enjoy it while it lasts.'}`
+  if (poorest) return `${you} ${poorest.name} ${sweats(poorest)}, though.`
   return `${you} ${squad.length ? 'So is the whole squad.' : 'Clean slate.'}`
 }

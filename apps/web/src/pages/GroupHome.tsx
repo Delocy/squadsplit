@@ -97,7 +97,7 @@ export function GroupHome() {
         <div className="col">
           {expenses.data?.length === 0 && <SquadNap people={people} addExpense={addExpense} />}
           <section className="card" aria-labelledby="settle-h">
-            <h3 id="settle-h">
+            <h3 id="settle-h" tabIndex={-1}>
               <UiIcon name="heart" />
               Settle up
               {needMe > 0 && (
@@ -106,7 +106,15 @@ export function GroupHome() {
                 </span>
               )}
             </h3>
-            <PendingActions groupId={id} pending={pending.data ?? []} me={me} people={people} currency={g.currency} fun={fun.data} />
+            <PendingActions
+              groupId={id}
+              pending={pending.data ?? []}
+              me={me}
+              people={people}
+              currency={g.currency}
+              fun={fun.data}
+              feed={feed.data}
+            />
             {balances.data && (
               <SuggestedTransfers
                 groupId={id}
