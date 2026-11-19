@@ -86,6 +86,44 @@ describe('the expense dialog', () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
   })
 
+  it('opens again, still asking, when the browser closes it past the question (a second Escape or Back)', async () => {
+    // Like a real modal: showModal opens it, and the browser's own close takes the open attribute away.
+    const showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    })
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { value: showModal, configurable: true })
+    try {
+      fakeApi(groupHandlers())
+      const router = renderApp('/groups/g1/expenses/new')
+      const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+      fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Dinner' } })
+      fireEvent(dialog, new Event('cancel', { cancelable: true }))
+      expect(within(dialog).getByRole('group', { name: 'Discard this expense?' })).toBeTruthy()
+
+      // The second one can't be cancelled: the browser closes the dialog.
+      fireEvent(dialog, new Event('cancel', { cancelable: false }))
+      dialog.removeAttribute('open')
+      fireEvent(dialog, new Event('close'))
+
+      expect(dialog.hasAttribute('open')).toBe(true)
+      expect(showModal).toHaveBeenCalledTimes(2)
+      expect(within(dialog).getByRole('group', { name: 'Discard this expense?' })).toBeTruthy()
+      expect(router.state.location.pathname).toBe('/groups/g1/expenses/new')
+      expect((within(dialog).getByLabelText('Description') as HTMLInputElement).value).toBe('Dinner')
+    } finally {
+      Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
+    }
+  })
+
+  it('follows the browser closing it while nothing was typed: back to the group', async () => {
+    fakeApi(groupHandlers())
+    const router = renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    dialog.removeAttribute('open')
+    fireEvent(dialog, new Event('close'))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+  })
+
   it('closes without asking when nothing was typed', async () => {
     fakeApi(groupHandlers())
     const router = renderApp('/groups/g1/expenses/new')

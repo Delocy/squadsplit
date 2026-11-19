@@ -28,6 +28,10 @@ export function useSheetClose(go: () => void) {
  * A native modal <dialog>, opened as it mounts: a bottom sheet on a phone (with a grab handle; dragging the header
  * down closes it), a centred dialog on wider screens. Escape, the × and the swipe all ask `onClose`, which may ask
  * first. When it goes, focus goes back to whatever opened it. `actions` sit in the header, before the ×.
+ *
+ * The browser may close a <dialog> itself: a second Escape or Android Back with no tap in between can't be cancelled
+ * (Chrome's close-watcher rules). Unless the sheet is already on its way out, it opens again at once, still asking
+ * whatever it was asking ("Discard this expense?"), so the route and the sheet never part ways.
  */
 export function Sheet({
   title,
@@ -50,6 +54,8 @@ export function Sheet({
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const swipe = useSwipeDown(ref, onClose)
+  const leavingNow = useRef(leaving)
+  leavingNow.current = leaving
   useKeyboardInset()
   useLayoutEffect(() => {
     const opener = document.activeElement
@@ -57,13 +63,14 @@ export function Sheet({
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
     }
   }, [])
-  useLayoutEffect(() => {
+  const openModal = () => {
     const d = ref.current
     if (!d || d.open) return
     // jsdom has no showModal; the open attribute is the same dialog, just not modal.
     if (typeof d.showModal === 'function') d.showModal()
     else d.setAttribute('open', '')
-  }, [])
+  }
+  useLayoutEffect(openModal, [])
   return (
     <dialog
       ref={ref}
@@ -72,6 +79,11 @@ export function Sheet({
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault()
+        onClose()
+      }}
+      onClose={() => {
+        if (leavingNow.current) return
+        openModal()
         onClose()
       }}
     >
