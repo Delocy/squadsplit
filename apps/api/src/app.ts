@@ -10,6 +10,7 @@ import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
+import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
 
 /** Verifies the bearer token and sets `c.var.userId`. */
 const authenticate =
@@ -63,8 +64,10 @@ export function createApp(deps: AuthDeps) {
   app.use('*', ensureUser(deps))
   app.route('/groups', groupRoutes())
   app.route('/groups', groupExpenseRoutes())
+  app.route('/groups', groupSettlementRoutes())
   app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
+  app.route('/settlements', settlementRoutes())
 
   return app
 }
