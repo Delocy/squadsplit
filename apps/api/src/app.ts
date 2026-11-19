@@ -6,6 +6,8 @@ import { users } from './db/schema'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
 import { HttpError, errorBody, handleError } from './errors'
+import { groupRoutes } from './routes/groups'
+import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
 
 /** Verifies the bearer token and sets `c.var.userId`. */
@@ -58,6 +60,8 @@ export function createApp(deps: AuthDeps) {
   app.route('/me', meRoutes(deps))
   // Every route mounted below this line can rely on the caller's users row existing.
   app.use('*', ensureUser(deps))
+  app.route('/groups', groupRoutes())
+  app.route('/invites', inviteRoutes())
 
   return app
 }

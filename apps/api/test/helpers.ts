@@ -31,3 +31,10 @@ export function testApp() {
 
 /** Drizzle on the test D1 binding, for seeding and asserting rows. */
 export const db = () => dbFor(env)
+
+/** RequestInit for a JSON body. */
+export const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
