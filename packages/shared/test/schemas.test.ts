@@ -205,6 +205,24 @@ describe('Nickname', () => {
     expect(Nickname.safeParse('Bob 🍕').success).toBe(false)
     expect(Nickname.safeParse('Zoë-Ann').success).toBe(true)
   })
+
+  it('rejects flags, keycaps, emoji-style variation selectors and invisible format characters', () => {
+    expect(Nickname.safeParse('Zhe \u{1F1F8}\u{1F1EC}').success).toBe(false) // Singapore flag
+    expect(Nickname.safeParse('\u{1F1F8}').success).toBe(false) // a lone regional indicator
+    expect(Nickname.safeParse('Team 1️⃣').success).toBe(false) // keycap 1
+    expect(Nickname.safeParse('Team 1⃣').success).toBe(false)
+    expect(Nickname.safeParse('Hi️').success).toBe(false)
+    expect(Nickname.safeParse('Zhe‮evil').success).toBe(false) // right-to-left override
+    expect(Nickname.safeParse('Zh​e').success).toBe(false) // zero-width space
+    expect(Nickname.safeParse('Zh‍e').success).toBe(false) // zero-width joiner
+  })
+
+  it('allows the plain-text symbols ™ © ® unless they are forced into emoji style', () => {
+    expect(Nickname.parse('Zhe™')).toBe('Zhe™')
+    expect(Nickname.parse('©Bob®')).toBe('©Bob®')
+    expect(Nickname.safeParse('Zhe™️').success).toBe(false)
+    expect(Nickname.safeParse('Zhe ❤').success).toBe(false) // other pictographs stay out
+  })
 })
 
 describe('CreateGroupInput nickname', () => {

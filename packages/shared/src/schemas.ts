@@ -12,16 +12,25 @@ const id = z.string().min(1)
 
 const groupName = z.string().trim().min(1).max(50)
 
+/** Control characters, and invisible format characters: bidi overrides (U+202E), zero-width spaces and joiners. */
+const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u
+/**
+ * Anything that draws as emoji: pictographs, flags (regional indicators), keycaps (U+20E3), skin tones, and the
+ * emoji-style selector U+FE0F. ™ © ® are pictographs too, but they read as plain text unless U+FE0F follows,
+ * which is rejected on its own, so they are allowed.
+ */
+const EMOJI = /(?![©®™])\p{Extended_Pictographic}|[\p{Regional_Indicator}\p{Emoji_Modifier}⃣️]/u
+
 /**
  * What a member is called inside one group. Trimmed, at most 24 characters; empty means "no nickname" (null),
- * so the profile name shows instead. No control characters, and no emoji (the app shows none).
+ * so the profile name shows instead. No control or invisible format characters, and no emoji (the app shows none).
  */
 export const Nickname = z
   .string()
   .trim()
   .max(24)
-  .refine((s) => !/\p{Cc}/u.test(s), { message: 'No control characters' })
-  .refine((s) => !/\p{Extended_Pictographic}/u.test(s), { message: 'No emoji' })
+  .refine((s) => !CONTROL_OR_FORMAT.test(s), { message: 'No control characters' })
+  .refine((s) => !EMOJI.test(s), { message: 'No emoji' })
   .transform((s) => (s === '' ? null : s))
 const groupEmoji = z.string().min(1).max(8)
 const currency = z.enum(CURRENCIES)
