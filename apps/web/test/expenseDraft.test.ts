@@ -61,9 +61,63 @@ describe('By item total check', () => {
   })
 })
 
+describe('charges on and off separately', () => {
+  const total = (over: Partial<ExpenseDraft>) =>
+    summarize(itemized({ items: [{ key: 1, name: 'Laksa', price: '10.00', userIds: [ME] }], ...over }), IDS, 'SGD').amountCents
+
+  it('adds GST alone, service charge alone, or both (service first, then GST on top)', () => {
+    expect(total({ serviceOn: false })).toBe(1090)
+    expect(total({ gstOn: false })).toBe(1100)
+    expect(total({})).toBe(1199)
+    expect(total({ serviceOn: false, gstOn: false })).toBe(1000)
+  })
+
+  it('sends 0 for an off charge', () => {
+    const s = summarize(itemized({ serviceOn: false }), IDS, 'SGD')
+    expect(s.input!.split).toMatchObject({ type: 'itemized', serviceChargeBps: 0, gstBps: 900 })
+  })
+
+  it('a new draft has both on at the SG rates', () => {
+    expect(newDraft(ME, IDS, '2026-11-19')).toMatchObject({ serviceOn: true, gstOn: true, charges: SG_PRESET })
+  })
+
+  it('a scan without a service charge leaves it off at the SG rate, so turning it on gives 10%', () => {
+    const scan: ReceiptScanResult = { items: [{ name: 'Laksa', amountCents: 1000 }], serviceChargeBps: null, gstBps: 900, totalCents: 1090 }
+    const d = applyScan(newDraft(ME, IDS, '2026-11-19'), scan)
+    expect(d).toMatchObject({ serviceOn: false, gstOn: true, charges: { serviceChargeBps: 1000, gstBps: 900 } })
+    const on = { ...d, serviceOn: true }
+    expect(summarize({ ...on, description: 'x', items: d.items.map((i) => ({ ...i, userIds: [ME] })) }, IDS, 'SGD').amountCents).toBe(1199)
+  })
+
+  it('a scan keeps the rate of a charge the receipt has', () => {
+    const scan: ReceiptScanResult = { items: [{ name: 'Laksa', amountCents: 1000 }], serviceChargeBps: 1200, gstBps: null, totalCents: null }
+    expect(applyScan(newDraft(ME, IDS, '2026-11-19'), scan)).toMatchObject({ serviceOn: true, gstOn: false, charges: { serviceChargeBps: 1200, gstBps: 900 } })
+  })
+
+  it('a saved itemized expense with service 0 and GST 900 has service off and GST on', () => {
+    const d = draftFromExpense(expense({ splitType: 'itemized', amountCents: 1090, serviceChargeBps: 0, gstBps: 900, items: [{ name: 'Laksa', amountCents: 1000, userIds: [ME] }] }), IDS)
+    expect(d).toMatchObject({ serviceOn: false, gstOn: true, charges: { serviceChargeBps: 1000, gstBps: 900 } })
+  })
+
+  it('a saved itemized expense without charges has both off, and an equal one starts with both on', () => {
+    const saved = draftFromExpense(expense({ splitType: 'itemized', amountCents: 1000, serviceChargeBps: 0, gstBps: 0, items: [{ name: 'Laksa', amountCents: 1000, userIds: [ME] }] }), IDS)
+    expect(saved).toMatchObject({ serviceOn: false, gstOn: false })
+    expect(draftFromExpense(expense({ amountCents: 1000 }), IDS)).toMatchObject({ serviceOn: true, gstOn: true, charges: SG_PRESET })
+  })
+
+  it('the Other fix-up lands on the target with GST only', () => {
+    for (const target of ['100.00', '93.60', '250.01']) {
+      const d = addOtherItem(itemized({ amount: target, serviceOn: false }), IDS)
+      const items = d.items.map((it) => ({ name: it.name, amountCents: parseAmount(it.price)!, userIds: it.userIds }))
+      expect(Math.abs(itemizedTotal({ items, serviceChargeBps: 0, gstBps: 900 }) - parseAmount(target)!)).toBeLessThanOrEqual(2)
+      expect(summarize(d, IDS, 'SGD').check).toBeNull()
+    }
+  })
+})
+
 describe('addOtherItem', () => {
   it('without charges, adds exactly the difference', () => {
-    const d = addOtherItem(itemized({ amount: '100.00', restaurantBill: false }), IDS)
+    const d = addOtherItem(itemized({ amount: '100.00', serviceOn: false, gstOn: false }), IDS)
     const other = d.items.at(-1)!
     expect(other).toMatchObject({ name: 'Other', price: '22.00', userIds: IDS })
     expect(summarize(d, IDS, 'SGD').check).toBeNull()

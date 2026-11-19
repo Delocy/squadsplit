@@ -22,8 +22,6 @@ import {
   addOtherItem,
   applyScan,
   centsToInput,
-  chargesHint,
-  isSgCharges,
   draftFromExpense,
   emptyItem,
   hasEnteredAmounts,
@@ -409,13 +407,16 @@ function ExpenseFields({
 
       {draft.mode === 'itemized' && (
         <>
-          <label className="chip toggle">
-            <input type="checkbox" checked={draft.restaurantBill} onChange={(e) => update({ restaurantBill: e.target.checked })} />
-            <span>
-              {isSgCharges(draft.charges) ? 'Restaurant bill (SG)' : 'Receipt charges'}
-              <span className="hint">{chargesHint(draft.charges)}</span>
-            </span>
-          </label>
+          <div className="charges">
+            <label className="chip toggle">
+              <input type="checkbox" checked={draft.serviceOn} onChange={(e) => update({ serviceOn: e.target.checked })} />
+              <span>Service charge {draft.charges.serviceChargeBps / 100}%</span>
+            </label>
+            <label className="chip toggle">
+              <input type="checkbox" checked={draft.gstOn} onChange={(e) => update({ gstOn: e.target.checked })} />
+              <span>GST {draft.charges.gstBps / 100}%</span>
+            </label>
+          </div>
           <div className="items">
             {draft.items.map((it, i) => (
               <div className="item" role="group" aria-label={`Item ${i + 1}`} key={it.key}>
@@ -479,15 +480,15 @@ function ExpenseFields({
               )}
             </p>
           )}
-          {summary.bill && draft.restaurantBill && (
+          {summary.bill && (draft.serviceOn || draft.gstOn) && (
             <p className="preview">
               Subtotal <b>{money(summary.bill.subtotal)}</b>
-              {draft.charges.serviceChargeBps > 0 && (
+              {draft.serviceOn && (
                 <>
                   {' · '}Service charge {draft.charges.serviceChargeBps / 100}% <b>{money(summary.bill.serviceCharge)}</b>
                 </>
               )}
-              {draft.charges.gstBps > 0 && (
+              {draft.gstOn && (
                 <>
                   {' · '}GST {draft.charges.gstBps / 100}% <b>{money(summary.bill.gst)}</b>
                 </>
