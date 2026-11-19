@@ -11,6 +11,10 @@ export const queryKeys = {
   pendingSettlements: (id: string) => ['settlements', id, 'pending'] as const,
   fun: (id: string) => ['fun', id] as const,
   feed: (id: string) => ['feed', id] as const,
+  quickSplits: ['quick-splits'] as const,
+  quickSplit: (id: string) => ['quick-split', id] as const,
+  /** A share link's public view: no sign-in. */
+  sharedSplit: (token: string) => ['shared-split', token] as const,
 }
 
 /** After any change inside a group: refetch everything about it, and the group list (it shows your balance). */

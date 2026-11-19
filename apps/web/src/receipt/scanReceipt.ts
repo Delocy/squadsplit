@@ -19,12 +19,15 @@ const phoneCanTry = (err: unknown) =>
   err instanceof ApiError &&
   (err.status === 0 || err.status === 429 || err.status >= 500 || err.code === 'receipt_unreadable')
 
+/** The AI scan route: the group's, or the one outside any group (a quick split's bill). Both share the daily quota. */
+const scanPath = (groupId: string | null) => (groupId ? `/groups/${groupId}/receipts/scan` : '/receipts/scan')
+
 /**
  * Reads a receipt photo: shrinks it on the phone, sends it to the AI scan, and falls back to reading it on the phone
  * when the scan is resting, down, unreachable or couldn't read it. Never creates an expense. A photo the browser can't decode throws
  * UnsupportedPhotoError (its message says what to do); other API errors (e.g. no longer a member) are thrown too.
  */
-export async function scanReceipt(api: ApiClient, groupId: string, file: Blob): Promise<ScanOutcome> {
+export async function scanReceipt(api: ApiClient, groupId: string | null, file: Blob): Promise<ScanOutcome> {
   let small: string
   try {
     small = await downscaleImage(file, SCAN_MAX_EDGE)
@@ -33,7 +36,7 @@ export async function scanReceipt(api: ApiClient, groupId: string, file: Blob): 
     return UNREADABLE
   }
   try {
-    const scan = await api.post<ReceiptScanDTO>(`/groups/${groupId}/receipts/scan`, {
+    const scan = await api.post<ReceiptScanDTO>(scanPath(groupId), {
       imageBase64: base64Of(small),
       mimeType: 'image/jpeg',
     })

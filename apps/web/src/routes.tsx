@@ -11,6 +11,8 @@ import { Join } from './pages/Join'
 import { Landing } from './pages/Landing'
 import { Profile } from './pages/Profile'
 import { Wheel } from './pages/Wheel'
+import { EditQuickSplit, NewQuickSplit } from './quick/QuickSplitFlow'
+import { QuickSplitPage } from './quick/QuickSplitPage'
 import { useProfileRefresh } from './useProfileRefresh'
 
 /** `/`: the landing page when signed out, your groups when signed in. */
@@ -73,6 +75,10 @@ const pages: RouteObject[] = [
       },
       { path: '/groups/:id/wheel', element: <Wheel /> },
       { path: '/groups/:id/settings', element: <GroupSettings /> },
+      // Quick splits name their id `splitId`: the top bar reads `id` as a group's.
+      { path: '/quick/new', element: <NewQuickSplit /> },
+      { path: '/quick/:splitId', element: <QuickSplitPage /> },
+      { path: '/quick/:splitId/edit', element: <EditQuickSplit /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

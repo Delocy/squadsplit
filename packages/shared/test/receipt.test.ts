@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_RECEIPT_IMAGE_BYTES,
   ReceiptScanResult,
+  receiptChargesIncluded,
   ScanReceiptInput,
   normalizeReceiptScan,
   receiptItemsTotal,
@@ -130,5 +131,33 @@ describe('receipt total check', () => {
 
   it('is null when the receipt shows no total', () => {
     expect(receiptTotalMatches({ ...base, serviceChargeBps: 1000, gstBps: 900, totalCents: null })).toBeNull()
+  })
+})
+
+describe('receiptChargesIncluded', () => {
+  // A café receipt whose prices already include GST: 6.50 + 9.00 + 9.00 + 9.00 = 33.50, and the model still says 9%.
+  const cafe: ReceiptScanResult = {
+    items: [
+      { name: 'Latte', amountCents: 650 },
+      { name: 'Pasta', amountCents: 900 },
+      { name: 'Pasta', amountCents: 900 },
+      { name: 'Pasta', amountCents: 900 },
+    ],
+    serviceChargeBps: null,
+    gstBps: 900,
+    totalCents: 3350,
+  }
+
+  it('is true when the plain items make the total and the items with charges do not (the café example)', () => {
+    expect(receiptChargesIncluded(cafe)).toBe(true)
+    expect(receiptChargesIncluded({ ...cafe, totalCents: 3352 })).toBe(true)
+  })
+
+  it('is false when the charges are added on top, with no charges, or with no total', () => {
+    expect(receiptChargesIncluded({ ...cafe, totalCents: 3652 })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, gstBps: null })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, gstBps: 0, serviceChargeBps: 0 })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, totalCents: null })).toBe(false)
+    expect(receiptChargesIncluded({ ...cafe, totalCents: 3400 })).toBe(false)
   })
 })

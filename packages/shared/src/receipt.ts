@@ -107,3 +107,14 @@ export function receiptTotalMatches(r: ReceiptScanResult): boolean | null {
   if (r.totalCents === null) return null
   return Math.abs(receiptItemsTotal(r) - r.totalCents) <= ROUNDING_SLACK_CENTS
 }
+
+/**
+ * Whether the receipt's prices already include its charges: it shows a total and at least one charge, the plain
+ * items make that total (within 2¢), and the items with the charges added do not. Some receipts (a café's, say)
+ * print GST that is already in the prices.
+ */
+export function receiptChargesIncluded(r: ReceiptScanResult): boolean {
+  if (r.totalCents === null || !((r.serviceChargeBps ?? 0) > 0 || (r.gstBps ?? 0) > 0)) return false
+  const plain = r.items.reduce((sum, it) => sum + it.amountCents, 0)
+  return Math.abs(plain - r.totalCents) <= ROUNDING_SLACK_CENTS && Math.abs(receiptItemsTotal(r) - r.totalCents) > ROUNDING_SLACK_CENTS
+}
