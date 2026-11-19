@@ -4,11 +4,11 @@
 :root {
   --bg: #f8f4f2; --card: #ffffff; --ink: #3d2c42; --text: #3d2c42; --muted: #8b7a90; --line: #e9e0e6;
   --soft: #faf6f8; --accent: #f0609a; --accent-soft: #ffe3ef; --lav: #e9e2ff; --good: #1f9e72; --bad: #e0457f;
-  --shadow: 2px 2px 0 var(--ink); --radius: 18px;
+  --shadow: 2px 2px 0 var(--ink); --radius: 18px; --on-bad: #fff;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1d1722; --card: #29212f; --ink: #0d090f; --text: #f3ecf5; --muted: #ab9bb1; --line: #3a3041;
-    --soft: #231c29; --accent: #ff7aac; --accent-soft: #4a2638; --lav: #3a3150; --good: #5fd6a6; --bad: #ff8fb8; }
+    --soft: #231c29; --accent: #ff7aac; --accent-soft: #4a2638; --lav: #3a3150; --good: #5fd6a6; --bad: #ff8fb8; --on-bad: #2a1220; }
   /* Dark native scrollbar (and date picker) in the expense dialog, instead of a light strip down its edge. */
   dialog { color-scheme: dark; }
 }
@@ -175,7 +175,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .arrow svg { width: 100%; height: 100%; }
 /* A fixed light pink in both themes (like the balance card), so its plum text stays readable in dark mode. */
 .need { background: #ffe3ef; border: 2px solid var(--ink); border-radius: 14px; padding: 10px; margin-bottom: 8px; color: #3d2c42; }
-.need.row { border-top: 2px solid var(--ink); }
+.need.row { border-top: 2px solid var(--ink); flex-wrap: wrap; }
+.need .acts { flex-basis: 100%; justify-content: flex-end; }
+.need .acts .btn { flex: 1 1 0; min-height: 44px; }
 .need .s { color: #7b6a80; }
 .acts { display: flex; gap: 6px; }
 
@@ -225,8 +227,11 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .qr { width: 100%; height: auto; }
 .invite-link { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .invite-link input { flex: 1 1 240px; min-width: 0; }
-.confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 8px 10px; border-radius: 12px;
-  background: var(--soft); border: 2px solid var(--line); font-size: 13.5px; }
+/* A confirm bar: the question at full width, then the buttons in a row under it (Cancel, then the filled danger one). */
+.confirm { display: grid; gap: 10px; width: 100%; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px solid var(--line); font-size: 14px; }
+.confirm-q { margin: 0; overflow-wrap: anywhere; }
+.confirm-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.confirm-acts .btn { flex: 1 1 0; min-width: max-content; }
 .row.member { flex-wrap: wrap; }
 .row.member .confirm, .row.member .err { flex-basis: 100%; margin: 0; }
 .former { margin-top: 10px; }
@@ -264,6 +269,7 @@ input[type=date] { width: auto; }
 .preview b { color: var(--text); }
 .dlg-f { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .btn.danger { color: var(--bad); }
+.btn.danger.solid { background: var(--bad); color: var(--on-bad); }
 .notice { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 6px; }
 .notice svg { width: 22px; height: 22px; flex: none; }
 

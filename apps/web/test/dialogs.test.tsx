@@ -107,4 +107,15 @@ describe('confirm bars', () => {
     const leave = await screen.findByRole('button', { name: 'Leave group' })
     expect(document.activeElement).toBe(leave)
   })
+
+  it('ask their question on its own line, with Cancel and a filled danger button in a row under it', async () => {
+    fakeApi(groupHandlers({ group: bobsGroup }))
+    renderApp('/groups/g1/settings')
+    fireEvent.click(await screen.findByRole('button', { name: 'Leave group' }))
+    const bar = screen.getByRole('group', { name: 'Leave Bali Trip?' })
+    const [question, actions] = [...bar.children]
+    expect(question!.textContent).toBe('Leave Bali Trip?')
+    expect(within(actions as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Yes, leave'])
+    expect(within(bar).getByRole('button', { name: 'Yes, leave' }).className).toBe('btn danger solid')
+  })
 })

@@ -104,4 +104,14 @@ describe('narrow-screen layout rules', () => {
     expect(bar).toMatch(/left: 0; right: 0; bottom: 0;.*background: var\(--bg\)/)
     expect(rule('.wrap')).toMatch(/env\(safe-area-inset-left\).*env\(safe-area-inset-right\)|env\(safe-area-inset-right\).*env\(safe-area-inset-left\)/)
   })
+
+  it('stacks a confirm bar: the question takes the full width, the buttons share the row under it', () => {
+    expect(rule('.confirm')).toContain('display: grid')
+    expect(rule('.confirm-acts')).toMatch(/display: flex;.*justify-content: flex-end/)
+    expect(rule('.confirm-acts .btn')).toContain('flex: 1 1 0')
+    expect(rule('.btn.danger.solid')).toContain('background: var(--bad)')
+    // The pending payback card stacks the same way: its line on top, Confirm and Reject under it.
+    expect(rule('.need.row')).toContain('flex-wrap: wrap')
+    expect(rule('.need .acts')).toContain('flex-basis: 100%')
+  })
 })
