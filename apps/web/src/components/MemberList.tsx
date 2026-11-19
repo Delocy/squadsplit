@@ -1,4 +1,4 @@
-import type { GroupDTO, MemberDTO } from '@squadsplit/shared'
+import { MAX_GROUP_MEMBERS, type GroupDTO, type MemberDTO } from '@squadsplit/shared'
 import { useState } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
@@ -14,9 +14,12 @@ export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
   const isOwner = group.ownerId === me
   return (
     <section className="card" aria-labelledby="members-h">
-      <h3 id="members-h">
+      <h3>
         <UiIcon name="sparkle" />
-        Members
+        <span id="members-h">Members</span>
+        <span className="right status">
+          {active.length}/{MAX_GROUP_MEMBERS} members
+        </span>
       </h3>
       <ul className="list" aria-label="Members">
         {active.map((m) => (

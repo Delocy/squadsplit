@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import {
   computeBalances,
   CreateExpenseInput,
+  isExpenseLocked,
   simplifyDebts,
   splitEqual,
   splitItemized,
@@ -16,7 +17,7 @@ import { requireMember } from '../access'
 import { db, type Db } from '../db'
 import { insertExpense, loadExpenses, replaceExpense, type ExpenseWrite } from '../db/expenses'
 import { loadLedger } from '../db/ledger'
-import { expenses, groups, memberships } from '../db/schema'
+import { expenses, groups, memberships, settlements } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, parseBody } from '../errors'
 
@@ -120,15 +121,44 @@ async function changeableExpense(d: Db, expenseId: string, userId: string): Prom
   if (expense.createdBy !== userId && role !== 'owner') {
     throw new HttpError(403, 'forbidden', 'Only the person who logged the expense or the group owner can change it')
   }
-  if (expense.locked) {
-    throw new HttpError(409, 'expense_locked', 'A settlement has been confirmed since this expense was logged, so it is locked')
-  }
+  if (expense.locked) throw expenseLocked()
   const active = await activeMemberIds(d, expense.groupId)
   const people = [expense.paidBy, ...expense.shares.map((s) => s.userId), ...(expense.items ?? []).flatMap((i) => i.userIds)]
   if (!people.every((id) => active.has(id))) {
     throw new HttpError(409, 'expense_has_former_member', "Someone in this expense has left the group, so it can't be changed.")
   }
   return expense
+}
+
+const expenseLocked = () =>
+  new HttpError(409, 'expense_locked', 'A settlement has been confirmed since this expense was logged, so it is locked')
+
+/**
+ * 409 if the edited payer and participants would make the expense locked: an edit can't bring in someone
+ * who has confirmed a settlement since the expense was logged.
+ */
+async function assertEditKeepsUnlocked(d: Db, expense: ExpenseDTO, write: ExpenseWrite) {
+  const confirmed = await d
+    .select({
+      id: settlements.id,
+      fromUserId: settlements.fromUserId,
+      toUserId: settlements.toUserId,
+      amountCents: settlements.amountCents,
+      status: settlements.status,
+      createdAt: settlements.createdAt,
+      resolvedAt: settlements.resolvedAt,
+    })
+    .from(settlements)
+    .where(and(eq(settlements.groupId, expense.groupId), eq(settlements.status, 'confirmed')))
+  const edited = {
+    id: expense.id,
+    paidBy: write.fields.paidBy,
+    amountCents: write.fields.amountCents,
+    category: write.fields.category,
+    createdAt: expense.createdAt,
+    shares: Object.entries(write.shares).map(([userId, amountCents]) => ({ userId, amountCents })),
+  }
+  if (isExpenseLocked(edited, confirmed)) throw expenseLocked()
 }
 
 /** Routes under /groups/:id: the group's expenses and balances. */
@@ -165,8 +195,10 @@ export function expenseRoutes() {
   return new Hono<AppEnv>()
     .patch('/:id', async (c) => {
       const d = db(c.env)
-      const { id, groupId } = await changeableExpense(d, c.req.param('id'), c.var.userId)
+      const expense = await changeableExpense(d, c.req.param('id'), c.var.userId)
+      const { id, groupId } = expense
       const write = await prepareWrite(d, groupId, await parseBody(c, UpdateExpenseInput))
+      await assertEditKeepsUnlocked(d, expense, write)
       await d.batch(replaceExpense(d, id, new Date().toISOString(), write))
       return c.json(await loadExpense(d, id))
     })

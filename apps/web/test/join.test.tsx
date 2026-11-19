@@ -47,6 +47,34 @@ describe('Join page', () => {
     expect(screen.getByRole('link', { name: /Open group/ }).getAttribute('href')).toBe('/groups/g1')
   })
 
+  it('says the group is full instead of offering to join', async () => {
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 12 }) }) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByText(/This group is full/)).toBeTruthy()
+    expect(screen.getByText('12 members')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
+  })
+
+  it('still opens a full group for someone already in it', async () => {
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 12, alreadyMember: true }) }) })
+    renderApp('/join/ABCD2345')
+    expect(await screen.findByRole('link', { name: /Open group/ })).toBeTruthy()
+    expect(screen.queryByText(/This group is full/)).toBeNull()
+  })
+
+  it('says the group is full when it fills up before you join', async () => {
+    fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ memberCount: 11 }) }),
+      'POST /invites/ABCD2345/join': () => ({
+        status: 409, body: { error: { code: 'group_full', message: 'This group is full (12 people).' } },
+      }),
+    })
+    renderApp('/join/ABCD2345')
+    fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+    expect(await screen.findByText(/This group is full/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
+  })
+
   it('explains a dead invite link', async () => {
     fakeApi({ 'GET /invites/OLDCODE1': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Invite not found' } } }) })
     renderApp('/join/OLDCODE1')

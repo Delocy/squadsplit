@@ -116,6 +116,13 @@ describe('Group settings', () => {
       await vi.waitFor(() => expect(hasCall(calls, 'DELETE /groups/g1/members/user_bob')).toBe(true))
     })
 
+    it('shows how many of the 12 places are taken, counting only active members', async () => {
+      fakeApi(groupHandlers())
+      renderApp('/groups/g1/settings')
+      await screen.findByRole('list', { name: 'Members' })
+      expect(region('Members').getByText('2/12 members')).toBeTruthy()
+    })
+
     it('says who needs to settle up when a removal is blocked', async () => {
       fakeApi(groupHandlers({}, { 'DELETE /groups/g1/members/user_bob': conflict('balance_not_zero') }))
       renderApp('/groups/g1/settings')

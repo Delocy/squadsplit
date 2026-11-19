@@ -1,5 +1,5 @@
 import type { GroupSummaryDTO } from '@squadsplit/shared'
-import { cleanup, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, renderApp } from './harness'
 
@@ -50,6 +50,59 @@ describe('Groups page', () => {
     const newGroup = screen.getAllByRole('link', { name: /New group/ })
     expect(newGroup).toHaveLength(1)
     expect(newGroup[0]!.getAttribute('href')).toBe('/groups/new')
+  })
+
+  describe('join with a code', () => {
+    const invite = { groupId: 'g9', name: 'Ski club', emoji: '🧡', memberCount: 4, alreadyMember: false }
+    const joinForm = async () => within(await screen.findByRole('form', { name: 'Join with a code' }))
+
+    it('opens the invite for a typed code, tidied up', async () => {
+      fakeApi({
+        'GET /groups': () => ({ status: 200, body: [group({})] }),
+        'GET /invites/ABCD2345': () => ({ status: 200, body: invite }),
+      })
+      const router = renderApp('/groups')
+
+      const form = await joinForm()
+      fireEvent.change(form.getByLabelText('Invite code'), { target: { value: '  abcd2345 ' } })
+      fireEvent.click(form.getByRole('button', { name: 'Join' }))
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/join/ABCD2345'))
+      expect(await screen.findByText('Ski club')).toBeTruthy()
+    })
+
+    it.each([['a code that is too short', 'ABC234'], ['a code with letters that codes never use', 'ABCD0I1L']])(
+      'explains %s and stays put',
+      async (_, typed) => {
+        const calls = fakeApi({ 'GET /groups': () => ({ status: 200, body: [group({})] }) })
+        const router = renderApp('/groups')
+
+        const form = await joinForm()
+        fireEvent.change(form.getByLabelText('Invite code'), { target: { value: typed } })
+        fireEvent.click(form.getByRole('button', { name: 'Join' }))
+
+        expect(form.getByRole('alert').textContent).toMatch(/8 letters and numbers/)
+        expect(router.state.location.pathname).toBe('/groups')
+        expect(calls.map((c) => c.key)).toEqual(['GET /groups'])
+      },
+    )
+
+    it('is offered in the empty state too', async () => {
+      fakeApi({
+        'GET /groups': () => ({ status: 200, body: [] }),
+        'GET /invites/ABCD2345': () => ({ status: 200, body: invite }),
+      })
+      const router = renderApp('/groups')
+
+      await screen.findByText('No groups yet')
+      const forms = screen.getAllByRole('form', { name: 'Join with a code' })
+      expect(forms).toHaveLength(1)
+      const form = within(forms[0]!)
+      fireEvent.change(form.getByLabelText('Invite code'), { target: { value: 'ABCD2345' } })
+      fireEvent.click(form.getByRole('button', { name: 'Join' }))
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/join/ABCD2345'))
+    })
   })
 
   it('shows the error when the groups cannot load', async () => {

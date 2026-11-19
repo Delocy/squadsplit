@@ -355,6 +355,46 @@ describe('lock rule', () => {
     expect((await listExpenses(group.id)).map((e) => e.locked)).toEqual([true])
   })
 
+  describe('when an edit would bring in someone with a later confirmed settlement', () => {
+    /** Bob paid an alice+bob dinner at 10:00; carol and dave confirmed a settlement at 12:00, so it isn't locked yet. */
+    async function unlockedDinner() {
+      const group = await squad()
+      expect((await dave(`/invites/${group.inviteCode}/join`, { method: 'POST' })).status).toBe(200)
+      const expense = await logExpense(group.id, dinner({ split: { type: 'equal', participantIds: ['alice', 'bob'] } }))
+      await db().update(expenses).set({ createdAt: '2026-11-19T10:00:00.000Z' }).where(eq(expenses.id, expense.id))
+      await db().insert(settlements).values({
+        id: crypto.randomUUID(), groupId: group.id, fromUserId: 'carol', toUserId: 'dave', amountCents: 100,
+        status: 'confirmed', createdAt: '2026-11-19T11:00:00.000Z', resolvedAt: '2026-11-19T12:00:00.000Z',
+      })
+      expect((await listExpenses(group.id)).map((e) => e.locked)).toEqual([false])
+      return expense
+    }
+
+    it.each([
+      ['an equal participant', dinner({ split: { type: 'equal', participantIds: ['alice', 'bob', 'carol'] } })],
+      ['the payer', dinner({ paidBy: 'carol', split: { type: 'equal', participantIds: ['alice', 'bob'] } })],
+      ['an exact share', dinner({ split: { type: 'exact', shares: [{ userId: 'alice', amountCents: 450 }, { userId: 'dave', amountCents: 450 }] } })],
+      ['an itemized item', itemizedDinner([{ name: 'Satay', amountCents: 600, userIds: ['alice', 'carol'] }])],
+    ])('is 409 expense_locked when adding them as %s', async (_, body) => {
+      const expense = await unlockedDinner()
+
+      const res = await alice(`/expenses/${expense.id}`, json('PATCH', body))
+
+      expect(res.status).toBe(409)
+      expect(await errorCode(res)).toBe('expense_locked')
+      expect(await storedShares(expense.id)).toEqual({ alice: 450, bob: 450 })
+    })
+
+    it('still allows an edit that keeps the same people', async () => {
+      const expense = await unlockedDinner()
+
+      const res = await alice(`/expenses/${expense.id}`, json('PATCH', dinner({ amountCents: 1000, split: { type: 'equal', participantIds: ['alice', 'bob'] } })))
+
+      expect(res.status).toBe(200)
+      expect(await storedShares(expense.id)).toEqual({ alice: 500, bob: 500 })
+    })
+  })
+
   it('checks permission before the lock', async () => {
     const group = await squad()
     const expense = await logExpense(group.id, dinner(), bob)
