@@ -14,12 +14,14 @@ export type ScanOutcome = { kind: 'scanned'; scan: ReceiptScan } | { kind: 'unre
 
 const UNREADABLE: ScanOutcome = { kind: 'unreadable' }
 
-/** Over the daily limit (429), down (5xx) or unreachable: the phone can still try. */
-const phoneCanTry = (err: unknown) => err instanceof ApiError && (err.status === 0 || err.status === 429 || err.status >= 500)
+/** Over the daily limit (429), down (5xx), unreachable, or the AI couldn't read it (422 receipt_unreadable): the phone can still try. */
+const phoneCanTry = (err: unknown) =>
+  err instanceof ApiError &&
+  (err.status === 0 || err.status === 429 || err.status >= 500 || err.code === 'receipt_unreadable')
 
 /**
  * Reads a receipt photo: shrinks it on the phone, sends it to the AI scan, and falls back to reading it on the phone
- * when the scan is resting, down or unreachable. Never creates an expense. A photo the browser can't decode throws
+ * when the scan is resting, down, unreachable or couldn't read it. Never creates an expense. A photo the browser can't decode throws
  * UnsupportedPhotoError (its message says what to do); other API errors (e.g. no longer a member) are thrown too.
  */
 export async function scanReceipt(api: ApiClient, groupId: string, file: Blob): Promise<ScanOutcome> {
@@ -37,7 +39,6 @@ export async function scanReceipt(api: ApiClient, groupId: string, file: Blob): 
     })
     return { kind: 'scanned', scan }
   } catch (err) {
-    if (err instanceof ApiError && err.code === 'receipt_unreadable') return UNREADABLE
     if (!phoneCanTry(err)) throw err
   }
   return readOnPhone(file)

@@ -44,15 +44,11 @@ describe('scanBanner', () => {
     expect(scanBanner(scanOf({ ...result, totalCents: 1 }, 'phone'), 'SGD')).toBe('Read on your phone — double-check the items and prices.')
   })
 
-  it('mentions when the receipt’s charges are not the SG 10% + 9% the toggle adds', () => {
+  it('says a receipt with other charges matches too: the form adds that receipt’s own rates', () => {
     const gstOnly = { ...result, serviceChargeBps: null, totalCents: 8502 }
-    expect(scanBanner(scanOf(gstOnly), 'SGD')).toBe(
-      'Read your receipt — total $85.02 matches. Tap who had what. ' +
-        "Its charges aren't the usual 10% service charge and 9% GST, so the restaurant bill toggle is off.",
-    )
-    expect(scanBanner(scanOf({ ...result, serviceChargeBps: null, gstBps: null, totalCents: null }), 'SGD')).toBe(
-      'Read your receipt — tap who had what.',
-    )
+    expect(scanBanner(scanOf(gstOnly), 'SGD')).toBe('Read your receipt — total $85.02 matches. Tap who had what.')
+    const serviceOnly = { ...result, gstBps: null, totalCents: 8580 }
+    expect(scanBanner(scanOf(serviceOnly), 'SGD')).toBe('Read your receipt — total $85.80 matches. Tap who had what.')
   })
 
   it('never shows emoji', () => {

@@ -52,7 +52,9 @@ afterEach(() => {
 })
 
 async function openByItem(scan: Handler) {
-  const calls = fakeApi(groupHandlers({}, { 'POST /groups/g1/receipts/scan': scan }))
+  const calls = fakeApi(
+    groupHandlers({}, { 'POST /groups/g1/receipts/scan': scan, 'POST /groups/g1/expenses': () => ({ status: 201, body: expense() }) }),
+  )
   renderApp('/groups/g1/expenses/new')
   const dialog = within(await screen.findByRole('dialog', { name: 'New expense' }))
   fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
@@ -66,7 +68,8 @@ const itemRows = (dialog: ReturnType<typeof within>) =>
     const [name, price] = within(row).getAllByRole('textbox') as HTMLInputElement[]
     return [name!.value, price!.value]
   })
-const sgToggle = (dialog: ReturnType<typeof within>) => dialog.getByRole('checkbox', { name: /Restaurant bill/ }) as HTMLInputElement
+const sgToggle = (dialog: ReturnType<typeof within>) =>
+  dialog.getByRole('checkbox', { name: /Restaurant bill|Receipt charges/ }) as HTMLInputElement
 
 describe('Scan receipt', () => {
   it('offers the camera and a photo from the gallery once, in a receipt card at the top of the form', async () => {
@@ -177,14 +180,29 @@ describe('Scan receipt', () => {
     expect(await dialog.findByText('Receipt says $100.00, items add up to $93.52 — please check the items.')).toBeTruthy()
   })
 
-  it('turns the SG toggle off when the receipt has other charges, and says so', async () => {
-    const { dialog } = await openByItem(() => ({
-      status: 200,
-      body: { ...AI_SCAN, serviceChargeBps: null, totalCents: 8502 },
-    }))
+  it.each([
+    ['GST only', { serviceChargeBps: null, gstBps: 900, totalCents: 8502 }, '9% GST', '$85.02', 'Subtotal $78.00 · GST 9% $7.02'],
+    ['service charge only', { serviceChargeBps: 1000, gstBps: null, totalCents: 8580 }, '10% service charge', '$85.80', 'Subtotal $78.00 · Service charge 10% $7.80'],
+    ['other rates', { serviceChargeBps: 1200, gstBps: 900, totalCents: 9522 }, '12% service charge, then 9% GST', '$95.22', 'Subtotal $78.00 · Service charge 12% $9.36 · GST 9% $7.86'],
+  ])('adds a receipt’s own charges when they are %s, so the saved total is the receipt’s', async (_, charges, hint, total, breakdown) => {
+    const { calls, dialog } = await openByItem(() => ({ status: 200, body: { ...AI_SCAN, ...charges, totalMatches: true } }))
     choose(dialog.getByLabelText('Scan receipt'))
-    expect(await dialog.findByText(/the restaurant bill toggle is off\.$/)).toBeTruthy()
-    expect(sgToggle(dialog).checked).toBe(false)
+    expect(await dialog.findByText(`Read your receipt — total ${total} matches. Tap who had what.`)).toBeTruthy()
+
+    const toggle = sgToggle(dialog)
+    expect(toggle.checked).toBe(true)
+    expect(toggle.closest('label')!.textContent).toBe(`Receipt charges${hint}`)
+    expect(dialog.getByTestId('bill-total').textContent).toBe(total)
+    expect(dialog.getByText(/^Subtotal/).textContent).toBe(breakdown)
+
+    // Assign both items and save: the expense carries the receipt's rates and total.
+    fireEvent.change(dialog.getByLabelText('Description'), { target: { value: 'Dinner' } })
+    for (const n of [1, 2]) fireEvent.click(within(dialog.getByRole('group', { name: `Who had item ${n}` })).getByRole('button', { name: 'Alice' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Add expense' }))
+    await vi.waitFor(() => expect(calls.some((c) => c.key === 'POST /groups/g1/expenses')).toBe(true))
+    const saved = calls.find((c) => c.key === 'POST /groups/g1/expenses')!.body as { amountCents: number; split: object }
+    expect(saved.amountCents).toBe(charges.totalCents)
+    expect(saved.split).toMatchObject({ type: 'itemized', serviceChargeBps: charges.serviceChargeBps ?? 0, gstBps: charges.gstBps ?? 0 })
   })
 
   it.each([
@@ -215,7 +233,22 @@ describe('Scan receipt', () => {
     expect(tesseract.worker.terminate).toHaveBeenCalled()
   })
 
-  it('says to add the items by hand when nothing on the receipt can be read', async () => {
+  it('tries reading on the phone when the AI could not read the receipt (422 receipt_unreadable)', async () => {
+    const { dialog } = await openByItem(() => ({
+      status: 422,
+      body: { error: { code: 'receipt_unreadable', message: "Couldn't read this receipt — add the items by hand." } },
+    }))
+    choose(dialog.getByLabelText('Scan receipt'))
+    expect(await dialog.findByText('Read on your phone — double-check the items and prices.')).toBeTruthy()
+    expect(itemRows(dialog)).toEqual([
+      ['Kopi O x2', '2.40'],
+      ['Kaya Toast', '3.20'],
+    ])
+    expect(tesseract.createWorker).toHaveBeenCalledTimes(1)
+  })
+
+  it('says to add the items by hand when neither the AI nor the phone can read it', async () => {
+    tesseract.ocr.text = '|||  ~~\nTHANK YOU\n'
     const { dialog } = await openByItem(() => ({
       status: 422,
       body: { error: { code: 'receipt_unreadable', message: "Couldn't read this receipt — add the items by hand." } },
@@ -223,7 +256,6 @@ describe('Scan receipt', () => {
     choose(dialog.getByLabelText('Scan receipt'))
     expect(await dialog.findByText("Couldn't read this receipt — add the items by hand.")).toBeTruthy()
     expect(itemRows(dialog)).toEqual([['', '']])
-    expect(tesseract.createWorker).not.toHaveBeenCalled()
   })
 
   it('says to add the items by hand when the phone cannot read the receipt either', async () => {

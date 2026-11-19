@@ -20,6 +20,8 @@ import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
 import { EXIT_MS, useReducedMotion } from '../design/motion'
 import {
   applyScan,
+  chargesHint,
+  isSgCharges,
   draftFromExpense,
   emptyItem,
   hasEnteredAmounts,
@@ -391,8 +393,8 @@ function ExpenseFields({
           <label className="chip toggle">
             <input type="checkbox" checked={draft.restaurantBill} onChange={(e) => update({ restaurantBill: e.target.checked })} />
             <span>
-              Restaurant bill (SG)
-              <span className="hint">10% service charge, then 9% GST</span>
+              {isSgCharges(draft.charges) ? 'Restaurant bill (SG)' : 'Receipt charges'}
+              <span className="hint">{chargesHint(draft.charges)}</span>
             </span>
           </label>
           <div className="items">
@@ -447,8 +449,17 @@ function ExpenseFields({
           </button>
           {summary.bill && draft.restaurantBill && (
             <p className="preview">
-              Subtotal <b>{money(summary.bill.subtotal)}</b> · Service charge 10% <b>{money(summary.bill.serviceCharge)}</b> · GST
-              9% <b>{money(summary.bill.gst)}</b>
+              Subtotal <b>{money(summary.bill.subtotal)}</b>
+              {draft.charges.serviceChargeBps > 0 && (
+                <>
+                  {' · '}Service charge {draft.charges.serviceChargeBps / 100}% <b>{money(summary.bill.serviceCharge)}</b>
+                </>
+              )}
+              {draft.charges.gstBps > 0 && (
+                <>
+                  {' · '}GST {draft.charges.gstBps / 100}% <b>{money(summary.bill.gst)}</b>
+                </>
+              )}
             </p>
           )}
         </>
