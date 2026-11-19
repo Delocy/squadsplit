@@ -15,7 +15,16 @@ export class HttpError extends Error {
   }
 }
 
-export const errorBody = (code: string, message: string): ApiErrorBody => ({ error: { code, message } })
+/** Whether `err` is SQLite refusing a write on the unique constraint over `columns` ("table.col, table.col"). */
+export function isUniqueViolation(err: unknown, columns: string): boolean {
+  // Drizzle wraps the D1 error, so walk the cause chain.
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if (e.message.includes(`UNIQUE constraint failed: ${columns}`)) return true
+  }
+  return false
+}
+
+export const errorBody =(code: string, message: string): ApiErrorBody => ({ error: { code, message } })
 
 /** Reads the JSON request body and validates it. A malformed body or a schema mismatch becomes a 422. */
 export async function parseBody<S extends z.ZodType>(c: Context, schema: S): Promise<z.output<S>> {

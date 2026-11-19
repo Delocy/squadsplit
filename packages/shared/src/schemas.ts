@@ -152,8 +152,15 @@ export interface MemberDTO {
 }
 export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string | null; ownerId: string; members: MemberDTO[] }
 export interface GroupSummaryDTO { id: string; name: string; emoji: string; currency: Currency; role: 'owner' | 'member'; myBalanceCents: number }
-/** `takenAvatars`: the looks of the group's active members, which a joiner can't pick. */
-export interface InvitePreviewDTO { groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean; takenAvatars: AvatarChoice[] }
+/**
+ * `takenAvatars`: the looks of the group's active members, which a joiner can't pick.
+ * `myFormerAvatar`: the look the caller left the group with (their default if they never stored one) when they are a
+ * former member, else null. Joining without an avatar gives them it back if it is still free.
+ */
+export interface InvitePreviewDTO {
+  groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean
+  takenAvatars: AvatarChoice[]; myFormerAvatar: AvatarChoice | null
+}
 export interface ExpenseDTO {
   id: string; groupId: string; description: string; amountCents: number; paidBy: string; createdBy: string
   category: Category; spentOn: string; splitType: 'equal' | 'exact' | 'itemized'; shares: { userId: string; amountCents: number }[]

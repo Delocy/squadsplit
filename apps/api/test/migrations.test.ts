@@ -49,3 +49,43 @@ it('0002_member_avatar_nickname adds empty avatar and nickname columns to member
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expenses').first('n')).toBe(1)
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expense_shares').first('n')).toBe(1)
 })
+
+it('0003_active_member_look clears duplicate stored looks among active members, keeping the earliest joiner’s, then makes them unique', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 3))
+  const users = ['alice', 'bob', 'carol', 'dave', 'erin', 'frank']
+  const member = (group: string, user: string, joinedAt: string, leftAt: string | null, animal: string | null, color: string | null) =>
+    env.DB.prepare(`INSERT INTO memberships VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`).bind(
+      group, user, user === 'alice' ? 'owner' : 'member', `2026-11-${joinedAt}T00:00:00.000Z`, leftAt, animal, color,
+    )
+  await env.DB.batch([
+    ...users.map((u) => env.DB.prepare(`INSERT INTO users VALUES (?, ?, NULL, '2026-11-01T00:00:00.000Z')`).bind(u, u)),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g2', 'Tokyo', '🍣', 'SGD', 'HGFEDCBA', 'alice', '2026-11-01T00:00:00.000Z')`),
+    member('g1', 'alice', '01', null, 'fox', 'peach'),
+    member('g1', 'bob', '02', null, 'fox', 'peach'), // clashes with alice: cleared
+    member('g1', 'carol', '02', null, 'koala', 'mint'),
+    member('g1', 'dave', '02', null, 'koala', 'mint'), // same join time as carol: the lower user id keeps it
+    member('g1', 'erin', '03', '2026-11-04T00:00:00.000Z', 'fox', 'peach'), // former member: untouched
+    member('g1', 'frank', '05', null, null, null),
+    member('g2', 'alice', '01', null, 'fox', 'peach'), // another group: untouched
+    member('g2', 'bob', '01', null, 'bear', 'sky'),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  const looks = await env.DB.prepare('SELECT group_id, user_id, avatar_animal, avatar_color FROM memberships ORDER BY group_id, user_id').all()
+  expect(looks.results).toEqual([
+    { group_id: 'g1', user_id: 'alice', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g1', user_id: 'bob', avatar_animal: null, avatar_color: null },
+    { group_id: 'g1', user_id: 'carol', avatar_animal: 'koala', avatar_color: 'mint' },
+    { group_id: 'g1', user_id: 'dave', avatar_animal: null, avatar_color: null },
+    { group_id: 'g1', user_id: 'erin', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g1', user_id: 'frank', avatar_animal: null, avatar_color: null },
+    { group_id: 'g2', user_id: 'alice', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g2', user_id: 'bob', avatar_animal: 'bear', avatar_color: 'sky' },
+  ])
+  await expect(
+    env.DB.prepare(`UPDATE memberships SET avatar_animal = 'fox', avatar_color = 'peach' WHERE group_id = 'g1' AND user_id = 'frank'`).run(),
+  ).rejects.toThrow(/UNIQUE constraint failed/)
+})

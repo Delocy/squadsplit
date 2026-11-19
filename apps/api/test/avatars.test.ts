@@ -1,8 +1,10 @@
+import { env } from 'cloudflare:test'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import {
   defaultAvatar,
   firstFreeAvatar,
+  sameAvatar,
   type ApiErrorBody,
   type AvatarChoice,
   type GroupDTO,
@@ -266,5 +268,104 @@ describe('PATCH /groups/:id/members/me with an avatar', () => {
 
     expect((await setAvatar(carol, group.id, FOX)).status).toBe(404)
     expect((await setAvatar(bob, group.id, FOX)).status).toBe(404)
+  })
+})
+
+describe('GET /invites/:code myFormerAvatar', () => {
+  it('is null for a newcomer and for an active member', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode, { avatar: FOX })
+
+    const forCarol = (await (await carol(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+    const forBob = (await (await bob(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+
+    expect(forCarol.myFormerAvatar).toBeNull()
+    expect(forBob.myFormerAvatar).toBeNull()
+  })
+
+  it('is the look a former member left with, or their default when they never stored one', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode, { avatar: FOX })
+    await join(carol, group.inviteCode)
+    await db().update(memberships).set({ avatarAnimal: null, avatarColor: null }).where(eq(memberships.userId, 'carol'))
+    await leave(bob, group.id, 'bob')
+    await leave(carol, group.id, 'carol')
+
+    const forBob = (await (await bob(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+    const forCarol = (await (await carol(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+
+    expect(forBob.myFormerAvatar).toEqual(FOX)
+    expect(forCarol.myFormerAvatar).toEqual(defaultAvatar('carol'))
+  })
+})
+
+const stored = (avatar: AvatarChoice) => ({ avatarAnimal: avatar.animal, avatarColor: avatar.color })
+
+/** A user id other than `userId` whose default look is the same as `userId`'s. */
+function defaultTwinOf(userId: string): string {
+  for (let i = 0; ; i++) {
+    const candidate = `twin-${i}`
+    if (candidate !== userId && sameAvatar(defaultAvatar(candidate), defaultAvatar(userId))) return candidate
+  }
+}
+
+describe('no two active members ever look the same', () => {
+  it('moves the later joiner on when two members without a stored look share a default', async () => {
+    const group = await createGroup()
+    const twin = defaultTwinOf('alice')
+    await join(app.as(twin), group.inviteCode)
+    await db().update(memberships).set({ avatarAnimal: null, avatarColor: null })
+
+    const shifted = firstFreeAvatar(defaultAvatar('alice'), [defaultAvatar('alice')])
+    expect(await avatarOf(group.id, 'alice')).toEqual(defaultAvatar('alice'))
+    expect(await avatarOf(group.id, twin)).toEqual(shifted)
+    const preview = (await (await carol(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+    expect(preview.takenAvatars).toEqual([defaultAvatar('alice'), shifted])
+  })
+
+  it('moves a later stored look that matches an earlier member’s default, and keeps both looks taken', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode, { avatar: FOX })
+    await db().update(memberships).set({ avatarAnimal: null, avatarColor: null }).where(eq(memberships.userId, 'alice'))
+    await db().update(memberships).set(stored(defaultAvatar('alice'))).where(eq(memberships.userId, 'bob'))
+
+    const shifted = firstFreeAvatar(defaultAvatar('alice'), [defaultAvatar('alice')])
+    expect(await avatarOf(group.id, 'bob')).toEqual(shifted)
+    expect((await join(carol, group.inviteCode, { avatar: shifted })).status).toBe(409)
+    expect((await setAvatar(alice, group.id, shifted)).status).toBe(409)
+  })
+
+  it('refuses a second active member with the same stored look at the database, but not a former one', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode, { avatar: FOX })
+    await leave(bob, group.id, 'bob')
+    expect((await join(carol, group.inviteCode, { avatar: FOX })).status).toBe(200) // bob, who left, still has it stored
+
+    await expect(
+      env.DB.prepare(`UPDATE memberships SET avatar_animal = 'fox', avatar_color = 'peach' WHERE user_id = 'alice'`).run(),
+    ).rejects.toThrow(/UNIQUE constraint failed/)
+  })
+
+  it('lets only one of two people joining at once take the same look', async () => {
+    const group = await createGroup()
+
+    const results = await Promise.all([join(bob, group.inviteCode, { avatar: FOX }), join(carol, group.inviteCode, { avatar: FOX })])
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409])
+    const refused = results.find((r) => r.status === 409)!
+    expect((await errorOf(refused)).code).toBe('avatar_taken')
+    const looks = [await storedRow(group.id, 'bob'), await storedRow(group.id, 'carol')]
+    expect(looks.filter((l) => l?.animal === FOX.animal && l.color === FOX.color)).toHaveLength(1)
+  })
+
+  it('lets only one of two members switching at once take the same look', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode, { avatar: KOALA })
+    await join(carol, group.inviteCode)
+
+    const results = await Promise.all([setAvatar(bob, group.id, FOX), setAvatar(carol, group.id, FOX)])
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409])
+    expect((await errorOf(results.find((r) => r.status === 409)!)).code).toBe('avatar_taken')
   })
 })

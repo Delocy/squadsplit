@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { defaultAvatar, MAX_GROUP_MEMBERS, type ApiErrorBody, type GroupDTO, type InvitePreviewDTO } from '@squadsplit/shared'
 import { memberships } from '../src/db/schema'
@@ -40,7 +40,7 @@ describe('GET /invites/:code', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual<InvitePreviewDTO>({
       groupId: group.id, name: 'Bali trip', emoji: '🏝️', memberCount: 2, alreadyMember: false,
-      takenAvatars: [defaultAvatar('alice'), defaultAvatar('bob')],
+      takenAvatars: [defaultAvatar('alice'), defaultAvatar('bob')], myFormerAvatar: null,
     })
   })
 
@@ -160,6 +160,21 @@ describe('POST /invites/:code/join with a full group', () => {
     expect(res.status).toBe(409)
     expect(((await res.json()) as ApiErrorBody).error.code).toBe('group_full')
     expect((await membershipRows(group.id, 'bob'))[0]?.leftAt).not.toBeNull()
+  })
+
+  it('lets only one of two people joining the last place at once in', async () => {
+    const group = await createGroup()
+    await join(carol, group.inviteCode)
+    expect((await carol(`/groups/${group.id}/members/carol`, { method: 'DELETE' })).status).toBe(204)
+    for (let i = 1; i < MAX_GROUP_MEMBERS - 1; i++) await join(app.as(`filler-${i}`), group.inviteCode)
+
+    // A newcomer and a returning member race for the 12th place.
+    const results = await Promise.all([join(bob, group.inviteCode), join(carol, group.inviteCode)])
+
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409])
+    expect(((await results.find((r) => r.status === 409)!.json()) as ApiErrorBody).error.code).toBe('group_full')
+    const active = await db().select().from(memberships).where(and(eq(memberships.groupId, group.id), isNull(memberships.leftAt)))
+    expect(active).toHaveLength(MAX_GROUP_MEMBERS)
   })
 
   it('does not count former members towards the cap', async () => {

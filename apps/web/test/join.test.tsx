@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
-  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], ...over,
+  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, ...over,
 })
 
 const animalButton = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Animal' })).getByRole('button', { name })
