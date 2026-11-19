@@ -45,7 +45,7 @@ export function GroupHome() {
   const wheel = `/groups/${id}/wheel`
 
   return (
-    <main className="page">
+    <main className="page has-fab">
       <div className="summary">
         {balances.data ? (
           <BalanceCard
@@ -150,10 +150,12 @@ export function GroupHome() {
         </div>
       </div>
 
-      <Link to={addExpense} preventScrollReset className="btn primary fab">
-        <UiIcon name="plus" />
-        Add expense
-      </Link>
+      <div className="fab-bar">
+        <Link to={addExpense} preventScrollReset className="btn primary">
+          <UiIcon name="plus" />
+          Add expense
+        </Link>
+      </div>
       <Outlet />
     </main>
   )
