@@ -11,9 +11,10 @@ export const fakeDeps: AuthDeps = {
 
 type Send = (path: string, init?: RequestInit) => Promise<Response>
 
-export function testApp() {
+/** The app on the test bindings; `bindings` replaces some of them (e.g. a fake `AI`). */
+export function testApp(bindings: Partial<Cloudflare.Env> = {}) {
   const app = createApp(fakeDeps)
-  const send: Send = async (path, init) => app.request(path, init, env)
+  const send: Send = async (path, init) => app.request(path, init, { ...env, ...bindings })
 
   return {
     /** Sends the request as `userId` (fake bearer token). */

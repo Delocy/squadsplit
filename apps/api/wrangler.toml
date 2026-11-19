@@ -13,3 +13,8 @@ migrations_dir = "migrations"
 
 [vars]
 WEB_ORIGIN = "http://localhost:5173"
+
+# Workers AI, for receipt scanning (POST /groups/:id/receipts/scan). Calls are always remote, even under wrangler dev.
+[ai]
+binding = "AI"
+remote = true

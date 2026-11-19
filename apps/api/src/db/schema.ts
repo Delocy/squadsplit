@@ -182,3 +182,14 @@ export const spins = sqliteTable(
   },
   (t) => [index('spins_group_id_idx').on(t.groupId)],
 )
+
+/** Receipt scans per user per UTC day (YYYY-MM-DD), for the daily limits. The app-wide count is the day's sum. */
+export const receiptScans = sqliteTable(
+  'receipt_scans',
+  {
+    userId: text('user_id').notNull(),
+    day: text('day').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] }), index('receipt_scans_day_idx').on(t.day)],
+)

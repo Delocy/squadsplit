@@ -19,6 +19,7 @@ async function clerkDeps(env: Bindings) {
 
 const env: Bindings = {
   DB: {} as D1Database,
+  AI: {} as Ai,
   CLERK_SECRET_KEY: 'sk_test_unused',
   CLERK_PUBLISHABLE_KEY: 'pk_test_unused',
   WEB_ORIGIN: 'http://localhost:5173',

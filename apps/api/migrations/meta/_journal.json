@@ -29,6 +29,13 @@
       "when": 1795084753945,
       "tag": "0003_active_member_look",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795085473178,
+      "tag": "0004_receipt_scans",
+      "breakpoints": true
     }
   ]
 }

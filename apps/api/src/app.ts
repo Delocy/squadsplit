@@ -11,6 +11,7 @@ import { funRoutes } from './routes/fun'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
+import { receiptRoutes } from './routes/receipts'
 import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
 
 /** Verifies the bearer token and sets `c.var.userId`. */
@@ -67,6 +68,7 @@ export function createApp(deps: AuthDeps) {
   app.route('/groups', groupExpenseRoutes())
   app.route('/groups', groupSettlementRoutes())
   app.route('/groups', funRoutes())
+  app.route('/groups', receiptRoutes())
   app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
   app.route('/settlements', settlementRoutes())

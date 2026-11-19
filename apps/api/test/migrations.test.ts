@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { expect, it } from 'vitest'
 
-const TABLES = ['expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
+const TABLES = ['receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
 
 it('0001_itemized_currency keeps existing expenses and their shares, taking the currency from the group', async () => {
   for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
@@ -88,4 +88,27 @@ it('0003_active_member_look clears duplicate stored looks among active members, 
   await expect(
     env.DB.prepare(`UPDATE memberships SET avatar_animal = 'fox', avatar_color = 'peach' WHERE group_id = 'g1' AND user_id = 'frank'`).run(),
   ).rejects.toThrow(/UNIQUE constraint failed/)
+})
+
+it('0004_receipt_scans adds an empty per-user, per-day scan counter without touching existing rows', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 4))
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', NULL, '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO memberships VALUES ('g1', 'alice', 'owner', '2026-11-01T00:00:00.000Z', NULL, 'fox', 'peach', NULL)`),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM receipt_scans').first('n')).toBe(0)
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM memberships').first('n')).toBe(1)
+  const bump = () =>
+    env.DB.prepare(
+      `INSERT INTO receipt_scans (user_id, day, count) VALUES ('alice', '2026-11-19', 1)
+       ON CONFLICT (user_id, day) DO UPDATE SET count = count + 1 RETURNING count`,
+    ).first('count')
+  expect(await bump()).toBe(1)
+  expect(await bump()).toBe(2)
+  await expect(env.DB.prepare(`INSERT INTO receipt_scans VALUES ('alice', '2026-11-19', 1)`).run()).rejects.toThrow(/UNIQUE constraint failed/)
 })
