@@ -1,13 +1,16 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { MAX_GROUP_MEMBERS, type InvitePreviewDTO } from '@squadsplit/shared'
+import {
+  INVITE_CODE_ALPHABET as ALPHABET,
+  INVITE_CODE_LENGTH as CODE_LENGTH,
+  MAX_GROUP_MEMBERS,
+  type InvitePreviewDTO,
+} from '@squadsplit/shared'
 import { db, type Db } from '../db'
 import { groups, memberships } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError } from '../errors'
 
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-const CODE_LENGTH = 8
 // Bytes at or above the largest multiple of the alphabet size are skipped, so every character is equally likely.
 const UNBIASED_BYTE_LIMIT = 256 - (256 % ALPHABET.length)
 const MAX_CODE_ATTEMPTS = 4 // the first try plus up to 3 retries on a collision
