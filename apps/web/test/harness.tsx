@@ -7,7 +7,7 @@ import { routes } from '../src/routes'
 const API = 'http://localhost:8787'
 
 type Reply = { status: number; body?: unknown }
-type Handler = (body: unknown) => Reply | Promise<Reply>
+export type Handler = (body: unknown) => Reply | Promise<Reply>
 
 /** Stubs global fetch with handlers keyed by "METHOD /path". Unknown routes fail the request loudly. */
 export function fakeApi(handlers: Record<string, Handler>) {

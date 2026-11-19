@@ -41,16 +41,19 @@ export function Avatar({
   size,
   mood = 'calm',
   title,
+  faded = false,
 }: {
   userId: string
   size?: 'sm' | 'lg'
   mood?: Mood
   title?: string
+  /** Greyed out, for someone who has left the group. */
+  faded?: boolean
 }) {
   const look = avatarFor(userId)
   return (
     <span
-      className={size ? `av ${size}` : 'av'}
+      className={['av', size, faded && 'gone'].filter(Boolean).join(' ')}
       style={{ '--c': look.bg } as CSSProperties}
       title={title}
       role={title ? 'img' : undefined}

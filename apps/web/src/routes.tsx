@@ -3,6 +3,8 @@ import { Navigate, Outlet, type RouteObject } from 'react-router'
 import { RequireSignIn } from './components/RequireSignIn'
 import { TopBar } from './components/TopBar'
 import { CreateGroup } from './pages/CreateGroup'
+import { ExpenseForm } from './pages/ExpenseForm'
+import { GroupHome } from './pages/GroupHome'
 import { GroupPlaceholder } from './pages/GroupPlaceholder'
 import { Groups } from './pages/Groups'
 import { Join } from './pages/Join'
@@ -42,9 +44,15 @@ export const routes: RouteObject[] = [
       { path: '/groups', element: <Groups /> },
       { path: '/groups/new', element: <CreateGroup /> },
       { path: '/join/:code', element: <Join /> },
-      { path: '/groups/:id', element: <GroupPlaceholder /> },
-      { path: '/groups/:id/expenses/new', element: <GroupPlaceholder /> },
-      { path: '/groups/:id/expenses/:expenseId', element: <GroupPlaceholder /> },
+      {
+        path: '/groups/:id',
+        element: <GroupHome />,
+        // The add/edit expense dialog opens over the group home.
+        children: [
+          { path: 'expenses/new', element: <ExpenseForm /> },
+          { path: 'expenses/:expenseId', element: <ExpenseForm /> },
+        ],
+      },
       { path: '/groups/:id/wheel', element: <GroupPlaceholder /> },
       { path: '/groups/:id/settings', element: <GroupPlaceholder /> },
     ],
