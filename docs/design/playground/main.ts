@@ -140,7 +140,7 @@ function spin(btn: HTMLButtonElement) {
 // ---------- render ----------
 function renderStatic() {
   document.querySelectorAll<HTMLElement>('[data-icon]').forEach(el => { el.outerHTML = uiIcon(el.dataset.icon!) })
-  $('#logo-mark').innerHTML = mascot('dog', '#fcd9b6', 'happy')
+  $('#logo-mark').innerHTML = mascot('dog', '#f2e3c9', 'happy')
   $('#ptr').innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 3h16L12 21z" fill="#f0609a" stroke="#3d2c42" stroke-width="2.4" stroke-linejoin="round"/></svg>`
   renderPickers()
 }

@@ -9,15 +9,16 @@ export type Mood = 'happy' | 'calm' | 'nervous'
 const svg = (vb: string, body: string, cls = '') =>
   `<svg class="${cls}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" stroke="${INK}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
 
-function face(cy: number, mood: Mood, darkPatches = false, bigEyes = false): string {
+/** `bigEyeColor` gives big, round, shiny eyes (and happy-eye arcs) in that colour instead of the usual ones. */
+function face(cy: number, mood: Mood, darkPatches = false, bigEyeColor?: string): string {
   const eyeFill = darkPatches ? '#fff' : INK
   let eyes = ''
   if (mood === 'happy') {
-    eyes = `<path d="M21 ${cy - 1} q3 -4.5 6 0 M37 ${cy - 1} q3 -4.5 6 0" fill="none" stroke="${darkPatches ? '#fff' : INK}" stroke-width="2.6"/>`
-  } else if (bigEyes) {
+    eyes = `<path d="M21 ${cy - 1} q3 -4.5 6 0 M37 ${cy - 1} q3 -4.5 6 0" fill="none" stroke="${bigEyeColor ?? (darkPatches ? '#fff' : INK)}" stroke-width="2.6"/>`
+  } else if (bigEyeColor) {
     // Big, round, shiny eyes: a larger pupil with two highlights.
     eyes = [24, 40]
-      .map((x) => `<circle cx="${x}" cy="${cy - 2}" r="3.7" fill="${INK}" stroke="none"/><circle cx="${x + 1.2}" cy="${cy - 3.3}" r="1.35" fill="#fff" stroke="none"/><circle cx="${x - 1.2}" cy="${cy - 0.6}" r=".6" fill="#fff" stroke="none"/>`)
+      .map((x) => `<circle cx="${x}" cy="${cy - 2}" r="3.7" fill="${bigEyeColor}" stroke="none"/><circle cx="${x + 1.2}" cy="${cy - 3.3}" r="1.35" fill="#fff" stroke="none"/><circle cx="${x - 1.2}" cy="${cy - 0.6}" r=".6" fill="#fff" stroke="none"/>`)
       .join('')
   } else {
     eyes = `<circle cx="24" cy="${cy - 2}" r="2.7" fill="${eyeFill}" stroke="none"/><circle cx="40" cy="${cy - 2}" r="2.7" fill="${eyeFill}" stroke="none"/>
@@ -65,18 +66,26 @@ export function mascot(kind: Kind, faceColor: string, mood: Mood = 'calm', cls =
       <ellipse cx="40.5" cy="35" rx="5.5" ry="7" fill="${INK}" stroke="none" transform="rotate(-25 40.5 35)"/>
       <ellipse cx="32" cy="42" rx="2.4" ry="1.7" fill="${INK}" stroke="none"/>` + face(37, mood, true)
   } else if (kind === 'dog') {
-    // The SquadSplit logo: an apricot cavapoo pup. Curly scalloped crown, long wavy ears, cream muzzle, button nose.
-    const ear = '#f6be8e'
-    const curl = '#e9a877'
+    // The SquadSplit logo: a pale cream cavapoo pup. Curly scalloped crown, long wavy ears, cream muzzle, black nose.
+    const ear = '#e6cfa8'
+    const curl = '#d8bc93'
+    const dark = '#2b2125'
+    const mouth =
+      mood === 'happy'
+        ? // A little pink tongue poking out under a smile.
+          `<path d="M32 41.5 v2" fill="none" stroke-width="2"/>
+      <path d="M29.8 44 h4.4 v2.4 a2.2 2.2 0 0 1 -4.4 0 z" fill="#f08aa5" stroke-width="1.5"/><path d="M32 44.6 v2.2" fill="none" stroke="#d9607f" stroke-width="1"/>
+      <path d="M28.5 43.5 q1.75 2.2 3.5 0 q1.75 2.2 3.5 0" fill="none" stroke-width="2.2"/>`
+        : snoutMouth(mood, 41.5)
     body = `<path d="M12.7 43.5 A6.2 6.2 0 0 1 11.9 33.2 A6.3 6.3 0 0 1 17 24.1 A6.5 6.5 0 0 1 26.4 18.7 A6.7 6.7 0 0 1 37.6 18.7 A6.5 6.5 0 0 1 47 24.1 A6.3 6.3 0 0 1 52.1 33.2 A6.2 6.2 0 0 1 51.3 43.5 C49 52.5 41 56 32 56 C23 56 15 52.5 12.7 43.5 Z" fill="${faceColor}" ${s}/>
       <path d="M27 25.5 q2 -2.6 4 0 M33 25.5 q2 -2.6 4 0 M30 21.5 q2 -2.6 4 0" fill="none" stroke="${curl}" stroke-width="1.6"/>
       <path d="M19 23 A4.6 4.6 0 0 0 11.5 24.5 A4.9 4.9 0 0 0 6.5 31 A4.9 4.9 0 0 0 5 39 A4.9 4.9 0 0 0 6.5 47 A4.7 4.7 0 0 0 11.5 53 A3.4 3.4 0 0 0 16.8 51.5 C17.5 44 15.5 33 19.5 26.5 Z" fill="${ear}" ${s}/>
       <path d="M45 23 A4.6 4.6 0 0 1 52.5 24.5 A4.9 4.9 0 0 1 57.5 31 A4.9 4.9 0 0 1 59 39 A4.9 4.9 0 0 1 57.5 47 A4.7 4.7 0 0 1 52.5 53 A3.4 3.4 0 0 1 47.2 51.5 C46.5 44 48.5 33 44.5 26.5 Z" fill="${ear}" ${s}/>
       <path d="M9.5 33 q2 1.5 1 3.5 M8.5 42 q2 1.5 1 3.5 M54.5 33 q-2 1.5 -1 3.5 M55.5 42 q-2 1.5 -1 3.5" fill="none" stroke="${curl}" stroke-width="1.5"/>
-      <ellipse cx="32" cy="43" rx="9" ry="6.8" fill="#fff4e6" stroke-width="2"/>` +
-      noMouth(face(36, mood, false, true)) +
-      snoutMouth(mood, 41.5) +
-      `<ellipse cx="32" cy="39.2" rx="3.6" ry="2.6" fill="${INK}" stroke-width="1.2"/><ellipse cx="30.9" cy="38.4" rx="1.1" ry=".7" fill="#fff" stroke="none" opacity=".8"/>`
+      <ellipse cx="32" cy="43" rx="9" ry="6.8" fill="#fbf4e8" stroke-width="2"/>` +
+      noMouth(face(36, mood, false, dark)) +
+      mouth +
+      `<ellipse cx="32" cy="39.2" rx="3.6" ry="2.6" fill="${dark}" stroke="${dark}" stroke-width="1.2"/><ellipse cx="30.9" cy="38.4" rx="1.1" ry=".7" fill="#fff" stroke="none" opacity=".8"/>`
   } else if (kind === 'fox') {
     body = `<path d="M13 29 L12 6 L28 20 Z" fill="${faceColor}" ${s}/><path d="M51 29 L52 6 L36 20 Z" fill="${faceColor}" ${s}/>
       <path d="M15.5 23 L15 12.5 L22.5 19 Z" fill="#fff4e2" stroke="none"/><path d="M48.5 23 L49 12.5 L41.5 19 Z" fill="#fff4e2" stroke="none"/>
