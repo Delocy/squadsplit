@@ -43,4 +43,16 @@ describe('narrow-screen layout rules', () => {
     expect(css).toContain('@keyframes bob')
     expect(css).toContain('@media (prefers-reduced-motion: reduce) { * { animation: none !important;')
   })
+
+  it('keeps your avatar and Sign out on the top bar’s first row, right-aligned, at every width', () => {
+    expect(rule('.top')).toContain('display: grid')
+    expect(rule('.top')).toContain('grid-template-columns: minmax(0, 1fr) auto')
+    expect(rule('.top > .logo')).toContain('grid-column: 1')
+    expect(rule('.top > .me')).toMatch(/grid-row: 1; grid-column: -2;.*justify-self: end;.*flex-shrink: 0/)
+    // The group breadcrumb gets its own full-width row below the name, and joins the first row from 600px up.
+    expect(rule('.top > .crumb')).toContain('grid-column: 1 / -1')
+    expect(css).toContain(
+      '@media (min-width: 600px) { .top { grid-template-columns: auto minmax(0, 1fr) auto; } .top > .crumb { grid-column: 2; grid-row: 1; } }',
+    )
+  })
 })

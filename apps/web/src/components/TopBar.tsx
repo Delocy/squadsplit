@@ -12,7 +12,6 @@ export function TopBar() {
     <header className="top">
       <Logo to="/groups" />
       {groupId && <GroupCrumb id={groupId} />}
-      <div className="spacer" />
       {userId && (
         <div className="me">
           {groupId ? <MyGroupAvatar groupId={groupId} userId={userId} /> : <Avatar avatar={defaultAvatar(userId)} title="You" />}
