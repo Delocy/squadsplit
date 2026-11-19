@@ -3,8 +3,9 @@ import { defaultAvatar, type AvatarChoice } from '@squadsplit/shared'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLocation, useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
+import { balanceMood } from '../design/mood'
 import { Skeleton, SkText } from '../design/Skeleton'
-import { useGroup } from '../groupData'
+import { useCachedBalances, useGroup } from '../groupData'
 import { useMe } from '../useProfileRefresh'
 import { Logo } from './Logo'
 import { PageLink } from './PageLink'
@@ -81,15 +82,23 @@ function MeMenu({ avatar }: { avatar: ReactNode }) {
   )
 }
 
-/** Your avatar, or its place held (an avatar-sized skeleton) while it isn't known yet. */
-function MyAvatar({ avatar }: { avatar: AvatarChoice | null }) {
-  return avatar ? <Avatar avatar={avatar} title="You" /> : <Skeleton w={34} h={34} circle />
+/**
+ * Your avatar, or its place held (an avatar-sized skeleton) while it isn't known yet. With `net` (your balance in the
+ * group) it wears your mood there.
+ */
+function MyAvatar({ avatar, net }: { avatar: AvatarChoice | null; net?: number }) {
+  if (!avatar) return <Skeleton w={34} h={34} circle />
+  return <Avatar avatar={avatar} title="You" {...(net === undefined ? {} : balanceMood(net))} />
 }
 
-/** Inside a group you look the way that group sees you (your profile look until it loads, or if you're not in it). */
+/**
+ * Inside a group you look the way that group sees you (your profile look until it loads, or if you're not in it), in
+ * your mood there once a page in it has loaded the balances (the top bar never fetches them itself).
+ */
 function MyGroupAvatar({ groupId, userId, fallback }: { groupId: string; userId: string; fallback: AvatarChoice | null }) {
   const group = useGroup(groupId)
-  return <MyAvatar avatar={group.data?.members.find((m) => m.userId === userId)?.avatar ?? fallback} />
+  const net = useCachedBalances(groupId).data?.balances[userId]
+  return <MyAvatar avatar={group.data?.members.find((m) => m.userId === userId)?.avatar ?? fallback} net={net} />
 }
 
 /** "/ Bali Trip · 4 members" on every page inside a group. Its place is held while it loads, so the page doesn't move. */

@@ -1,8 +1,8 @@
-import { formatMoney, type ExpenseDTO, type FeedItem } from '@squadsplit/shared'
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { formatMoney, type ExpenseDTO, type FeedItem, type SettlementStatus } from '@squadsplit/shared'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Avatar } from '../design/Avatar'
-import { CATEGORY_ART, CategoryIcon, categoryLabel, UiIcon } from '../design/icons'
+import { CATEGORY_ART, CategoryIcon, categoryLabel, StampArt, UiIcon } from '../design/icons'
 import { formerMemberIn, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
 import { RowSkeletons } from './Skeletons'
@@ -46,6 +46,9 @@ export function Feed({
   currency: string
 }) {
   const [tab, setTab] = useState<Tab>('all')
+  // What the feed held when it first loaded: anything after that happened while you were looking.
+  const atFirst = useRef<Set<string> | null>(null)
+  if (atFirst.current === null && items !== undefined) atFirst.current = new Set(items.map(itemKey))
   const money = (cents: number) => formatMoney(cents, currency)
   const av = (userId: string, mood?: 'happy' | 'calm' | 'nervous') => (
     <Avatar avatar={people.avatar(userId)} size="sm" mood={mood} faded={people.isFormer(userId)} />
@@ -110,7 +113,7 @@ export function Feed({
               <div className="s">Payback</div>
             </div>
             <div className="amt-r">{money(s.amountCents)}</div>
-            <span className="status">{s.status}</span>
+            <PaybackStatus status={s.status} isNew={!atFirst.current?.has(itemKey(item))} />
           </>
         )
       }
@@ -178,5 +181,20 @@ export function Feed({
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * A payback's status: a PAID stamp once it is confirmed (beside the amount, never on it), otherwise a small pill.
+ * The stamp thunks down only when the payback counts while you are looking: it turns confirmed, or it arrives
+ * confirmed (`isNew`; a payment with someone who hasn't joined counts straight away).
+ */
+function PaybackStatus({ status, isNew }: { status: SettlementStatus; isNew: boolean }) {
+  const fresh = useRef(status === 'pending' || isNew)
+  if (status !== 'confirmed') return <span className="status">{status}</span>
+  return (
+    <span className={fresh.current ? 'paid-stamp thunk' : 'paid-stamp'} role="img" aria-label="Paid">
+      <StampArt text="PAID" />
+    </span>
   )
 }

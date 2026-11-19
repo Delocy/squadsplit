@@ -44,6 +44,8 @@ const feedQuery = (api: ApiClient, id: string) =>
 
 export const useGroup = (id: string) => useQuery(groupQuery(useApi(), id))
 export const useBalances = (id: string) => useQuery(balancesQuery(useApi(), id))
+/** The group's balances if a page has loaded them already; never fetches them itself. */
+export const useCachedBalances = (id: string) => useQuery({ ...balancesQuery(useApi(), id), enabled: false })
 export const useExpenses = (id: string) => useQuery(expensesQuery(useApi(), id))
 export const usePendingSettlements = (id: string) => useQuery(pendingSettlementsQuery(useApi(), id))
 export const useFun = (id: string) => useQuery(funQuery(useApi(), id))
