@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiBaseUrl, createApiClient, useApi } from '../src/api'
+import { ApiError, apiBaseUrl, createApiClient, isRetryable, useApi } from '../src/api'
 
 vi.mock('@clerk/react', () => ({ useAuth: () => ({ getToken: async () => 'clerk_session_token' }) }))
 
@@ -69,6 +69,26 @@ describe('createApiClient', () => {
   it('throws an ApiError with a fallback code when the error body is not JSON', async () => {
     const { api } = setup(new Response('Bad gateway', { status: 502 }))
     await expect(api.get('/groups')).rejects.toMatchObject({ status: 502, code: 'http_error' })
+  })
+
+  it('throws a friendly network ApiError when the request never reaches the API', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    const api = createApiClient('http://api.test', async () => 'tok_123', fetchFn)
+    const err = await api.get('/groups').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err).toMatchObject({ status: 0, code: 'network', message: "Can't reach SquadSplit right now." })
+  })
+})
+
+describe('isRetryable', () => {
+  it('retries network failures and server errors, but not 4xx answers that will not change', () => {
+    expect(isRetryable(new ApiError(0, 'network', "Can't reach SquadSplit right now."))).toBe(true)
+    expect(isRetryable(new ApiError(502, 'http_error', 'Bad gateway'))).toBe(true)
+    expect(isRetryable(new Error('something else'))).toBe(true)
+    expect(isRetryable(new ApiError(404, 'not_found', 'Not found'))).toBe(false)
+    expect(isRetryable(new ApiError(422, 'validation_failed', 'Bad input'))).toBe(false)
   })
 })
 
