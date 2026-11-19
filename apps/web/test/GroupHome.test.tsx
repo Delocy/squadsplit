@@ -106,7 +106,7 @@ describe('Group home', () => {
       await vi.waitFor(() => expect(count(calls, 'POST /settlements/s2/cancel')).toBe(1))
     })
 
-    it('marks a suggested transfer paid, minus what is already waiting for confirmation', async () => {
+    it('opens a settle form pre-filled with the suggestion, minus what is already waiting for confirmation', async () => {
       const calls = fakeApi(
         groupHandlers(
           {
@@ -120,8 +120,83 @@ describe('Group home', () => {
       const settle = await screen.findByRole('region', { name: /Settle up/ })
       expect(await within(settle).findByText('You → Bob')).toBeTruthy()
       fireEvent.click(within(settle).getByRole('button', { name: 'Mark paid' }))
+      // Nothing is sent until the form is submitted.
+      expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
+      const form = within(within(settle).getByRole('form', { name: 'Mark a payment' }))
+      expect((form.getByLabelText('Paid to') as HTMLSelectElement).value).toBe(BOB)
+      expect((form.getByLabelText('Amount') as HTMLInputElement).value).toBe('20.00')
+      fireEvent.click(form.getByRole('button', { name: 'Submit' }))
       await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
       expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: BOB, amountCents: 2000 })
+      await vi.waitFor(() => expect(within(settle).queryByRole('form', { name: 'Mark a payment' })).toBeNull())
+    })
+
+    it('posts a partial amount as typed', async () => {
+      const calls = fakeApi(
+        groupHandlers(
+          { balances: { balances: { [ME]: -3000, [BOB]: 3000 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 3000 }] } },
+          { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ id: 's3', fromUserId: ME, toUserId: BOB }) }) },
+        ),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: ' 12.5 ' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
+      expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: BOB, amountCents: 1250 })
+    })
+
+    it('lets you pay a creditor other than the suggested one, up to what they are owed', async () => {
+      const DAVE = 'user_dave'
+      const withDave = group()
+      withDave.members.push({ userId: DAVE, displayName: 'Dave', avatarUrl: null, role: 'member', active: true })
+      const calls = fakeApi(
+        groupHandlers(
+          {
+            group: withDave,
+            balances: { balances: { [ME]: -3000, [BOB]: 2500, [DAVE]: 500, [CAROL]: 0 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 2500 }] },
+          },
+          { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ id: 's3', fromUserId: ME, toUserId: DAVE }) }) },
+        ),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      const payee = screen.getByLabelText('Paid to') as HTMLSelectElement
+      // Only current members who are owed money (and never you).
+      expect([...payee.options].map((o) => o.textContent)).toEqual(['Bob', 'Dave'])
+      fireEvent.change(payee, { target: { value: DAVE } })
+      expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('5.00')
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
+      expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ toUserId: DAVE, amountCents: 500 })
+    })
+
+    it('explains an amount over the cap, or not an amount, without posting; Cancel closes the form', async () => {
+      const calls = fakeApi(
+        groupHandlers({
+          balances: { balances: { [ME]: -3000, [BOB]: 3000 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 3000 }] },
+          pending: [settlement({ id: 's2', fromUserId: ME, toUserId: BOB, amountCents: 1000 })],
+        }),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      const amount = screen.getByLabelText('Amount')
+      fireEvent.change(amount, { target: { value: '25.00' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('You can mark at most $20.00 as paid to Bob right now.')
+
+      fireEvent.change(amount, { target: { value: '0' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('Enter an amount of at least $0.01.')
+
+      fireEvent.change(amount, { target: { value: '12.345' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+      expect(screen.getByRole('alert').textContent).toBe('Enter an amount like 12.50.')
+      expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
     })
 
     it('disables Mark paid while the whole debt is waiting for confirmation', async () => {
@@ -150,6 +225,7 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
       expect(await screen.findByText('You can mark at most $30.00 as paid right now.')).toBeTruthy()
       expect(screen.queryByText(/cents/)).toBeNull()
     })
@@ -168,6 +244,7 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
       expect(await screen.findByText('You can only settle up with a current member of the group')).toBeTruthy()
     })
 

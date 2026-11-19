@@ -92,6 +92,9 @@ input[type=text], input[type=number], input[type=date], select { width: 100%; pa
 input:focus, select:focus { outline: none; border-color: var(--accent); }
 .err { color: var(--bad); font-size: 13px; min-height: 18px; margin-top: 6px; }
 .form-f { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.settle-form { margin-top: 10px; padding: 4px 12px 12px; border: 2px dashed var(--line); border-radius: 14px; }
+.settle-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 400px) { .settle-fields { grid-template-columns: 1fr; } }
 
 /* chips */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }

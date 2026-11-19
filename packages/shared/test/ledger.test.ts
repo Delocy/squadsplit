@@ -6,6 +6,7 @@ import {
   computeBalances,
   isExpenseLocked,
   maxSettlementAmount,
+  settlementCap,
   simplifyDebts,
 } from '../src/index'
 
@@ -90,6 +91,19 @@ describe('maxSettlementAmount', () => {
   test('to a non-creditor is 0', () => expect(maxSettlementAmount(ledger(), 'B', 'C')).toBe(0))
   test('self is 0', () => expect(maxSettlementAmount(ledger(), 'A', 'A')).toBe(0))
   test('unknown users are 0', () => expect(maxSettlementAmount(ledger(), 'X', 'A')).toBe(0))
+})
+
+describe('settlementCap', () => {
+  const nets = { A: 600, B: -300, C: -300 }
+  test('min of debt and credit', () => expect(settlementCap(nets, 0, 'B', 'A')).toBe(300))
+  test('minus pending outgoing', () => expect(settlementCap(nets, 100, 'B', 'A')).toBe(200))
+  test('never negative', () => expect(settlementCap(nets, 500, 'B', 'A')).toBe(0))
+  test('from a creditor, to a debtor, to yourself or between unknowns is 0', () => {
+    expect(settlementCap(nets, 0, 'A', 'B')).toBe(0)
+    expect(settlementCap(nets, 0, 'B', 'C')).toBe(0)
+    expect(settlementCap({ A: -5, B: 5 }, 0, 'A', 'A')).toBe(0)
+    expect(settlementCap(nets, 0, 'X', 'Y')).toBe(0)
+  })
 })
 
 describe('isExpenseLocked', () => {

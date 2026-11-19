@@ -1,20 +1,16 @@
-import { formatMoney, type BalancesDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
+import { formatMoney, settlementCap, type BalancesDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
+import { useState } from 'react'
 import { ApiError, useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
+import { SettleForm, type SettlementInput } from './SettleForm'
 
 /**
- * What `me` may newly settle with `to` right now, mirroring the API's cap:
- * min(my debt, their credit), minus my settlements still waiting for confirmation.
+ * The simplified debts. On one where you are the debtor, "Mark paid" opens a small form, pre-filled with
+ * what you can pay that creditor now, to settle any amount with any creditor.
  */
-export function settleableAmount(balances: Record<string, number>, pending: SettlementDTO[], me: string, to: string): number {
-  const waiting = pending.filter((s) => s.fromUserId === me).reduce((sum, s) => sum + s.amountCents, 0)
-  return Math.max(0, Math.min(-(balances[me] ?? 0), balances[to] ?? 0) - waiting)
-}
-
-/** The simplified debts. On one where you are the debtor, "Mark paid" starts a settlement for what you can pay now. */
 export function SuggestedTransfers({
   groupId,
   balances,
@@ -31,20 +27,29 @@ export function SuggestedTransfers({
   currency: string
 }) {
   const api = useApi()
-  const settle = useGroupMutation(groupId, (t: { toUserId: string; amountCents: number }) =>
-    api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t),
-  )
+  const settle = useGroupMutation(groupId, (t: SettlementInput) => api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t))
+  /** The creditor whose "Mark paid" opened the form, or null while it is closed. */
+  const [formFor, setFormFor] = useState<string | null>(null)
+
+  const pendingOutgoing = pending.filter((s) => s.fromUserId === me).reduce((sum, s) => sum + s.amountCents, 0)
+  const cap = (toUserId: string) => settlementCap(balances.balances, pendingOutgoing, me, toUserId)
+  const mine = balances.suggestions.filter((t) => t.fromUserId === me)
+
+  function open(toUserId: string) {
+    settle.reset()
+    setFormFor(toUserId)
+  }
 
   // The API's exceeds_debt message counts raw cents; say it in money, from the (refetched) balances.
   const friendlyError = (error: Error, toUserId: string | undefined) =>
     error instanceof ApiError && error.code === 'exceeds_debt' && toUserId
       ? new Error(
-          `You can mark at most ${formatMoney(settleableAmount(balances.balances, pending, me, toUserId), currency)} as paid right now.`,
+          `You can mark at most ${formatMoney(cap(toUserId), currency)} as paid right now.`,
         )
       : error
 
   const row = (t: Transfer) => {
-    const amount = Math.min(t.amountCents, settleableAmount(balances.balances, pending, me, t.toUserId))
+    const amount = Math.min(t.amountCents, cap(t.toUserId))
     return (
       <li className="row" key={`${t.fromUserId}>${t.toUserId}`}>
         <Avatar userId={t.fromUserId} size="sm" faded={people.isFormer(t.fromUserId)} />
@@ -62,8 +67,9 @@ export function SuggestedTransfers({
           <button
             className="btn small primary"
             disabled={amount < 1 || settle.isPending}
+            aria-expanded={formFor === t.toUserId}
             title={amount < 1 ? 'Waiting on a confirmation' : undefined}
-            onClick={() => settle.mutate({ toUserId: t.toUserId, amountCents: amount })}
+            onClick={() => open(t.toUserId)}
           >
             Mark paid
           </button>
@@ -81,6 +87,24 @@ export function SuggestedTransfers({
           <li className="empty">Everyone is settled up.</li>
         )}
       </ul>
+      {formFor && (
+        <SettleForm
+          key={formFor}
+          balances={balances.balances}
+          pendingOutgoingCents={pendingOutgoing}
+          suggestions={mine}
+          me={me}
+          initialPayee={formFor}
+          people={people}
+          currency={currency}
+          busy={settle.isPending}
+          onSubmit={(input) => settle.mutate(input, { onSuccess: () => setFormFor(null) })}
+          onCancel={() => {
+            settle.reset()
+            setFormFor(null)
+          }}
+        />
+      )}
       {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables?.toUserId)} />}
     </>
   )
