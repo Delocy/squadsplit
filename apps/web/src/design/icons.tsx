@@ -1,5 +1,5 @@
 import { badgeArt, CATEGORY_ART, categoryIcon, confettiPiece, mascot, medal, uiIcon, type Kind, type Mood } from './art'
-import { cushion, heart, sparkle, sweatDrop, zee } from './funArt'
+import { cushion, heart, lockedSticker, sparkle, stamp, sweatDrop, washi, zee } from './funArt'
 
 export type { Kind, Mood }
 export { CATEGORY_ART, confettiPiece }
@@ -34,3 +34,6 @@ export const SparkleArt = () => <Art html={sparkle()} />
 export const ZeeArt = () => <Art html={zee()} />
 export const HeartArt = () => <Art html={heart()} />
 export const CushionArt = () => <Art html={cushion()} className="cushion" />
+export const StampArt = ({ text }: { text: string }) => <Art html={stamp(text)} />
+export const WashiArt = ({ color }: { color: string }) => <Art html={washi(color)} />
+export const LockedStickerArt = () => <Art html={lockedSticker()} />

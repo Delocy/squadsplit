@@ -24,3 +24,19 @@ export const heart = () =>
 export const cushion = () =>
   svg('0 0 300 60', `<path d="M14 30c0-14 18-20 60-20h152c42 0 60 6 60 20s-18 22-60 22H74c-42 0-60-8-60-22z" fill="#e9e2ff" stroke-width="3"/>
     <path d="M40 26q110 10 220 0" fill="none" stroke="#cdb4ff" stroke-width="3"/><circle cx="20" cy="30" r="6" fill="#ffc8dd" stroke-width="2.4"/><circle cx="280" cy="30" r="6" fill="#ffc8dd" stroke-width="2.4"/>`)
+
+/** A round rubber stamp in pink ink, e.g. "PAID". */
+export const stamp = (text: string, color = '#e0457f') =>
+  svg('0 0 120 120', `<g stroke="${color}" fill="none"><circle cx="60" cy="60" r="52" stroke-width="5" stroke-dasharray="210 6 40 5"/><circle cx="60" cy="60" r="42" stroke-width="2.5"/></g>
+    <path d="M28 70l6-4M88 50l6-4" stroke="${color}" stroke-width="2"/>
+    <text x="60" y="70" text-anchor="middle" font-family="Fredoka" font-weight="700" font-size="30" letter-spacing="2" fill="${color}" stroke="none">${text}</text>`)
+
+/** A strip of striped washi tape with torn ends. */
+export const washi = (c1: string, c2 = '#fff') =>
+  svg('0 0 80 22', `<defs><pattern id="w${c1.slice(1)}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="${c1}"/><rect width="4" height="8" fill="${c2}" opacity=".7"/></pattern></defs>
+    <path d="M2 3l3 2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 76 0 -2-2 2-2-2-2 2-2-2-2 2-2-2-2 2-2-2-2z" fill="url(#w${c1.slice(1)})" stroke="none" opacity=".92"/>`)
+
+/** A sticker not collected yet: a dashed outline with a question mark. */
+export const lockedSticker = () =>
+  svg('0 0 48 48', `<circle cx="24" cy="24" r="19" fill="none" stroke-width="2.4" stroke-dasharray="5 4" opacity=".55"/>
+    <text x="24" y="31" text-anchor="middle" font-family="Fredoka" font-weight="700" font-size="20" fill="${INK}" stroke="none" opacity=".45">?</text>`)

@@ -167,7 +167,8 @@ describe('Squad Reacts on the group home', () => {
     fireEvent.click(await settle.findByRole('button', { name: 'Confirm' }))
 
     const moment = await screen.findByRole('status', { name: 'Payback confirmed' })
-    expect(moment.textContent).toContain('Bob paid you $12.00')
+    expect(moment.textContent).toContain('Bob paid you back. The squad approves.')
+    expect(moment.querySelector('.slip-amt')!.textContent).toBe('$12.00')
     expect(moment.querySelector('.heart-hop')).toBeTruthy()
     // The payer stops frowning: a nervous face fades off a happy one.
     const payer = moment.querySelector('.hop-l')!

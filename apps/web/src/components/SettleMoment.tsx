@@ -1,7 +1,7 @@
 import { formatMoney, type SettlementDTO } from '@squadsplit/shared'
 import type { CSSProperties } from 'react'
 import { Avatar } from '../design/Avatar'
-import { HeartArt } from '../design/icons'
+import { BadgeArt, HeartArt, StampArt, UiIcon } from '../design/icons'
 import { useReducedMotion } from '../design/motion'
 import type { People } from '../groupData'
 
@@ -10,20 +10,24 @@ const CHEERING = 6
 
 /**
  * The moment you confirm a payback: a heart hops from the payer to you, the payer's face stops frowning, and the
- * rest of the squad does a cheer wave. It plays once (see .moment in fun.css) and stays until closed. Under reduced
- * motion it is drawn in its final, still state. The amount never moves.
+ * rest of the squad does a cheer wave. Then a PAID stamp thunks onto the payback slip, beside the amount, and a
+ * newly earned Good Egg sticker slaps on. It plays once (see .moment in fun.css) and stays until closed. Under
+ * reduced motion it is drawn in its final, still state. The amount never moves.
  */
 export function SettleMoment({
   settlement,
   me,
   people,
   currency,
+  newSticker = false,
   onClose,
 }: {
   settlement: SettlementDTO
   me: string
   people: People
   currency: string
+  /** The payer just earned the Good Egg sticker with this payback. */
+  newSticker?: boolean
   onClose: () => void
 }) {
   const still = useReducedMotion()
@@ -58,9 +62,39 @@ export function SettleMoment({
           ))}
         </div>
       )}
-      <p className="caption">
-        {people.name(payer)} paid you {formatMoney(settlement.amountCents, currency)}. The squad approves.
-      </p>
+      <p className="caption">{people.name(payer)} paid you back. The squad approves.</p>
+      <div className="slip">
+        <div className="slip-h">
+          <UiIcon name="receipt" />
+          Payback
+        </div>
+        <div className="slip-row">
+          <Avatar avatar={people.avatar(payer)} size="sm" mood="happy" />
+          <span>{people.name(payer)}</span>
+          <span className="arrow">
+            <UiIcon name="arrow" />
+          </span>
+          <Avatar avatar={people.avatar(me)} size="sm" mood="happy" />
+          <span>You</span>
+        </div>
+        <div className="slip-amt">{formatMoney(settlement.amountCents, currency)}</div>
+        <span className="big-stamp" role="img" aria-label="Paid">
+          <StampArt text="PAID" />
+        </span>
+      </div>
+      {newSticker && (
+        <div className="earned">
+          <div className="sticker slap" style={{ '--r': '-5deg' } as CSSProperties}>
+            <span className="die">
+              <BadgeArt badgeKey="good_egg" />
+            </span>
+          </div>
+          <div>
+            <div className="t">New sticker for {people.name(payer)}</div>
+            <div className="s">Good Egg</div>
+          </div>
+        </div>
+      )}
       <button type="button" className="btn small ghost" onClick={onClose}>
         Close
       </button>

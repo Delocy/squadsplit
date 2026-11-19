@@ -1,6 +1,6 @@
 import { formatMoney, type AvatarChoice } from '@squadsplit/shared'
 import { Avatar, lookOf, Sweat } from '../design/Avatar'
-import { Mascot } from '../design/icons'
+import { Mascot, WashiArt } from '../design/icons'
 import { balanceMood, moodOf, sweatOf } from '../design/mood'
 import { squadQuip } from '../squadQuip'
 
@@ -16,7 +16,8 @@ export interface SquadMember {
 /**
  * Your balance in the group, with your animal from the group in a matching mood: it bobs when you're owed or square,
  * and shivers (and sweats, more for a bigger debt) when you owe. Below it, "the squad": everyone else's animal in
- * their own mood. `seed` picks the wording of the quip, so it changes as the group's history grows.
+ * their own mood. Your mascot sits in a taped polaroid. `seed` picks the wording of the quip, so it changes as the
+ * group's history grows.
  */
 export function BalanceCard({
   cents,
@@ -35,11 +36,19 @@ export function BalanceCard({
   const look = lookOf(avatar)
   return (
     <section className={`card balance ${kind}`} aria-label="Your balance">
-      <div className="buddy-w">
-        <div className="buddy">
-          <Mascot kind={look.kind} face={look.face} mood={moodOf(cents)} />
+      <i className="tape t2">
+        <WashiArt color="#b8f2d8" />
+      </i>
+      <div className="polaroid">
+        <div className="buddy-w">
+          <div className="buddy">
+            <Mascot kind={look.kind} face={look.face} mood={moodOf(cents)} />
+          </div>
+          <Sweat drops={sweatOf(cents)} />
         </div>
-        <Sweat drops={sweatOf(cents)} />
+        <i className="tape t1">
+          <WashiArt color="#ffc8dd" />
+        </i>
       </div>
       <div>
         <div className="lbl">{kind === 'owed' ? "You're owed" : kind === 'owe' ? 'You owe' : 'Your balance'}</div>

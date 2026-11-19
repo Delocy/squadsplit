@@ -1,4 +1,4 @@
-import { formatMoney, type SettlementDTO } from '@squadsplit/shared'
+import { formatMoney, type FunDTO, type SettlementDTO } from '@squadsplit/shared'
 import { useState, type MouseEvent } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
@@ -20,28 +20,33 @@ export function PendingActions({
   me,
   people,
   currency,
+  fun,
 }: {
   groupId: string
   pending: SettlementDTO[]
   me: string
   people: People
   currency: string
+  /** The group's titles, to tell when a payback earns the payer the Good Egg sticker. */
+  fun?: FunDTO
 }) {
   const api = useApi()
   const resolve = useGroupMutation(groupId, ({ id, action }: { id: string; action: Action }) =>
     api.post<SettlementDTO>(`/settlements/${id}/${action}`),
   )
-  /** The payback you just confirmed, celebrated until you close it. */
-  const [confirmed, setConfirmed] = useState<SettlementDTO | null>(null)
+  /** The payback you just confirmed, celebrated until you close it, and who held Good Egg before it (if known). */
+  const [confirmed, setConfirmed] = useState<{ settlement: SettlementDTO; goodEggBefore: string | null | undefined } | null>(null)
+  const goodEgg = (f: FunDTO | undefined) => (f ? (f.badges.find((b) => b.key === 'good_egg')?.userId ?? null) : undefined)
   const act = (s: SettlementDTO, action: Action) => (e: MouseEvent<HTMLButtonElement>) => {
     const button = e.currentTarget
+    const goodEggBefore = goodEgg(fun)
     resolve.mutate(
       { id: s.id, action },
       {
         onSuccess: () => {
           if (action !== 'confirm') return
           confetti(button)
-          setConfirmed(s)
+          setConfirmed({ settlement: s, goodEggBefore })
         },
       },
     )
@@ -54,7 +59,18 @@ export function PendingActions({
   return (
     <>
       {confirmed && (
-        <SettleMoment settlement={confirmed} me={me} people={people} currency={currency} onClose={() => setConfirmed(null)} />
+        <SettleMoment
+          settlement={confirmed.settlement}
+          me={me}
+          people={people}
+          currency={currency}
+          newSticker={
+            confirmed.goodEggBefore !== undefined &&
+            confirmed.goodEggBefore !== confirmed.settlement.fromUserId &&
+            goodEgg(fun) === confirmed.settlement.fromUserId
+          }
+          onClose={() => setConfirmed(null)}
+        />
       )}
       {mine.map((s) =>
         s.toUserId === me ? (

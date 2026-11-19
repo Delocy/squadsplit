@@ -12,6 +12,8 @@
 .avw .sweat.s0 { right: -4px; top: -3px; }
 .avw .sweat.s1 { right: -7px; top: 40%; }
 .avw .sweat.s2 { left: -5px; top: 0; }
+/* Room for the drops beside a name. */
+.who .avw, .slip-row .avw { margin-right: 4px; }
 .glint { position: absolute; right: -5px; top: -5px; width: 12px; height: 12px; pointer-events: none; }
 .glint svg { width: 100%; height: 100%; }
 @keyframes drip { 0%, 15% { transform: translateY(-3px) scale(.6); opacity: 0; } 30% { transform: none; opacity: 1; } 80% { transform: translateY(5px); opacity: 1; } 100% { transform: none; opacity: 1; } }
@@ -22,7 +24,7 @@
 .watching .glint svg, .row:hover .glint svg, .lb-row:hover .glint svg { animation: glint 2.4s ease-in-out infinite; }
 
 /* your balance mascot sweats, and the squad watches */
-.balance > div.buddy-w { position: relative; flex: none; min-width: max-content; }
+.buddy-w { position: relative; }
 .buddy-w .sweat { width: 13px; height: 17px; }
 .buddy-w .sweat.s0 { right: -3px; top: 0; } .buddy-w .sweat.s1 { right: -9px; top: 42%; } .buddy-w .sweat.s2 { left: -6px; top: 4px; }
 .watching { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-top: 10px; border-top: 2px dashed rgba(61, 44, 66, .2); }
@@ -69,3 +71,79 @@
 @keyframes zz { 0% { opacity: 0; transform: translate(0, 10px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .nap-card .es-t { display: block; font: 700 18px Fredoka, sans-serif; margin: 18px 0 0; }
 .nap-card .es-s { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+
+/* ---------- C. Sticker Book ---------- */
+/* Die-cut stickers are white in light mode and a soft off-white in dark mode, so they don't glare. */
+:root { --sticker: #fff; }
+@media (prefers-color-scheme: dark) { :root { --sticker: #eee6f1; } }
+.tape { position: absolute; width: 56px; height: 16px; pointer-events: none; z-index: 2; }
+.tape svg { width: 100%; height: 100%; }
+
+/* your balance mascot in a taped polaroid */
+.balance { position: relative; }
+.balance > div.polaroid { position: relative; flex: none; min-width: max-content; background: #fff; border: 2px solid var(--ink);
+  padding: 5px 5px 14px; border-radius: 4px; transform: rotate(-4deg); box-shadow: 2px 2px 0 var(--ink); }
+.polaroid .buddy { border: 0; border-radius: 3px; background: #ffe3ef; width: clamp(54px, 15vw, 66px); height: clamp(54px, 15vw, 66px); }
+.polaroid .tape.t1 { top: -9px; left: 8px; transform: rotate(-8deg); }
+.balance > .tape.t2 { top: -8px; right: 18px; transform: rotate(10deg); }
+
+/* titles as a sticker sheet */
+.sheet { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px dashed var(--line); }
+.sheet-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 700 13px Fredoka, sans-serif; color: var(--muted); margin-bottom: 10px; }
+.sheet-h b { color: var(--text); }
+.stickers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 6px; }
+.sticker { display: grid; justify-items: center; align-content: start; gap: 5px; text-align: center; min-width: 0; transform: rotate(var(--r, 0deg)); }
+.sticker .die { position: relative; width: 52px; height: 52px; display: grid; place-items: center; padding: 6px; background: var(--sticker); border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(61, 44, 66, .18); filter: drop-shadow(1px 2px 0 rgba(61, 44, 66, .35));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transition: clip-path .35s cubic-bezier(.3,1.4,.5,1); }
+.sticker .die svg { width: 100%; height: 100%; }
+/* hover peels a corner up, showing the sticker's paper back */
+.sticker .die::after { content: ''; position: absolute; right: 0; bottom: 0; width: 0; height: 0; border-radius: 0 0 50% 0;
+  background: linear-gradient(135deg, #f2edf4 0 48%, rgba(61, 44, 66, .2) 50%, transparent 52%); transition: width .35s, height .35s; }
+.sticker:not(.locked):hover .die { clip-path: polygon(0 0, 100% 0, 100% 66%, 66% 100%, 0 100%); }
+.sticker:not(.locked):hover .die::after { width: 34%; height: 34%; }
+.sticker .cap { display: grid; min-height: 42px; align-content: start; max-width: 100%; }
+.sticker .cap b { font: 700 11.5px/14px Fredoka, sans-serif; overflow-wrap: anywhere; }
+.sticker .cap em { font: 700 10.5px/14px Nunito, sans-serif; color: var(--muted); font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sticker.locked { transform: none; }
+.sticker.locked .die { background: none; box-shadow: none; filter: none; padding: 0; }
+.sticker.locked .die svg, .slot-s svg { stroke: var(--muted); }
+.sticker.locked text, .slot-s text { fill: var(--muted); }
+.sticker.locked .cap b { color: var(--muted); }
+.sticker .die.sk { background: var(--line); box-shadow: none; filter: none; }
+/* earned while you watch: slapped on */
+.sticker.slap { animation: slapIn .5s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes slapIn { 0% { transform: rotate(calc(var(--r) - 20deg)) scale(1.7); opacity: 0; } 60% { transform: rotate(var(--r)) scale(.92); opacity: 1; } 100% { transform: rotate(var(--r)); opacity: 1; } }
+
+/* the PAID stamp: beside a confirmed payback's amount, never on it */
+.paid-stamp { width: 40px; height: 40px; flex: none; margin: -6px 0; transform: rotate(-14deg); opacity: .9; }
+.paid-stamp svg { width: 100%; height: 100%; }
+.paid-stamp.thunk { animation: thunk .35s cubic-bezier(.5,0,.75,0) both; }
+@keyframes thunk { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
+
+/* the settle-up moment's payback slip: the stamp lands after the cheer wave, then a new sticker slaps on */
+.slip { position: relative; width: 100%; text-align: left; background: var(--card); border: 2px dashed var(--line); border-radius: 14px;
+  padding: 10px 104px 10px 14px; animation: slipShake .2s ease-out 2.3s both; }
+.slip-h { display: flex; align-items: center; gap: 6px; font: 700 13px Fredoka, sans-serif; color: var(--muted); }
+.slip-h svg { width: 18px; height: 18px; }
+.slip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; font-size: 13.5px; }
+.slip-amt { font: 700 28px Fredoka, sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.big-stamp { position: absolute; right: 10px; top: 50%; width: 84px; height: 84px; margin-top: -42px; transform: rotate(-14deg); opacity: .9;
+  animation: stampDown .35s cubic-bezier(.5,0,.75,0) 2s both; }
+.big-stamp svg { width: 100%; height: 100%; }
+@keyframes stampDown { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
+@keyframes slipShake { 0%, 100% { transform: none; } 30% { transform: translateY(2px); } }
+.earned { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.earned .sticker.slap { animation-delay: 2.6s; }
+.earned .sticker .die { width: 56px; height: 56px; }
+.earned .t { font: 700 15px Fredoka, sans-serif; }
+.earned .s { font-size: 12.5px; color: var(--muted); }
+
+/* the empty group's album page */
+.album { position: relative; padding-top: 24px; }
+.album .tape.t1 { top: -8px; left: 22px; transform: rotate(-6deg); }
+.album .tape.t2 { top: -8px; right: 22px; transform: rotate(7deg); }
+.nap-card .es-s.small { margin: -6px 0 6px; font-size: 12.5px; }
+.slots { display: grid; grid-template-columns: repeat(6, 34px); gap: 8px; margin: 0 0 12px; }
+.slot-s { width: 34px; height: 34px; }
+.slot-s svg { width: 100%; height: 100%; }

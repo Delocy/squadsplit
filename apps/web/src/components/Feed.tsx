@@ -1,8 +1,8 @@
-import { formatMoney, type ExpenseDTO, type FeedItem } from '@squadsplit/shared'
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { formatMoney, type ExpenseDTO, type FeedItem, type SettlementStatus } from '@squadsplit/shared'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Avatar } from '../design/Avatar'
-import { CATEGORY_ART, CategoryIcon, categoryLabel, UiIcon } from '../design/icons'
+import { CATEGORY_ART, CategoryIcon, categoryLabel, StampArt, UiIcon } from '../design/icons'
 import { formerMemberIn, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
 import { RowSkeletons } from './Skeletons'
@@ -110,7 +110,7 @@ export function Feed({
               <div className="s">Payback</div>
             </div>
             <div className="amt-r">{money(s.amountCents)}</div>
-            <span className="status">{s.status}</span>
+            <PaybackStatus status={s.status} />
           </>
         )
       }
@@ -178,5 +178,19 @@ export function Feed({
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * A payback's status: a PAID stamp once it is confirmed (beside the amount, never on it), otherwise a small pill.
+ * The stamp thunks down only when the payback turns confirmed while you are looking.
+ */
+function PaybackStatus({ status }: { status: SettlementStatus }) {
+  const sawPending = useRef(status === 'pending')
+  if (status !== 'confirmed') return <span className="status">{status}</span>
+  return (
+    <span className={sawPending.current ? 'paid-stamp thunk' : 'paid-stamp'} role="img" aria-label="Paid">
+      <StampArt text="PAID" />
+    </span>
   )
 }

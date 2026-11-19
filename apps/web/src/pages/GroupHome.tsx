@@ -106,7 +106,7 @@ export function GroupHome() {
                 </span>
               )}
             </h3>
-            <PendingActions groupId={id} pending={pending.data ?? []} me={me} people={people} currency={g.currency} />
+            <PendingActions groupId={id} pending={pending.data ?? []} me={me} people={people} currency={g.currency} fun={fun.data} />
             {balances.data && (
               <SuggestedTransfers
                 groupId={id}
