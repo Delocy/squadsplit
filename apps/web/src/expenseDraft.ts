@@ -288,8 +288,9 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
 
 /**
  * Adds an "Other" item, shared by everyone, that makes up what the items are short of the typed total. Its price is
- * the pre-charge amount whose item-plus-charges total lands closest to the gap (see otherLine). Untouched blank rows
- * are dropped. Does nothing unless the items are priced and short.
+ * the pre-charge amount whose item-plus-charges total lands closest to the gap (see otherLine); one too small to split
+ * between everyone goes to the payer alone. Untouched blank rows are dropped. Does nothing unless the items are priced
+ * and short.
  */
 export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft {
   const target = parseAmount(d.amount)
@@ -302,5 +303,7 @@ export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft
   if (target === null || !priced.length) return d
   const other = otherLine(priced.reduce((sum, it) => sum + it.amountCents, 0), bps, target)
   if (!other) return d
-  return { ...d, items: [...kept, { ...emptyItem(), name: 'Other', price: centsToInput(other.priceCents), userIds: activeIds }] }
+  // A few cents can't be split between everyone (each share is at least 1¢): they go on the payer's share.
+  const userIds = other.priceCents < activeIds.length ? [d.paidBy] : activeIds
+  return { ...d, items: [...kept, { ...emptyItem(), name: 'Other', price: centsToInput(other.priceCents), userIds }] }
 }

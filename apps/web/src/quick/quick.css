@@ -20,7 +20,7 @@
 
 /* bill: dishes */
 .qs-dishes { display: grid; gap: 8px; margin: 12px 0 8px; }
-.qs-dish-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 6px; align-items: center; }
+.qs-dish-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 6px 10px; align-items: center; }
 .qs-dish-row input { padding: 7px 10px; }
 .qs-dish-row .x { margin-left: 0; width: 26px; }
 .qs-two { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }

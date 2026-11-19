@@ -70,6 +70,10 @@ button.av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .card h3 { font-size: 17px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .card h3 > svg, .card h3 > .ic > svg { width: 22px; height: 22px; }
 .card h3 .right { margin-left: auto; }
+/* A card heading with something beside it (a "⋯" menu): the row takes the heading's spacing. */
+.card-h { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card-h h3 { margin-bottom: 0; min-width: 0; }
+.card-h > :last-child:not(h3) { margin-left: auto; }
 
 /* buttons */
 .btn { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; font: 700 14px Fredoka, sans-serif; cursor: pointer; min-height: 44px;
@@ -305,7 +309,7 @@ dialog.out::backdrop { animation: fade-out 160ms ease-in forwards; }
 @keyframes sheet-up { from { transform: translateY(100%); } }
 @keyframes sheet-down { to { transform: translateY(100%); } }
 @media (max-width: 480px) {
-  dialog.sheet { width: 100%; max-width: 100%; margin: 0; top: auto; bottom: var(--kb, 0px); max-height: calc(100dvh - 24px - var(--kb, 0px));
+  dialog.sheet { width: 100%; max-width: 100%; margin: 0; top: auto; bottom: var(--kb, 0px); max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + 8px) - var(--kb, 0px));
     border-width: 2px 0 0; border-radius: 22px 22px 0 0; box-shadow: 0 -3px 0 rgba(40, 25, 45, .12); }
   dialog.sheet[open] { animation: sheet-up 240ms cubic-bezier(.2, .8, .3, 1); }
   dialog.sheet.out { animation: sheet-down 180ms ease-in forwards; }
@@ -381,7 +385,7 @@ dialog.sheet.expense-sheet .dlg-b { padding-bottom: 0; }
 .scan-confirm p { flex-basis: 100%; margin: 0; }
 .scan-banner { margin: 0; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--soft); font-size: 12.5px; overflow-wrap: anywhere; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.item-h { display: grid; grid-template-columns: 1fr 96px auto; gap: 6px; align-items: center; }
+.item-h { display: grid; grid-template-columns: 1fr 96px auto; gap: 6px 10px; align-items: center; }
 .item-h input { padding: 6px 10px; background: var(--card); }
 .item-h .x { margin-left: 0; }
 

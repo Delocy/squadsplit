@@ -204,7 +204,8 @@ describe('Expense form', () => {
     expect(save.disabled).toBe(false)
 
     type(totalField(dialog), '50.00')
-    expect(dialog.getByRole('status').textContent).toContain('Items + charges come to $11.99, $38.01 short of the $50.00 total.')
+    expect(dialog.getByText(/^Items \+ charges come to/).textContent).toBe('Items + charges come to $11.99, $38.01 short of the $50.00 total.')
+    expect(dialog.getByRole('status').textContent).toBe('The items come to less than the total.')
     expect(save.disabled).toBe(true)
 
     // Honest about the charges: the Other line is $31.70, which is $38.01 with them.
@@ -219,7 +220,7 @@ describe('Expense form', () => {
 
     // A total below the items offers no fix-up, only the check.
     type(totalField(dialog), '10.00')
-    expect(dialog.getByRole('status').textContent).toMatch(/more than the \$10\.00 total\.$/)
+    expect(dialog.getByText(/^Items \+ charges come to/).textContent).toMatch(/more than the \$10\.00 total\.$/)
     expect(dialog.queryByRole('button', { name: /^Add Other/ })).toBeNull()
     expect(save.disabled).toBe(true)
 

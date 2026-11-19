@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReceiptScanResult } from '@squadsplit/shared'
-import { addOtherDish, addPerson, applyScan, billProblem, billSoFar, newQuickDraft, ratesOf, totalCheck } from '../src/quick/draft'
+import { addOtherDish, addPerson, applyScan, billProblem, billSoFar, newQuickDraft, ratesOf, totalCheck, type QuickDraft } from '../src/quick/draft'
 
 const draft = () => newQuickDraft('Dan', '2026-11-19', { animal: 'fox', color: 'peach' })
 
@@ -79,5 +79,21 @@ describe('the receipt total after a scan', () => {
     expect(d.dishes.at(-1)!.had).toEqual(d.people.map((p) => p.key))
     // The others stay as they were.
     expect(d.dishes[0]!.had).toEqual([])
+  })
+})
+
+describe('an Other too small to split', () => {
+  it('goes on the payer alone, and a shared Other stops growing once one more part would be under a cent', () => {
+    let d: QuickDraft = { ...draft(), title: 'Kopi', dishes: [{ key: 'd1', name: 'Kopi', price: '5.00', had: [] }], service: { on: false, bps: 1000 }, gst: { on: false, bps: 900 } }
+    d = addPerson(addPerson(addPerson(d, 'Mei'), 'Hafiz'), 'Priya')
+    const tiny = addOtherDish({ ...d, receiptTotal: '5.03' })
+    expect(tiny.dishes.at(-1)).toMatchObject({ name: 'Other', price: '0.03', had: [d.payerKey], everyone: false })
+
+    const shared = addOtherDish({ ...draft(), title: 'Kopi', dishes: [{ key: 'd1', name: 'Kopi', price: '5.00', had: [] }], service: { on: false, bps: 1000 }, gst: { on: false, bps: 900 }, receiptTotal: '5.03' })
+    let grown = addPerson(addPerson(shared, 'Mei'), 'Hafiz')
+    expect(grown.dishes.at(-1)!.had).toHaveLength(3)
+    grown = addPerson(grown, 'Priya')
+    expect(grown.dishes.at(-1)).toMatchObject({ had: grown.dishes.at(-1)!.had, everyone: false })
+    expect(grown.dishes.at(-1)!.had).toHaveLength(3)
   })
 })

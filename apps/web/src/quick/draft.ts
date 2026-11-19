@@ -73,14 +73,20 @@ export function reserveKeys(d: QuickDraft): void {
 }
 export const emptyDish = (): DraftDish => ({ key: newKey('d'), name: '', price: '', had: [] })
 
-/** Adds someone by name, with a look nobody else in the split has. A dish shared by everyone is theirs too. */
+/**
+ * Adds someone by name, with a look nobody else in the split has. A dish shared by everyone is theirs too, unless it's
+ * too small to split one more way (then it stops growing).
+ */
 export function addPerson(d: QuickDraft, name: string): QuickDraft {
   const key = newKey('p')
   const avatar = firstFreeAvatar(defaultAvatar(key), d.people.map((p) => p.avatar))
   return {
     ...d,
     people: [...d.people, { key, name, avatar }],
-    dishes: d.dishes.map((it) => (it.everyone ? { ...it, had: [...it.had, key] } : it)),
+    dishes: d.dishes.map((it) => {
+      if (!it.everyone) return it
+      return (parseAmount(it.price) ?? 0) > it.had.length ? { ...it, had: [...it.had, key] } : { ...it, everyone: false }
+    }),
   }
 }
 
@@ -217,7 +223,10 @@ export function addOtherDish(d: QuickDraft): QuickDraft {
   const other = typeof target === 'number' && subtotal > 0 ? otherLine(subtotal, ratesOf(d), target) : null
   if (!other) return d
   const kept = d.dishes.filter((it) => it.name.trim() !== '' || it.price.trim() !== '')
-  const dish: DraftDish = { ...emptyDish(), name: 'Other', price: centsToInput(other.priceCents), had: d.people.map((p) => p.key), everyone: true }
+  // A few cents can't be split between everyone (each part is at least 1¢): they go on the payer's share.
+  const tiny = other.priceCents < d.people.length
+  const had = tiny ? [d.payerKey] : d.people.map((p) => p.key)
+  const dish: DraftDish = { ...emptyDish(), name: 'Other', price: centsToInput(other.priceCents), had, everyone: !tiny }
   return { ...d, dishes: [...kept, dish] }
 }
 

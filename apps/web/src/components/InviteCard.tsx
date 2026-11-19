@@ -79,6 +79,7 @@ function InviteBody({ group, invite }: { group: GroupDTO; invite: InviteReset })
     try {
       await navigator.clipboard.writeText(link)
       setCopyFailed(false)
+      invite.setFresh(false)
       toast.show(COPIED)
     } catch {
       // In-app browsers (Telegram, WhatsApp) can refuse the clipboard: select the link for a long-press copy.
@@ -96,6 +97,7 @@ function InviteBody({ group, invite }: { group: GroupDTO; invite: InviteReset })
   async function shareLink() {
     try {
       await navigator.share({ title: `Join ${group.name} on SquadSplit`, text: 'Split with us on SquadSplit:', url: link })
+      invite.setFresh(false)
     } catch (error) {
       // Closing the share sheet is not a failure; anything else falls back to copying.
       if (!(error instanceof DOMException && error.name === 'AbortError')) await copyLink()
@@ -175,13 +177,14 @@ export function InviteCard({ group, me }: { group: GroupDTO; me: string }) {
   const invite = useInviteReset(group, me)
   return (
     <section className="card invite-card" aria-labelledby="invite-h">
-      <h3 id="invite-h">
-        <UiIcon name="heart" />
-        Invite friends
-        <span className="right">
-          <InviteMenu invite={invite} />
-        </span>
-      </h3>
+      {/* The menu sits beside the heading, not in it, so the card's name stays "Invite friends". */}
+      <div className="card-h">
+        <h3 id="invite-h">
+          <UiIcon name="heart" />
+          Invite friends
+        </h3>
+        <InviteMenu invite={invite} />
+      </div>
       <InviteBody group={group} invite={invite} />
     </section>
   )

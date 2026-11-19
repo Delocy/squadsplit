@@ -105,6 +105,17 @@ describe('the invite card', () => {
     expect(await invite.findByText('WXYZ6789')).toBeTruthy()
     expect(invite.getByText('New link ready')).toBeTruthy()
     await vi.waitFor(() => expect(document.activeElement).toBe(invite.getByRole('button', { name: 'Share invite link' })))
+    // Shared, it has done its job.
+    fireEvent.click(invite.getByRole('button', { name: 'Share invite link' }))
+    await vi.waitFor(() => expect(invite.queryByText('New link ready')).toBeNull())
+  })
+
+  it('names the card by its heading alone, with the ⋯ menu beside it', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1/settings')
+    const card = await screen.findByRole('region', { name: 'Invite friends' })
+    const heading = within(card).getByRole('heading', { name: 'Invite friends' })
+    expect(heading.contains(within(card).getByRole('button', { name: 'Invite link options' }))).toBe(false)
   })
 
   it('shows the card to a member, with no ⋯ menu, and never sends them to ask the owner', async () => {

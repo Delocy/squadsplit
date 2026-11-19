@@ -94,7 +94,7 @@ function SignedOutCard({ groupName, code }: { groupName: string; code: string })
         <p>You've been signed out of {groupName}.</p>
         {invite.isSuccess && (
           <>
-            <p className="s">Your name is free to claim again with the same link.</p>
+            <p className="s">You can join again with the same link.</p>
             <PageLink to={`/join/${code}`} className="btn primary">
               Join again
             </PageLink>

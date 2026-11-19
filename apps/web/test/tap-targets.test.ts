@@ -52,4 +52,10 @@ describe('tap targets', () => {
   it('keeps a hit area from reaching into its neighbour: chips are spaced at least 8px apart', () => {
     expect(css).toMatch(/\.chips \{ display: flex; flex-wrap: wrap; gap: 8px; \}/)
   })
+
+  it("keeps a row's × hit area off the price field next to it: the column gap is wider than the overhang", () => {
+    // A × drawn 26–28px wide overhangs its 44px hit area by up to 9px each side.
+    expect(css).toMatch(/\.item-h \{[^}]*gap: 6px 10px;/)
+    expect(css).toMatch(/\.qs-dish-row \{[^}]*gap: 6px 10px;/)
+  })
 })

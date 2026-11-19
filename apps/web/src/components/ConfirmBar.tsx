@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BusyLabel } from '../design/Busy'
 import { useExitTransition } from '../design/useExitTransition'
 
@@ -54,10 +54,13 @@ export function ConfirmBar({
   onCancel: () => void
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const questionId = useId()
   useEffect(() => cancelRef.current?.focus(), [])
   return (
-    <div className={leaving ? 'confirm out' : 'confirm'} role="group" aria-label={question}>
-      <p className="confirm-q">{question}</p>
+    <div className={leaving ? 'confirm out' : 'confirm'} role="group" aria-labelledby={questionId}>
+      <p className="confirm-q" id={questionId}>
+        {question}
+      </p>
       <div className="confirm-acts">
         <button ref={cancelRef} type="button" className="btn ghost" onClick={onCancel} disabled={busy || leaving}>
           {no}

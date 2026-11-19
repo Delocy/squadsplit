@@ -171,7 +171,7 @@ export function BillStep({ draft, setDraft }: { draft: QuickDraft; setDraft: Set
             <span className="field-hint">From your receipt. Clear it to go by the dishes.</span>
           </div>
         )}
-        {check && <TotalFixup check={check} money={money} onAdd={() => setDraft(addOtherDish)} />}
+        {check && <TotalFixup check={check} sharers={draft.people.length} money={money} onAdd={() => setDraft(addOtherDish)} />}
       </section>
 
       <PaidBy draft={draft} setDraft={setDraft} />

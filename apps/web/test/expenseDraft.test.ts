@@ -134,6 +134,13 @@ describe('addOtherItem', () => {
     }
   })
 
+  it('puts an Other too small to split between everyone on the payer alone', () => {
+    const six = [ME, BOB, 'c', 'd', 'e', 'f']
+    const d = addOtherItem(itemized({ amount: '78.03', serviceOn: false, gstOn: false }), six)
+    expect(d.items.at(-1)).toMatchObject({ name: 'Other', price: '0.03', userIds: [ME] })
+    expect(summarize({ ...d, items: d.items.map((it) => (it.userIds.length ? it : { ...it, userIds: [ME] })) }, six, 'SGD').tooSmall).toBe(false)
+  })
+
   it('replaces untouched blank rows and does nothing when items are not short', () => {
     const base = itemized({ amount: '100.00' })
     const withBlank = { ...base, items: [...base.items, { key: 999, name: '', price: '', userIds: [] }] }
