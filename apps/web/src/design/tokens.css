@@ -88,6 +88,8 @@ ul.list { list-style: none; padding: 0; margin: 0; display: grid; }
 .empty { color: var(--muted); font-size: 13.5px; padding: 8px 2px; }
 .feed-error { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 2px; }
 .feed-error .err { margin: 0; }
+/* The expense dialog takes focus itself on touch screens (no keyboard popping up); it needs no ring. */
+dialog:focus { outline: none; }
 .pos { color: var(--good); } .neg { color: var(--bad); } .zero { color: var(--muted); }
 
 /* tabs */

@@ -117,6 +117,7 @@ function Dialog({
     <dialog
       ref={ref}
       className={leaving ? 'out' : undefined}
+      tabIndex={-1}
       aria-labelledby="dlg-title"
       onCancel={(e) => {
         e.preventDefault()
@@ -207,7 +208,13 @@ function ExpenseFields({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const submitRef = useRef<HTMLButtonElement>(null)
   const descriptionRef = useRef<HTMLInputElement>(null)
-  useEffect(() => descriptionRef.current?.focus(), [])
+  useEffect(() => {
+    const description = descriptionRef.current
+    // On a touch screen, focusing a field pops up the keyboard, which would cover the receipt card at the top. Focus
+    // the dialog instead, so screen readers still land in it.
+    if (window.matchMedia?.('(pointer: coarse)').matches) description?.closest('dialog')?.focus()
+    else description?.focus()
+  }, [])
 
   const save = useGroupMutation(group.id, (input: CreateExpenseInput) =>
     expense ? api.patch<ExpenseDTO>(`/expenses/${expense.id}`, input) : api.post<ExpenseDTO>(`/groups/${group.id}/expenses`, input),

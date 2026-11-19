@@ -22,6 +22,20 @@ describe('the expense dialog', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText('Description')))
   })
 
+  it('on a touch screen, focuses the dialog instead, so the keyboard does not cover the receipt card', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    await vi.waitFor(() => expect(document.activeElement).toBe(dialog))
+    expect(within(dialog).getByRole('region', { name: 'Scan a receipt' })).toBeTruthy()
+  })
+
   it('fades out before going back to the group, then gives focus back to the link that opened it', async () => {
     fakeApi(groupHandlers())
     const router = renderApp('/groups/g1')
