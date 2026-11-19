@@ -7,7 +7,7 @@ import { loadLedger } from '../db/ledger'
 import { settlements, users } from '../db/schema'
 import { toSettlementDTO } from '../db/settlements'
 import type { AppEnv } from '../env'
-import { HttpError, parseBody } from '../errors'
+import { HttpError, parseBody, refusingStaleMember } from '../errors'
 
 /** Who may move a pending settlement to which status: the creditor confirms or rejects, the debtor cancels. */
 const TRANSITIONS = {
@@ -88,19 +88,21 @@ export function groupSettlementRoutes() {
       }
 
       const now = new Date().toISOString()
-      const [created] = await d
-        .insert(settlements)
-        .values({
-          id: crypto.randomUUID(),
-          groupId,
-          fromUserId,
-          toUserId,
-          amountCents,
-          // Someone who hasn't joined can't confirm, so a payment with them counts straight away.
-          ...(placeholders.size > 0 ? { status: 'confirmed', resolvedAt: now } : { status: 'pending', resolvedAt: null }),
-          createdAt: now,
-        })
-        .returning()
+      const [created] = await refusingStaleMember(
+        d
+          .insert(settlements)
+          .values({
+            id: crypto.randomUUID(),
+            groupId,
+            fromUserId,
+            toUserId,
+            amountCents,
+            // Someone who hasn't joined can't confirm, so a payment with them counts straight away.
+            ...(placeholders.size > 0 ? { status: 'confirmed', resolvedAt: now } : { status: 'pending', resolvedAt: null }),
+            createdAt: now,
+          })
+          .returning(),
+      )
       return c.json(toSettlementDTO(created!), 201)
     })
 }

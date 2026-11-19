@@ -32,6 +32,20 @@ export function isForeignKeyViolation(err: unknown): boolean {
   return false
 }
 
+/**
+ * Runs a write that names members (an expense's people, a settlement's parties). If one of them stopped existing
+ * after the write was checked (someone claimed a name, so its placeholder is gone), the foreign key refuses the
+ * write, and that becomes a 409 instead of a 500.
+ */
+export async function refusingStaleMember<T>(write: Promise<T>): Promise<T> {
+  try {
+    return await write
+  } catch (err) {
+    if (isForeignKeyViolation(err)) throw new HttpError(409, 'member_changed', 'Someone just joined as this name — refresh and try again.')
+    throw err
+  }
+}
+
 /** For hono's bodyLimit: a body over the route's limit. */
 export const payloadTooLarge = (): never => {
   throw new HttpError(413, 'payload_too_large', 'That request is too large.')

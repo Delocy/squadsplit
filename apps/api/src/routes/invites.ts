@@ -78,7 +78,7 @@ async function hasMembership(d: Db, groupId: string, userId: string): Promise<bo
 
 const isMembershipCollision = (err: unknown) => isUniqueViolation(err, 'memberships.group_id, memberships.user_id')
 const alreadyInGroup = () =>
-  new HttpError(409, 'already_in_group', "You've already been in this group, so you can't take one of its names.")
+  new HttpError(409, 'already_in_group', "You've been in this group before, so join as yourself.")
 const alreadyClaimed = () => new HttpError(409, 'already_claimed', 'Someone has already claimed that name.')
 
 /**
@@ -97,7 +97,10 @@ async function claim(
   const placeholder = (await groupPlaceholders(d, groupId)).find((p) => p.userId === placeholderId)
   if (!placeholder) throw alreadyClaimed()
   const members = await activeMemberAvatars(d, groupId)
-  const avatar = input.avatar ?? members.find((m) => m.userId === placeholderId)!.avatar
+  // Read separately from the names above, so someone may have claimed it in between.
+  const placeholderLook = members.find((m) => m.userId === placeholderId)?.avatar
+  if (!placeholderLook) throw alreadyClaimed()
+  const avatar = input.avatar ?? placeholderLook
   if (input.avatar) ensureAvatarFree(input.avatar, members.filter((m) => m.userId !== placeholderId).map((m) => m.avatar))
 
   const statements = claimPlaceholder(d, {
@@ -136,10 +139,11 @@ export function inviteRoutes() {
         alreadyMember: members.some((m) => m.userId === me),
         takenAvatars: members.map((m) => m.avatar),
         myFormerAvatar: await formerAvatar(d, group.id, me),
-        placeholders: (await groupPlaceholders(d, group.id)).map((p) => ({
-          ...p,
-          avatar: members.find((m) => m.userId === p.userId)!.avatar,
-        })),
+        // Read after the members, so a name added in between has no look here yet: it shows on the next preview.
+        placeholders: (await groupPlaceholders(d, group.id)).flatMap((p) => {
+          const avatar = members.find((m) => m.userId === p.userId)?.avatar
+          return avatar ? [{ ...p, avatar }] : []
+        }),
       })
     })
     .post('/:code/join', async (c) => {

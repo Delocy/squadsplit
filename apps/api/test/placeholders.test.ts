@@ -23,7 +23,7 @@ import {
   spins,
   users,
 } from '../src/db/schema'
-import { isForeignKeyViolation } from '../src/errors'
+import { HttpError, isForeignKeyViolation, refusingStaleMember } from '../src/errors'
 import { deletePlaceholder } from '../src/placeholders'
 import { db, json, testApp } from './helpers'
 
@@ -360,7 +360,10 @@ describe('POST /invites/:code/join with claim', () => {
     expect(await errorCode(await join(bob, group.inviteCode, { claim: dave }))).toBe('already_in_group')
 
     await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })
-    expect(await errorCode(await join(bob, group.inviteCode, { claim: dave }))).toBe('already_in_group')
+    const former = await join(bob, group.inviteCode, { claim: dave })
+    expect(((await former.json()) as ApiErrorBody).error).toEqual({
+      code: 'already_in_group', message: "You've been in this group before, so join as yourself.",
+    })
     expect(placeholdersOf(await getGroup(group.id))).toHaveLength(1)
     const row = await db().select().from(memberships).where(and(eq(memberships.groupId, group.id), eq(memberships.userId, 'bob')))
     expect(row[0]?.leftAt).not.toBeNull()
@@ -379,5 +382,24 @@ describe('placeholder ids are never a signed-in user', () => {
     const res = await app.as(idOf(group, 'Dave'))(`/groups/${group.id}`)
     expect(res.status).toBe(401)
     expect((await app.as('ph_anything')('/me')).status).toBe(401)
+  })
+})
+
+describe('writes that race a claim', () => {
+  // An expense or settlement checked against a name that someone claims before it is written: the placeholder's
+  // users row is gone, so the foreign key refuses the write. 'ph_gone' stands for that vanished placeholder.
+  it('turns a refused foreign key into 409 member_changed', async () => {
+    const group = await createGroup()
+    const write = db().insert(settlements).values({
+      id: 'x', groupId: group.id, fromUserId: 'alice', toUserId: 'ph_gone', amountCents: 1, status: 'confirmed', createdAt: '2026-11-19T00:00:00.000Z',
+    })
+    const err = await refusingStaleMember(write).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(HttpError)
+    expect(err).toMatchObject({ status: 409, code: 'member_changed', message: 'Someone just joined as this name — refresh and try again.' })
+  })
+
+  it('passes other errors through', async () => {
+    const err = await refusingStaleMember(Promise.reject(new Error('boom'))).catch((e: unknown) => e)
+    expect(err).toMatchObject({ message: 'boom' })
   })
 })
