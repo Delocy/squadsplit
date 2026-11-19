@@ -65,14 +65,14 @@ export function mascot(kind: Kind, faceColor: string, mood: Mood = 'calm', cls =
       <ellipse cx="32" cy="42" rx="2.4" ry="1.7" fill="${INK}" stroke="none"/>` + face(37, mood, true)
   } else if (kind === 'dog') {
     // The SquadSplit logo: an apricot cavapoo pup. Curly scalloped crown, long wavy ears, cream muzzle, button nose.
-    const ear = '#e39a62'
-    const curl = '#c9773f'
+    const ear = '#f6be8e'
+    const curl = '#e9a877'
     body = `<path d="M12.7 43.5 A6.2 6.2 0 0 1 11.9 33.2 A6.3 6.3 0 0 1 17 24.1 A6.5 6.5 0 0 1 26.4 18.7 A6.7 6.7 0 0 1 37.6 18.7 A6.5 6.5 0 0 1 47 24.1 A6.3 6.3 0 0 1 52.1 33.2 A6.2 6.2 0 0 1 51.3 43.5 C49 52.5 41 56 32 56 C23 56 15 52.5 12.7 43.5 Z" fill="${faceColor}" ${s}/>
       <path d="M27 25.5 q2 -2.6 4 0 M33 25.5 q2 -2.6 4 0 M30 21.5 q2 -2.6 4 0" fill="none" stroke="${curl}" stroke-width="1.6"/>
       <path d="M19 23 A4.6 4.6 0 0 0 11.5 24.5 A4.9 4.9 0 0 0 6.5 31 A4.9 4.9 0 0 0 5 39 A4.9 4.9 0 0 0 6.5 47 A4.7 4.7 0 0 0 11.5 53 A3.4 3.4 0 0 0 16.8 51.5 C17.5 44 15.5 33 19.5 26.5 Z" fill="${ear}" ${s}/>
       <path d="M45 23 A4.6 4.6 0 0 1 52.5 24.5 A4.9 4.9 0 0 1 57.5 31 A4.9 4.9 0 0 1 59 39 A4.9 4.9 0 0 1 57.5 47 A4.7 4.7 0 0 1 52.5 53 A3.4 3.4 0 0 1 47.2 51.5 C46.5 44 48.5 33 44.5 26.5 Z" fill="${ear}" ${s}/>
       <path d="M9.5 33 q2 1.5 1 3.5 M8.5 42 q2 1.5 1 3.5 M54.5 33 q-2 1.5 -1 3.5 M55.5 42 q-2 1.5 -1 3.5" fill="none" stroke="${curl}" stroke-width="1.5"/>
-      <ellipse cx="32" cy="43" rx="9" ry="6.8" fill="#fff4e2" stroke-width="2"/>` +
+      <ellipse cx="32" cy="43" rx="9" ry="6.8" fill="#fff4e6" stroke-width="2"/>` +
       noMouth(face(36, mood, false, true)) +
       snoutMouth(mood, 41.5) +
       `<ellipse cx="32" cy="39.2" rx="3.6" ry="2.6" fill="${INK}" stroke-width="1.2"/><ellipse cx="30.9" cy="38.4" rx="1.1" ry=".7" fill="#fff" stroke="none" opacity=".8"/>`
