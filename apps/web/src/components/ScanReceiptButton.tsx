@@ -14,6 +14,12 @@ type State =
   | { phase: 'error'; error: unknown }
 
 /**
+ * The photo types offered. An explicit list rather than image/*, which some desktop and embedded pickers (macOS,
+ * Electron) apply badly, greying out .jpeg files. Whether a file really is a photo is decided by decoding it.
+ */
+const PHOTO_TYPES = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif'
+
+/**
  * "Scan receipt" in the By item section: takes a photo (camera, or one from the gallery), reads it and hands the
  * items to `onScan` to fill the form. Asks first if the user has typed items already. Never saves anything.
  */
@@ -68,11 +74,11 @@ export function ScanReceiptButton({
           <label className="btn small">
             <UiIcon name="receipt" />
             Scan receipt
-            <input className="sr-only" type="file" accept="image/*" capture="environment" onChange={onPhoto} />
+            <input className="sr-only" type="file" accept={PHOTO_TYPES} capture="environment" onChange={onPhoto} />
           </label>
           <label className="btn small ghost">
             Pick a photo
-            <input className="sr-only" type="file" accept="image/*" onChange={onPhoto} />
+            <input className="sr-only" type="file" accept={PHOTO_TYPES} onChange={onPhoto} />
           </label>
         </div>
       )}

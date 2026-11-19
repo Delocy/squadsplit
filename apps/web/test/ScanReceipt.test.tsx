@@ -1,15 +1,20 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReceiptScanDTO } from '@squadsplit/shared'
+import { downscaleImage, UnsupportedPhotoError } from '../src/receipt/downscale'
 import { groupHandlers } from './group-fixtures'
 import { fakeApi, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 
 // No canvas in jsdom: the downscale helper (tested on its own) answers with a marker of the size it was asked for.
+const downscale = vi.hoisted(() => ({ calls: [] as Blob[] }))
 vi.mock('../src/receipt/downscale', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/receipt/downscale')>()),
-  downscaleImage: vi.fn(async (_file: Blob, maxEdge: number) => `data:image/jpeg;base64,SMALL${maxEdge}`),
+  downscaleImage: vi.fn(async (file: Blob, maxEdge: number) => {
+    downscale.calls.push(file)
+    return `data:image/jpeg;base64,SMALL${maxEdge}`
+  }),
 }))
 
 // Tesseract.js stands in for the on-phone reader; it must only ever load on the fallback path.
@@ -68,10 +73,13 @@ describe('Scan receipt', () => {
     const { dialog } = await openByItem(() => ({ status: 200, body: AI_SCAN }))
     const camera = dialog.getByLabelText('Scan receipt') as HTMLInputElement
     expect(camera.type).toBe('file')
-    expect(camera.accept).toBe('image/*')
+    // An explicit list, not image/*: some desktop and embedded pickers apply image/* badly and grey out .jpeg files.
+    const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif'
+    expect(camera.accept).toBe(ACCEPT)
+    expect(camera.accept.split(',')).toEqual(expect.arrayContaining(['.jpg', '.jpeg']))
     expect(camera.getAttribute('capture')).toBe('environment')
     const gallery = dialog.getByLabelText('Pick a photo') as HTMLInputElement
-    expect(gallery.accept).toBe('image/*')
+    expect(gallery.accept).toBe(ACCEPT)
     expect(gallery.hasAttribute('capture')).toBe(false)
 
     fireEvent.click(dialog.getByRole('button', { name: 'Equally' }))
@@ -191,5 +199,27 @@ describe('Scan receipt', () => {
     choose(dialog.getByLabelText('Scan receipt'))
     expect((await dialog.findByText('Group not found')).getAttribute('role')).toBe('alert')
     expect(tesseract.createWorker).not.toHaveBeenCalled()
+  })
+
+  it('reads a .jpeg photo that the picker gave no MIME type', async () => {
+    const { calls, dialog } = await openByItem(() => ({ status: 200, body: AI_SCAN }))
+    const untyped = new File(['receipt photo'], 'IMG_0042.jpeg', { type: '' })
+    downscale.calls.length = 0
+    fireEvent.change(dialog.getByLabelText('Pick a photo'), { target: { files: [untyped] } })
+    await vi.waitFor(() => expect(itemRows(dialog)).toEqual([['Laksa', '60.00'], ['Satay x10', '18.00']]))
+    expect(downscale.calls[0]).toBe(untyped)
+    expect(calls.filter((c) => c.key === 'POST /groups/g1/receipts/scan')).toHaveLength(1)
+  })
+
+  it("says to try a JPEG or PNG when the browser can't decode the photo (an iPhone HEIC on desktop Chrome)", async () => {
+    const { calls, dialog } = await openByItem(() => ({ status: 200, body: AI_SCAN }))
+    vi.mocked(downscaleImage).mockRejectedValueOnce(new UnsupportedPhotoError())
+    fireEvent.change(dialog.getByLabelText('Pick a photo'), { target: { files: [new File(['heic'], 'IMG_0043.HEIC', { type: 'image/heic' })] } })
+    expect((await dialog.findByRole('alert')).textContent).toBe(
+      "This photo format can't be read here — try a JPEG or PNG, or take the photo again with the camera button.",
+    )
+    expect(calls.some((c) => c.key === 'POST /groups/g1/receipts/scan')).toBe(false)
+    // Still usable: the buttons are back.
+    expect(dialog.getByLabelText('Scan receipt')).toBeTruthy()
   })
 })

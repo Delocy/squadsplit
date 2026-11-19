@@ -13,13 +13,30 @@ export function fitWithin(width: number, height: number, maxEdge: number): { wid
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
 }
 
-/** Decodes the photo. Browsers apply its EXIF orientation when drawing an <img>, so the receipt comes out upright. */
+/**
+ * A photo the browser can't decode, like an iPhone HEIC photo in desktop Chrome. Its message is shown as it is.
+ */
+export class UnsupportedPhotoError extends Error {
+  constructor() {
+    super("This photo format can't be read here — try a JPEG or PNG, or take the photo again with the camera button.")
+    this.name = 'UnsupportedPhotoError'
+  }
+}
+
+/**
+ * Decodes the photo. Browsers apply its EXIF orientation when drawing an <img>, so the receipt comes out upright.
+ * Whether it is a photo is decided by decoding it, never by `file.type`: some pickers give no MIME type at all.
+ */
 async function loadImage(file: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file)
   try {
     const img = new Image()
     img.src = url
-    await img.decode()
+    try {
+      await img.decode()
+    } catch {
+      throw new UnsupportedPhotoError()
+    }
     return img
   } finally {
     URL.revokeObjectURL(url)
@@ -28,7 +45,7 @@ async function loadImage(file: Blob): Promise<HTMLImageElement> {
 
 /**
  * The photo redrawn at most `maxEdge` pixels on its long edge, as a JPEG data URL (quality 0.8, white behind any
- * transparency). Rejects when the file isn't an image the browser can decode.
+ * transparency). Rejects with UnsupportedPhotoError when the browser can't decode the file.
  */
 export async function downscaleImage(file: Blob, maxEdge: number): Promise<string> {
   const img = await loadImage(file)

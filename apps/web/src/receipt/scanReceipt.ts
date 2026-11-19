@@ -1,6 +1,6 @@
 import { receiptTotalMatches, type ReceiptScanDTO, type ReceiptScanResult } from '@squadsplit/shared'
 import { ApiError, type ApiClient } from '../api'
-import { OCR_MAX_EDGE, SCAN_MAX_EDGE, base64Of, downscaleImage } from './downscale'
+import { OCR_MAX_EDGE, SCAN_MAX_EDGE, base64Of, downscaleImage, UnsupportedPhotoError } from './downscale'
 import { readTextOnPhone } from './ocr'
 import { parseReceiptText } from './parseReceiptText'
 
@@ -19,15 +19,16 @@ const phoneCanTry = (err: unknown) => err instanceof ApiError && (err.status ===
 
 /**
  * Reads a receipt photo: shrinks it on the phone, sends it to the AI scan, and falls back to reading it on the phone
- * when the scan is resting, down or unreachable. Never creates an expense. Other API errors (e.g. no longer a
- * member) are thrown.
+ * when the scan is resting, down or unreachable. Never creates an expense. A photo the browser can't decode throws
+ * UnsupportedPhotoError (its message says what to do); other API errors (e.g. no longer a member) are thrown too.
  */
 export async function scanReceipt(api: ApiClient, groupId: string, file: Blob): Promise<ScanOutcome> {
   let small: string
   try {
     small = await downscaleImage(file, SCAN_MAX_EDGE)
-  } catch {
-    return UNREADABLE // not an image the browser can open
+  } catch (err) {
+    if (err instanceof UnsupportedPhotoError) throw err
+    return UNREADABLE
   }
   try {
     const scan = await api.post<ReceiptScanDTO>(`/groups/${groupId}/receipts/scan`, {

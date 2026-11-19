@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { base64Of, downscaleImage, fitWithin } from '../src/receipt/downscale'
+import { base64Of, downscaleImage, fitWithin, UnsupportedPhotoError } from '../src/receipt/downscale'
 
 describe('fitWithin', () => {
   it('shrinks the long edge to the limit and keeps the aspect ratio', () => {
@@ -64,10 +64,18 @@ describe('downscaleImage', () => {
     expect(await downscaleImage(new Blob(['x']), 1024)).toBe('data:image/jpeg;base64,900x400@0.8')
   })
 
-  it('rejects a file the browser cannot decode, and still frees the object URL', async () => {
+  it('rejects a file the browser cannot decode with a friendly message, and still frees the object URL', async () => {
     decodes = false
-    await expect(downscaleImage(new Blob(['not an image']), 1024)).rejects.toThrow()
+    const failure = downscaleImage(new File(['heic bytes'], 'IMG_0043.HEIC', { type: 'image/heic' }), 1024)
+    await expect(failure).rejects.toBeInstanceOf(UnsupportedPhotoError)
+    await expect(failure).rejects.toThrow(
+      "This photo format can't be read here — try a JPEG or PNG, or take the photo again with the camera button.",
+    )
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:photo')
+  })
+
+  it('decodes a .jpeg with no MIME type: it goes by the pixels, not file.type', async () => {
+    expect(await downscaleImage(new File(['jpeg bytes'], 'receipt.jpeg', { type: '' }), 1024)).toBe('data:image/jpeg;base64,768x1024@0.8')
   })
 
   it('base64Of drops the data URL prefix', () => {
