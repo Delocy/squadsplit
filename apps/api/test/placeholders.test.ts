@@ -282,7 +282,9 @@ describe('POST /invites/:code/join with claim', () => {
     })
     expect(res.status).toBe(201)
     expect((await alice(`/groups/${group.id}/settlements`, json('POST', { toUserId: dave, amountCents: 200 }))).status).toBe(201)
-    await db().insert(spins).values({ id: 'w1', groupId: group.id, spunBy: 'alice', winnerId: dave, weightsJson: '{}', createdAt: new Date().toISOString() })
+    await db().insert(spins).values({
+      id: 'w1', groupId: group.id, spunBy: 'alice', winnerId: dave, weightsJson: JSON.stringify({ alice: 1, [dave]: 4 }), createdAt: new Date().toISOString(),
+    })
     return { group, dave, daveAvatar: group.members[1]!.avatar }
   }
 
@@ -306,7 +308,7 @@ describe('POST /invites/:code/join with claim', () => {
     expect((await d.select({ u: expenseShares.userId }).from(expenseShares)).map((r) => r.u).sort()).toEqual(['alice', 'bob'])
     expect((await d.select({ u: expenseItemUsers.userId }).from(expenseItemUsers).innerJoin(expenseItems, eq(expenseItems.id, expenseItemUsers.itemId))).map((r) => r.u).sort()).toEqual(['alice', 'bob'])
     expect(await d.select({ to: settlements.toUserId }).from(settlements)).toEqual([{ to: 'bob' }])
-    expect(await d.select({ w: spins.winnerId }).from(spins)).toEqual([{ w: 'bob' }])
+    expect(await d.select({ w: spins.winnerId, weights: spins.weightsJson }).from(spins)).toEqual([{ w: 'bob', weights: JSON.stringify({ alice: 1, bob: 4 }) }])
     expect(await d.select().from(users).where(eq(users.id, dave))).toEqual([])
     expect((await preview(carol, group.inviteCode)).placeholders).toEqual([])
   })

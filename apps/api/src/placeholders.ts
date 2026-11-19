@@ -94,7 +94,8 @@ export function deletePlaceholder(d: Db, groupId: string, userId: string) {
 
 /**
  * The caller (`userId`) becomes the placeholder everywhere, as one batch: their membership takes the placeholder's
- * place (with `look` and `nickname`, joined now), every expense, share, item, settlement and spin moves to them,
+ * place (with `look` and `nickname`, joined now), every expense, share, item, settlement and spin (and the spin's
+ * weights) moves to them,
  * and the placeholder's user row goes. The caller has never been in the group, so no moved row can clash with
  * one of theirs. The first statement returns the membership it moved: none means someone claimed it first, and
  * then every other statement finds nothing to move either.
@@ -118,6 +119,12 @@ export function claimPlaceholder(
     d.update(settlements).set({ toUserId: to }).where(eq(settlements.toUserId, from)),
     d.update(spins).set({ winnerId: to }).where(eq(spins.winnerId, from)),
     d.update(spins).set({ spunBy: to }).where(eq(spins.spunBy, from)),
+    // A spin's weights are keyed by user id. Both ids are plain (Clerk's, or ph_ and a uuid), so the quoted key is
+    // unique in the JSON and can be swapped as text.
+    d
+      .update(spins)
+      .set({ weightsJson: sql`replace(${spins.weightsJson}, ${JSON.stringify(from)}, ${JSON.stringify(to)})` })
+      .where(and(eq(spins.groupId, groupId), sql`instr(${spins.weightsJson}, ${JSON.stringify(from)}) > 0`)),
     d.delete(users).where(and(eq(users.id, from), eq(users.kind, 'placeholder'))),
   ] as const
 }
