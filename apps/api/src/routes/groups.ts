@@ -4,7 +4,6 @@ import {
   AddPlaceholderInput,
   computeBalances,
   CreateGroupInput,
-  effectiveAvatar,
   MAX_GROUP_MEMBERS,
   UpdateGroupInput,
   UpdateMemberInput,
@@ -13,22 +12,27 @@ import {
   type GroupSummaryDTO,
   type MemberDTO,
 } from '@squadsplit/shared'
-import { activeMemberAvatars, avatarColumns, distinctLooks, ensureAvatarFree, storingLook } from '../avatars'
-import { findActiveRole, requireMember, requireOwner } from '../access'
+import { activeMemberAvatars, avatarColumns, ensureAvatarFree, storingLook } from '../avatars'
+import { findActiveRole, hasMembership, requireMember, requireOwner } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
 import { expenses, groups, memberships, settlements, users } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, isForeignKeyViolation, parseBody } from '../errors'
+import { groupDTO } from '../groupView'
+import { endGroupSessions, endGuestSessions } from '../guests/sessions'
+import { alreadyInGroup, groupFull } from '../membershipErrors'
 import {
   deletePlaceholder,
+  insertNameIfRoom,
   insertPlaceholder,
-  insertPlaceholderIfRoom,
+  isNameOnly,
+  moveMember,
   newPlaceholders,
   placeholderInUse,
 } from '../placeholders'
 import { profileAvatarOf } from '../users'
-import { groupFull, withFreshInviteCode } from './invites'
+import { isMembershipCollision, withFreshInviteCode } from './invites'
 
 async function balanceOf(d: Db, groupId: string, userId: string): Promise<number> {
   return computeBalances(await loadLedger(d, groupId))[userId] ?? 0
@@ -49,61 +53,6 @@ async function hasPendingSettlement(d: Db, groupId: string, userId: string): Pro
     .limit(1)
     .get()
   return pending !== undefined
-}
-
-async function isPlaceholder(d: Db, userId: string): Promise<boolean> {
-  const row = await d.select({ kind: users.kind }).from(users).where(eq(users.id, userId)).get()
-  return row?.kind === 'placeholder'
-}
-
-const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
-
-/** The group as `viewerId` sees it: the invite code is for the owner's eyes only. */
-async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<GroupDTO> {
-  const [[group], members] = await d.batch([
-    d.select().from(groups).where(eq(groups.id, groupId)).limit(1),
-    d
-      .select({
-        userId: memberships.userId,
-        profileName: users.displayName,
-        nickname: memberships.nickname,
-        avatarUrl: users.avatarUrl,
-        role: memberships.role,
-        joinedAt: memberships.joinedAt,
-        leftAt: memberships.leftAt,
-        avatarAnimal: memberships.avatarAnimal,
-        avatarColor: memberships.avatarColor,
-        kind: users.kind,
-      })
-      .from(memberships)
-      .innerJoin(users, eq(users.id, memberships.userId))
-      .where(eq(memberships.groupId, groupId))
-      // Owner first (false sorts before true), then by join time.
-      .orderBy(sql`${memberships.role} <> 'owner'`, asc(memberships.joinedAt), asc(memberships.userId)),
-  ])
-  if (!group) throw new HttpError(404, 'not_found', 'Group not found')
-  // Active members are shown with distinct looks, settled in join order (as activeMemberAvatars sorts them:
-  // join time, then user id, compared as plain strings like SQLite does); former members with their own look.
-  const activeInJoinOrder = members
-    .filter((m) => m.leftAt === null)
-    .sort((a, b) => compareStrings(a.joinedAt, b.joinedAt) || compareStrings(a.userId, b.userId))
-    .map((m) => ({ userId: m.userId, animal: m.avatarAnimal, color: m.avatarColor }))
-  const shown = new Map(distinctLooks(activeInJoinOrder).map((m) => [m.userId, m.avatar]))
-  return {
-    id: group.id,
-    name: group.name,
-    emoji: group.emoji,
-    currency: group.currency as Currency,
-    inviteCode: viewerId === group.ownerId ? group.inviteCode : null,
-    ownerId: group.ownerId,
-    members: members.map(({ profileName, joinedAt: _joinedAt, leftAt, avatarAnimal, avatarColor, kind, ...m }) => ({
-      ...m,
-      displayName: m.nickname ?? profileName,
-      active: leftAt === null,
-      avatar: shown.get(m.userId) ?? effectiveAvatar(m.userId, { animal: avatarAnimal, color: avatarColor }),
-      placeholder: kind === 'placeholder',
-    })),
-  }
 }
 
 export function groupRoutes() {
@@ -177,8 +126,9 @@ export function groupRoutes() {
       const d = db(c.env)
       const groupId = c.req.param('id')
       await requireOwner(d, groupId, c.var.userId)
+      // The new link signs every guest out on every phone: they rejoin with it and pick their name again.
       const inviteCode = await withFreshInviteCode(async (code) => {
-        await d.update(groups).set({ inviteCode: code }).where(eq(groups.id, groupId))
+        await d.batch([d.update(groups).set({ inviteCode: code }).where(eq(groups.id, groupId)), endGroupSessions(d, groupId)])
         return code
       })
       return c.json({ inviteCode })
@@ -194,7 +144,7 @@ export function groupRoutes() {
       const taken = (await activeMemberAvatars(d, groupId)).map((m) => m.avatar)
       if (taken.length >= MAX_GROUP_MEMBERS) throw groupFull()
       const [placeholder] = newPlaceholders([name], taken)
-      const [, written] = await storingLook(d.batch(insertPlaceholderIfRoom(d, groupId, placeholder!, new Date().toISOString())))
+      const [, written] = await storingLook(d.batch(insertNameIfRoom(d, groupId, placeholder!, new Date().toISOString())))
       if (written.length === 0) throw groupFull()
       const group = await groupDTO(d, groupId, me)
       return c.json<MemberDTO>(group.members.find((m) => m.userId === placeholder!.id)!, 201)
@@ -232,8 +182,9 @@ export function groupRoutes() {
 
       const targetRole = await findActiveRole(d, groupId, targetId)
       if (!targetRole) throw new HttpError(404, 'not_found', 'Member not found')
-      // A name nobody has claimed is deleted outright, but only while nothing in the group's history uses it.
-      if (await isPlaceholder(d, targetId)) {
+      // A name (one nobody has claimed, or a guest's) is deleted outright, but only while nothing in the group's
+      // history uses it. A guest's sessions go with it.
+      if (await isNameOnly(d, targetId)) {
         const nameInUse = () =>
           new HttpError(409, 'name_in_use', "This name is already in the group's expenses or history, so it stays until they join and claim it.")
         if (await placeholderInUse(d, targetId)) throw nameInUse()
@@ -259,5 +210,59 @@ export function groupRoutes() {
         .set({ leftAt: new Date().toISOString() })
         .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, targetId)))
       return c.body(null, 204)
+    })
+
+    // "Free up name" (the owner, for a guest's lost phone): signs that guest out on every phone. Their name, and
+    // everything under it, stays in the group for whoever claims it next.
+    .post('/:id/members/:userId/release', async (c) => {
+      const d = db(c.env)
+      const groupId = c.req.param('id')
+      const targetId = c.req.param('userId')
+      await requireOwner(d, groupId, c.var.userId)
+      const guest = await d
+        .select({ userId: memberships.userId })
+        .from(memberships)
+        .innerJoin(users, eq(users.id, memberships.userId))
+        .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, targetId), isNull(memberships.leftAt), eq(users.kind, 'guest')))
+        .get()
+      if (!guest) throw new HttpError(404, 'not_found', 'Guest not found')
+      await endGuestSessions(d, targetId)
+      return c.body(null, 204)
+    })
+
+    // Saving a guest to an account: the request carries both (see app.ts), and the account takes the guest's place
+    // and history. The guest's id and sessions go; the phone keeps the group through the account.
+    .post('/:id/guest/upgrade', async (c) => {
+      const d = db(c.env)
+      const groupId = c.req.param('id')
+      const me = c.var.userId
+      const guest = c.var.guest
+      if (!guest || guest.groupId !== groupId) throw new HttpError(404, 'not_found', 'Group not found')
+      if (await hasMembership(d, groupId, me)) throw alreadyInGroup()
+      const [member] = await d
+        .select({ name: users.displayName, nickname: memberships.nickname })
+        .from(memberships)
+        .innerJoin(users, eq(users.id, memberships.userId))
+        .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, guest.userId)))
+      if (!member) throw new HttpError(404, 'not_found', 'Group not found')
+
+      const statements = moveMember(d, {
+        groupId,
+        from: guest.userId,
+        to: me,
+        onlyIf: sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${guest.userId} AND ${users.kind} = 'guest')`,
+        // The group keeps calling them what it did; their look and join day stay.
+        membership: { nickname: member.nickname ?? member.name },
+      })
+      let moved: { userId: string }[]
+      try {
+        ;[moved] = await d.batch(statements)
+      } catch (err) {
+        // The account joined the group some other way at the same moment.
+        if (isMembershipCollision(err)) throw alreadyInGroup()
+        throw err
+      }
+      if (moved.length === 0) throw new HttpError(404, 'not_found', 'Group not found')
+      return c.json<GroupDTO>(await groupDTO(d, groupId, me))
     })
 }

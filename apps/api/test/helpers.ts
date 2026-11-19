@@ -25,6 +25,15 @@ export function testApp(bindings: Partial<Cloudflare.Env> = {}) {
         headers.set('Authorization', `Bearer ${userId}`)
         return send(path, { ...init, headers })
       },
+    /** Sends the request with a guest token (and, with `userId`, a fake bearer token as well). */
+    guest:
+      (token: string, userId?: string): Send =>
+      (path, init) => {
+        const headers = new Headers(init?.headers)
+        headers.set('X-Guest-Token', token)
+        if (userId) headers.set('Authorization', `Bearer ${userId}`)
+        return send(path, { ...init, headers })
+      },
     /** Sends the request without an Authorization header. */
     anon: send,
   }

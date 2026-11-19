@@ -1,3 +1,5 @@
+import type { GuestSession } from './guests/sessions'
+
 export type Bindings = {
   DB: D1Database
   /** Workers AI, for receipt scanning. */
@@ -7,4 +9,8 @@ export type Bindings = {
   WEB_ORIGIN: string
 }
 
-export type AppEnv = { Bindings: Bindings; Variables: { userId: string } }
+/**
+ * `userId`: who is calling (an account's Clerk id, or a guest's id). `guest`: the guest session the request carries,
+ * if any. Both are set on a guest saving to an account, where `userId` is the account.
+ */
+export type AppEnv = { Bindings: Bindings; Variables: { userId: string; guest?: GuestSession } }

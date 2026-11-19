@@ -1,33 +1,56 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
+import { GUEST_TOKEN_HEADER } from '@squadsplit/shared'
+import { signedInUser, unauthenticated } from './clerkAuth'
+import { db } from './db'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
-import { HttpError, errorBody, handleError, payloadTooLarge } from './errors'
+import { errorBody, handleError, payloadTooLarge } from './errors'
+import { checkGuestScope, GUEST_UPGRADE_PATH } from './guests/scope'
+import { guestByToken } from './guests/sessions'
 import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
 import { funRoutes } from './routes/fun'
 import { groupRoutes } from './routes/groups'
-import { inviteRoutes } from './routes/invites'
+import { inviteRoutes, publicInviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
 import { quickSplitRoutes } from './routes/quickSplits'
 import { RECEIPT_SCAN_PATH, receiptRoutes, standaloneReceiptRoutes } from './routes/receipts'
 import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
 import { shareLinkRoutes } from './routes/shareLinks'
-import { ensureUser, isPlaceholderId } from './users'
+import { ensureUser } from './users'
 
 /** The largest request body on every route except a receipt scan. */
 const BODY_LIMIT = 64 * 1024
 
-/** Verifies the bearer token and sets `c.var.userId`. */
+/**
+ * Signs the request in and sets `c.var.userId`: an account by its Clerk bearer token, or a guest by their
+ * `X-Guest-Token` (then `c.var.guest` too, and only their own group's routes work). A request carrying both is the
+ * guest's (a signed-in phone using a group it is only a guest in), except saving the guest to the account, which
+ * takes both: `userId` is then the account's.
+ */
 const authenticate =
   (deps: AuthDeps): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
-    const header = c.req.header('Authorization') ?? ''
-    const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
-    const userId = token ? await deps.verifyToken(token) : null
-    // A placeholder's id is never a signed-in user's, so nobody can act as a name that hasn't been claimed.
-    if (!userId || isPlaceholderId(userId)) throw new HttpError(401, 'unauthenticated', 'Sign in required')
-    c.set('userId', userId)
+    const guestToken = c.req.header(GUEST_TOKEN_HEADER)
+    const guest = guestToken === undefined ? undefined : await guestByToken(db(c.env), guestToken)
+    // A token that signs nobody in (unknown, or signed out by a reset or "Free up name") is never ignored.
+    if (guestToken !== undefined && !guest) throw unauthenticated()
+
+    if (GUEST_UPGRADE_PATH.test(c.req.path)) {
+      const account = await signedInUser(deps, c)
+      if (!account || !guest) throw unauthenticated()
+      c.set('userId', account)
+      c.set('guest', guest)
+    } else if (guest) {
+      checkGuestScope(c.req.path, guest)
+      c.set('userId', guest.userId)
+      c.set('guest', guest)
+    } else {
+      const account = await signedInUser(deps, c)
+      if (!account) throw unauthenticated()
+      c.set('userId', account)
+    }
     await next()
   }
 
@@ -41,7 +64,7 @@ export function createApp(deps: AuthDeps) {
     '*',
     cors({
       origin: (origin, c) => (origin === (c.env as AppEnv['Bindings']).WEB_ORIGIN ? origin : null),
-      allowHeaders: ['Authorization', 'Content-Type'],
+      allowHeaders: ['Authorization', 'Content-Type', GUEST_TOKEN_HEADER],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     }),
   )
@@ -55,6 +78,8 @@ export function createApp(deps: AuthDeps) {
   // A quick split's share link works with no sign-in, so it is mounted before authentication: its handlers answer
   // without ever reaching the middleware below.
   app.route('/s', shareLinkRoutes())
+  // So is an invite's preview, and joining from it as a guest (no account); signed-in joins come after authentication.
+  app.route('/invites', publicInviteRoutes(deps))
 
   app.use('*', authenticate(deps))
   // /me upserts the user itself with a fresh profile, so it is mounted before ensureUser.
