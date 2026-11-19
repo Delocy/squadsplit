@@ -1,4 +1,4 @@
-import type { InvitePreviewDTO } from '@squadsplit/shared'
+import { MAX_GROUP_MEMBERS, type InvitePreviewDTO } from '@squadsplit/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -55,6 +55,9 @@ export function Join() {
 
   const g = invite.data
   const look = avatarFor(g.groupId)
+  // Full from the preview, or it filled up between the preview and pressing Join.
+  const full =
+    g.memberCount >= MAX_GROUP_MEMBERS || (join.error instanceof ApiError && join.error.code === 'group_full')
   return (
     <main className="narrow page">
       <section className="card join">
@@ -69,6 +72,13 @@ export function Join() {
             <p>You're already in this group.</p>
             <Link to={`/groups/${g.groupId}`} className="btn primary">
               Open group
+            </Link>
+          </>
+        ) : full ? (
+          <>
+            <p>This group is full ({MAX_GROUP_MEMBERS} people), so there's no room to join right now.</p>
+            <Link to="/groups" className="btn small">
+              Back to your groups
             </Link>
           </>
         ) : (
