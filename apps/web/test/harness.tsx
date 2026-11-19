@@ -6,7 +6,8 @@ import { routes } from '../src/routes'
 
 const API = 'http://localhost:8787'
 
-type Handler = (body: unknown) => { status: number; body?: unknown }
+type Reply = { status: number; body?: unknown }
+type Handler = (body: unknown) => Reply | Promise<Reply>
 
 /** Stubs global fetch with handlers keyed by "METHOD /path". Unknown routes fail the request loudly. */
 export function fakeApi(handlers: Record<string, Handler>) {
@@ -17,7 +18,7 @@ export function fakeApi(handlers: Record<string, Handler>) {
     calls.push({ key, body, auth: new Headers(init?.headers).get('Authorization') })
     const handler = handlers[key]
     if (!handler) throw new Error(`No fake API handler for ${key}`)
-    const res = handler(body)
+    const res = await handler(body)
     return new Response(res.body === undefined ? null : JSON.stringify(res.body), {
       status: res.status,
       headers: { 'Content-Type': 'application/json' },

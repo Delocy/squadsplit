@@ -1,12 +1,13 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Root } from '../src/Root'
-import { signIn } from './clerk-mock'
+import { clerk, signIn } from './clerk-mock'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 afterEach(() => {
   cleanup()
   signIn.state = true
+  clerk.loaded = true
 })
 
 describe('Root', () => {
@@ -21,5 +22,13 @@ describe('Root', () => {
     render(<Root publishableKey="pk_test_example" />)
     expect(await screen.findByRole('heading', { name: 'Split bills, not friendships.' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: /Almost ready/ })).toBeNull()
+  })
+
+  it('shows the bobbing logo mascot, not a blank page, while Clerk loads', () => {
+    clerk.loaded = false
+    render(<Root publishableKey="pk_test_example" />)
+    const loading = screen.getByRole('status', { name: 'Loading SquadSplit' })
+    expect(loading.querySelector('.bob svg')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Split bills, not friendships.' })).toBeNull()
   })
 })

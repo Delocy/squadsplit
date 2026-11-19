@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { UiIcon } from '../design/icons'
-import { groupsQueryKey } from './Groups'
+import { queryKeys } from '../queryKeys'
 
 // The API requires an emoji for every group. The UI never shows it, so every group gets the same one.
 const GROUP_EMOJI = '🧡'
@@ -21,7 +21,7 @@ export function CreateGroup() {
   const create = useMutation({
     mutationFn: (input: CreateGroupInput) => api.post<GroupDTO>('/groups', input),
     onSuccess: (group) => {
-      void queryClient.invalidateQueries({ queryKey: groupsQueryKey })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       navigate(`/groups/${group.id}`)
     },
   })

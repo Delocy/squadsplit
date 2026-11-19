@@ -39,7 +39,7 @@ describe('Groups page', () => {
     expect(flat.textContent).toContain('Member')
 
     expect(screen.getByRole('link', { name: /Dinner club/ }).textContent).toContain('All square')
-    expect(document.body.textContent).not.toContain('🧡')
+    expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
     expect(calls[0]!.auth).toBe('Bearer test_token')
   })
 
@@ -47,7 +47,9 @@ describe('Groups page', () => {
     fakeApi({ 'GET /groups': () => ({ status: 200, body: [] }) })
     renderApp('/groups')
     expect(await screen.findByText('No groups yet')).toBeTruthy()
-    expect(screen.getAllByRole('link', { name: /New group/ })[0]!.getAttribute('href')).toBe('/groups/new')
+    const newGroup = screen.getAllByRole('link', { name: /New group/ })
+    expect(newGroup).toHaveLength(1)
+    expect(newGroup[0]!.getAttribute('href')).toBe('/groups/new')
   })
 
   it('shows the error when the groups cannot load', async () => {

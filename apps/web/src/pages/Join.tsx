@@ -6,7 +6,7 @@ import { ApiError, useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { avatarFor } from '../design/Avatar'
 import { Mascot } from '../design/icons'
-import { groupsQueryKey } from './Groups'
+import { queryKeys } from '../queryKeys'
 
 export function Join() {
   const code = useParams().code ?? ''
@@ -15,16 +15,22 @@ export function Join() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const invite = useQuery({ queryKey: ['invite', code], queryFn: () => api.get<InvitePreviewDTO>(path) })
+  const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(path) })
   const join = useMutation({
     mutationFn: () => api.post<{ groupId: string }>(`${path}/join`),
     onSuccess: ({ groupId }) => {
-      void queryClient.invalidateQueries({ queryKey: groupsQueryKey })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       navigate(`/groups/${groupId}`, { replace: true })
     },
   })
 
-  if (invite.isPending) return <p className="empty page">Checking the invite…</p>
+  if (invite.isPending) {
+    return (
+      <main className="narrow page">
+        <p className="empty">Checking the invite…</p>
+      </main>
+    )
+  }
 
   if (invite.isError) {
     const dead = invite.error instanceof ApiError && invite.error.status === 404

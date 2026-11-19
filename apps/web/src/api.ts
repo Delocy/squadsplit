@@ -66,7 +66,13 @@ export function createApiClient(
   }
 }
 
-const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8787'
+/** The API origin from VITE_API_URL: empty counts as unset, and trailing slashes are dropped. */
+export function apiBaseUrl(raw: string | undefined): string {
+  const url = raw?.trim() || 'http://localhost:8787'
+  return url.replace(/\/+$/, '')
+}
+
+const API_URL = apiBaseUrl(import.meta.env.VITE_API_URL)
 
 /** The API client for the signed-in user: every request carries their Clerk session token. */
 export function useApi(): ApiClient {

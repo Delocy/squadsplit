@@ -7,8 +7,7 @@ import { ErrorNote } from '../components/ErrorNote'
 import { Money } from '../components/Money'
 import { avatarFor } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
-
-export const groupsQueryKey = ['groups'] as const
+import { queryKeys } from '../queryKeys'
 
 function balanceText(cents: number): { label: string; mood: Mood } {
   if (cents > 0) return { label: "You're owed", mood: 'happy' }
@@ -53,13 +52,13 @@ function NewGroupButton() {
 
 export function Groups() {
   const api = useApi()
-  const groups = useQuery({ queryKey: groupsQueryKey, queryFn: () => api.get<GroupSummaryDTO[]>('/groups') })
+  const groups = useQuery({ queryKey: queryKeys.groups, queryFn: () => api.get<GroupSummaryDTO[]>('/groups') })
 
   return (
     <main className="narrow page">
       <div className="page-h">
         <h2>Your groups</h2>
-        <NewGroupButton />
+        {groups.data?.length !== 0 && <NewGroupButton />}
       </div>
       {groups.isPending && <p className="empty">Loading your groups…</p>}
       {groups.isError && <ErrorNote error={groups.error} />}

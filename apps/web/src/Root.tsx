@@ -1,8 +1,9 @@
-import { ClerkProvider } from '@clerk/react'
+import { ClerkLoaded, ClerkLoading, ClerkProvider } from '@clerk/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import { ApiError } from './api'
+import { Mascot } from './design/icons'
 import { Setup } from './pages/Setup'
 import { routes } from './routes'
 
@@ -24,8 +25,24 @@ function App({ publishableKey }: { publishableKey: string }) {
   return (
     <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <ClerkLoading>
+          <LoadingScreen />
+        </ClerkLoading>
+        <ClerkLoaded>
+          <RouterProvider router={router} />
+        </ClerkLoaded>
       </QueryClientProvider>
     </ClerkProvider>
+  )
+}
+
+/** Shown for the moment Clerk takes to load, instead of a blank page. */
+function LoadingScreen() {
+  return (
+    <main className="wrap narrow landing" role="status" aria-label="Loading SquadSplit">
+      <div className="hero-mark bob">
+        <Mascot kind="bunny" face="#ffffff" mood="happy" />
+      </div>
+    </main>
   )
 }

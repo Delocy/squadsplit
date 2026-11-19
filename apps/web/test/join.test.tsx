@@ -25,11 +25,18 @@ describe('Join page', () => {
 
     expect(await screen.findByText('Bali Trip')).toBeTruthy()
     expect(screen.getByText('3 members')).toBeTruthy()
-    expect(document.body.textContent).not.toContain('🧡')
+    expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
     fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
     expect(calls.map((c) => c.key)).toContain('POST /invites/ABCD2345/join')
+  })
+
+  it('shows the loading state inside the page container', async () => {
+    fakeApi({ 'GET /invites/ABCD2345': () => new Promise(() => {}) })
+    renderApp('/join/ABCD2345')
+    const loading = await screen.findByText('Checking the invite…')
+    expect(loading.closest('main.narrow.page')).toBeTruthy()
   })
 
   it('offers to open the group when you are already a member', async () => {

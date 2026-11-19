@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, createApiClient, useApi } from '../src/api'
+import { ApiError, apiBaseUrl, createApiClient, useApi } from '../src/api'
 
 vi.mock('@clerk/react', () => ({ useAuth: () => ({ getToken: async () => 'clerk_session_token' }) }))
 
@@ -83,5 +83,19 @@ describe('useApi', () => {
     const [url, init] = fetchFn.mock.calls[0]!
     expect(url).toBe('http://localhost:8787/me')
     expect(new Headers(init!.headers).get('Authorization')).toBe('Bearer clerk_session_token')
+  })
+})
+
+describe('apiBaseUrl', () => {
+  it('falls back to the local API when VITE_API_URL is unset or empty', () => {
+    expect(apiBaseUrl(undefined)).toBe('http://localhost:8787')
+    expect(apiBaseUrl('')).toBe('http://localhost:8787')
+    expect(apiBaseUrl('  ')).toBe('http://localhost:8787')
+  })
+
+  it('strips trailing slashes so paths join cleanly', () => {
+    expect(apiBaseUrl('https://api.example.com/')).toBe('https://api.example.com')
+    expect(apiBaseUrl('https://api.example.com//')).toBe('https://api.example.com')
+    expect(apiBaseUrl('https://api.example.com')).toBe('https://api.example.com')
   })
 })
