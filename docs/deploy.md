@@ -25,6 +25,7 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
    ```
 
 7. DONE: Create a Cloudflare API token ("Edit Cloudflare Workers" template plus Account, D1, Edit and Account, Cloudflare Pages, Edit) and note the Account ID.
+   - TODO (PR #3, receipt scanning): add **Account › Workers AI › Read** to that API token (Cloudflare dashboard, My Profile, API Tokens, edit the token). `apps/api/wrangler.toml` now binds Workers AI (`[ai] binding = "AI"`), and `wrangler deploy` needs this permission to publish a Worker with that binding. No new secret is needed: the binding uses the account's own Workers AI.
 8. DONE: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`
    - Variables: `WEB_ORIGIN` = `https://squadsplit.pages.dev`, `VITE_API_URL` = `https://squadsplit-api.tngzhexuan.workers.dev`. The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
@@ -44,6 +45,9 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 - `WEB_ORIGIN` is passed to `wrangler deploy` as `--var`, so it overrides the localhost value in `wrangler.toml`. The Worker only accepts Clerk tokens and CORS requests from that origin.
 - `VITE_*` values are baked into the web build, so changing them needs a new deploy.
 - `apps/web/public/_headers` sets the caching on Pages: HTML (`/*`, which includes `/`, `/index.html` and the SPA fallback for deep links) gets `Cache-Control: no-cache`, so browsers revalidate it and pick up a new deploy on the next load; the content-hashed `/assets/*` files get `public, max-age=31536000, immutable`. Pages applies every matching rule and joins repeated headers with a comma, so the `/assets/*` rule first drops the inherited value with `! Cache-Control`.
+- **Receipt scanning** uses the Worker's `AI` binding (`@cf/mistralai/mistral-small-3.1-24b-instruct`). AI bindings always run remotely, so `wrangler dev` calls the real Workers AI with your `wrangler login` and uses the same daily allowance; the API tests turn remote bindings off (`remoteBindings: false` in `apps/api/vitest.config.ts`) and inject a fake `AI.run`, so CI's test job needs no Cloudflare credentials.
+- **Free-plan limits:** Workers AI on the Free plan gives the account 10,000 neurons a day, reset at 00:00 UTC; after that, calls fail until the reset. The API caps scans at 20 per user and 80 for the whole app per UTC day (`apps/api/src/receipts/config.ts`), which keeps a normal day well inside the allowance. Over a cap the API answers 429 `scan_limit`; when Workers AI itself fails (quota used up, outage) it answers 503 `scan_unavailable` and the scan isn't counted. Either way the web app reads the receipt on the phone instead with Tesseract.js.
+- **Tesseract assets:** `apps/web/scripts/copy-tesseract.mjs` runs before `vite build` and `vite dev` (`prebuild`/`predev`) and copies the worker, the three LSTM WebAssembly cores and `eng.traineddata.gz` (about 14 MB in all, gitignored) into `apps/web/public/tesseract/`, so Pages serves them from our own origin. A phone downloads them only when it falls back to on-phone reading: about 3.7 MB for one core plus 2.8 MB of language data, which Tesseract then keeps in IndexedDB.
 - Deep links such as `/join/:code` fall back to the SPA through Pages' default single-page-app behaviour (the build has no `404.html`). Don't add a `_redirects` rule like `/* /index.html 200`: Pages flags it as an infinite loop and ignores it.
 
 > **Warning:** any manual `wrangler deploy` must pass the origin too, or the Worker falls back to the localhost value in `wrangler.toml` and rejects every request from the live site, locking everyone out. From `apps/api`:
@@ -86,4 +90,4 @@ Migrations are forward-only, so ship a new migration to undo a schema change.
 
 ## Cost
 
-Everything here fits the Cloudflare free tier (Workers, D1, Pages) and Clerk's free tier for a small group of friends.
+Everything here fits the Cloudflare free tier (Workers, D1, Pages, Workers AI within its daily neurons) and Clerk's free tier for a small group of friends.

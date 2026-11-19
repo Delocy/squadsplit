@@ -39,6 +39,12 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
     - The expense's `amount_cents` must equal that total.
     - If anyone would end up with a 0-cent share, the request is rejected with 422 `amount_too_small`.
     - The participants are everyone who appears on at least one item.
+- **Scan a receipt** (By item only; added in PR #3). "Scan receipt" opens the camera (`<input type="file" accept="image/*" capture="environment">`) and "Pick a photo" the gallery. A scan only pre-fills the itemized form; it never creates an expense by itself.
+  - **Privacy:** the phone redraws the photo on a canvas at most 1024px on the long edge and re-encodes it as JPEG (quality 0.8), which drops EXIF data such as GPS. The API never stores or logs the image; it logs only a reason code when a scan fails.
+  - **AI scan:** `POST /groups/:id/receipts/scan` (members only) sends the image to Cloudflare Workers AI, `@cf/mistralai/mistral-small-3.1-24b-instruct`, as a `data:` URI image part in `messages`. The model is prompted for strict JSON `{items:[{name, amountCents}], serviceChargeBps, gstBps, totalCents}` (cents; quantity lines merged into one item with the line total; subtotal, payment and change lines skipped). The API takes the first JSON object in the answer, cleans it (1–50 items, names trimmed to 60 characters, amounts 1–100,000,000 cents, rates 0–3000 bps; anything else dropped or read as unknown) and checks the items against the printed total with `itemizedTotal`, allowing 2 cents for the receipt rounding its service charge and GST lines separately.
+  - **Limits (Workers AI free plan, 10,000 neurons a day):** 20 scans per user and 80 for the whole app per UTC day, counted in `receipt_scans`. One conditional upsert counts the scan before the model runs, so parallel scans can't overshoot. Over either limit → 429 `scan_limit`. A scan that fails on our side (model error or quota, or an answer with no JSON) → 503 `scan_unavailable` and is given back; a readable answer with no items → 422 `receipt_unreadable` and counts.
+  - **On-phone fallback:** on 429, 5xx or no connection, the web app reads the photo itself with Tesseract.js (2048px copy, English LSTM model), loaded only on that path and served from our own origin (`/tesseract/`, copied from `node_modules` at build time; no CDN). A pure parser turns the text into items, reading service charge and GST rates from "10%"/"9%" or working them out from their amounts.
+  - **Pre-fill:** the items replace the item rows (after asking, if the user typed any) with nobody assigned yet. The restaurant bill toggle is on only when the receipt shows about 10% service charge and 9% GST, since the form has no other rates. A banner says what happened: total matches, total differs (both amounts), read on the phone (double-check), or couldn't read it (add items by hand), plus a note when the charges aren't 10% + 9%.
 - Only the **creator** or the **group owner** can edit or delete an expense.
 - **Lock rule:** an expense is locked (no edit or delete) once a *confirmed* settlement exists whose debtor or creditor is among the expense's people (payer ∪ participants) and whose `resolved_at` is later than the expense's `created_at`.
 
@@ -114,6 +120,7 @@ expense_item_users item_id → expense_items (cascade), user_id → users      p
 settlements    id (pk), group_id, from_user_id (debtor), to_user_id (creditor), amount_cents,
                status ('pending'|'confirmed'|'rejected'|'cancelled'), created_at, resolved_at
 spins          id (pk), group_id, spun_by → users, winner_id → users, weights_json, created_at
+receipt_scans  user_id, day ('YYYY-MM-DD', UTC), count      pk(user_id, day)   (0004; the app-wide count is the day's sum)
 ```
 
 The rule "shares add up to the amount" is enforced in the service layer, inside a single D1 `batch` (transaction).
@@ -132,6 +139,8 @@ Error responses:
 - `403` a member without permission
 - `409` the current state blocks the action (balance not zero, expense locked, settlement no longer pending)
 - `422` validation failed (zod)
+- `429` a daily limit was reached (receipt scanning)
+- `503` a service we depend on is unavailable (receipt scanning)
 
 | Method & path | Who may call |
 |---|---|
@@ -154,6 +163,7 @@ Error responses:
 | `GET /groups/:id/badges` (badges + leaderboard) | member |
 | `POST /groups/:id/spins` | member |
 | `GET /groups/:id/feed` | member |
+| `POST /groups/:id/receipts/scan` (`{ imageBase64, mimeType: image/jpeg\|png\|webp }`, ≤ 5 MB decoded; returns items, rates, total and `totalMatches`; never creates an expense) | member |
 
 Request and response schemas are zod objects in `packages/shared`, used by both the API (validation) and the web app (types).
 
@@ -204,14 +214,6 @@ squadsplit/                  (npm workspaces)
 - **"Poke" nudges** on a debt, and an optional weekly email summary.
 - **Export to CSV.**
 - **Install as a phone app (PWA)** with an offline queue for new expenses.
-- **Scan a receipt** using Cloudflare Workers AI (`@cf/meta/llama-3.2-11b-vision-instruct` through the Worker's AI binding). This is free within the shared 10,000-neurons/day allowance, about 40 neurons per receipt.
-  - The client downsizes the photo to about 1024px and strips EXIF.
-  - `POST /groups/:id/receipts/scan` is for members only.
-  - The model is prompted for strict JSON: `{items:[{name, amountCents}], serviceChargeBps?, gstBps?, totalCents?}`. The response is validated with zod and cross-checked with `itemizedTotal`, with a warning if they don't match.
-  - The result pre-fills the itemized form, where the user assigns people.
-  - The image is never stored.
-  - Each user can scan up to 20 receipts a day.
-  - Meta's licence may need a one-time acceptance on the Cloudflare account.
 
 **Later:** repeating expenses (such as rent) and real support for multiple currencies (the columns already exist).
 
