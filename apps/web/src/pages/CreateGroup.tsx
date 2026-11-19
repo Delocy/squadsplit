@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { NamesField, useNamesDraft } from '../components/NamesField'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { PageLink, usePageNavigate } from '../components/PageLink'
 import { BusyLabel } from '../design/Busy'
@@ -22,6 +23,7 @@ export function CreateGroup() {
   const [currency, setCurrency] = useState<Currency>('SGD')
   const profileName = useMe().data?.displayName ?? ''
   const nickname = useNicknameDraft(profileName)
+  const names = useNamesDraft()
   const [formError, setFormError] = useState<string | null>(null)
 
   const create = useSingleFlightMutation({
@@ -35,12 +37,16 @@ export function CreateGroup() {
   function submit(e: FormEvent) {
     e.preventDefault()
     setFormError(null)
+    // A name still in the box goes along too; one the API would refuse stops here with its hint.
+    const members = names.withPending()
+    if (members === null) return
     // Your nickname goes along only if you changed it from your profile name.
     const parsed = CreateGroupInput.safeParse({
       name,
       emoji: GROUP_EMOJI,
       currency,
       ...(nickname.change !== undefined && { nickname: nickname.change }),
+      ...(members.length > 0 && { members }),
     })
     if (!parsed.success) {
       if (!name.trim()) setFormError('Give the group a name.')
@@ -81,6 +87,7 @@ export function CreateGroup() {
           ))}
         </select>
         <NicknameField id="group-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
+        <NamesField id="group-names" draft={names} />
         {formError ? (
           <p className="err" role="alert">
             {formError}

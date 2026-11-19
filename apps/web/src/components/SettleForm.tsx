@@ -1,23 +1,30 @@
-import { formatMoney, settlementCap } from '@squadsplit/shared'
+import { formatMoney, settlementCap, type Transfer } from '@squadsplit/shared'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BusyLabel } from '../design/Busy'
 import { centsToInput, parseAmount } from '../expenseDraft'
 import type { People } from '../groupData'
 
 export interface SettlementInput {
+  /** Only for a payment someone who hasn't joined made to you; otherwise you are the payer. */
+  fromUserId?: string
   toUserId: string
   amountCents: number
 }
 
+/** You paid someone, or (for someone who hasn't joined yet) they paid you. */
+export type SettleDirection = 'paid' | 'received'
+
 /**
  * "Mark paid": who you paid and how much, from 1¢ up to what you can settle with them right now
  * (see settlementCap). Opens on a suggested transfer and starts from it; any creditor can be picked.
+ * Received: which of the people who haven't joined paid you, up to what they owe you.
  */
 export function SettleForm({
   balances,
   pendingOutgoingCents,
   suggestions,
   me,
+  direction = 'paid',
   initialPayee,
   people,
   currency,
@@ -29,9 +36,11 @@ export function SettleForm({
   balances: Record<string, number>
   /** Everything you have marked paid that is still waiting for confirmation. */
   pendingOutgoingCents: number
-  /** Your suggested transfers, to pre-fill the amount for a creditor. */
-  suggestions: SettlementInput[]
+  /** The suggested transfers, to pre-fill the amount for the other person. */
+  suggestions: Transfer[]
   me: string
+  direction?: SettleDirection
+  /** The other person: who you paid, or who paid you. */
   initialPayee: string
   people: People
   currency: string
@@ -41,12 +50,19 @@ export function SettleForm({
   onSubmit: (input: SettlementInput) => void
   onCancel: () => void
 }) {
-  const cap = (payee: string) => settlementCap(balances, pendingOutgoingCents, me, payee)
-  const prefill = (payee: string) => {
-    const suggested = suggestions.find((s) => s.toUserId === payee)?.amountCents ?? Infinity
-    return centsToInput(Math.min(suggested, cap(payee)))
+  const received = direction === 'received'
+  // Someone who hasn't joined never has a payment waiting for confirmation: theirs count straight away.
+  const cap = (other: string) =>
+    received ? settlementCap(balances, 0, other, me) : settlementCap(balances, pendingOutgoingCents, me, other)
+  const prefill = (other: string) => {
+    const suggested =
+      suggestions.find((s) => (received ? s.fromUserId === other && s.toUserId === me : s.fromUserId === me && s.toUserId === other))
+        ?.amountCents ?? Infinity
+    return centsToInput(Math.min(suggested, cap(other)))
   }
-  const creditors = people.active.filter((m) => m.userId !== me && (balances[m.userId] ?? 0) > 0)
+  const others = received
+    ? people.active.filter((m) => m.placeholder && (balances[m.userId] ?? 0) < 0)
+    : people.active.filter((m) => m.userId !== me && (balances[m.userId] ?? 0) > 0)
 
   const [payee, setPayee] = useState(initialPayee)
   const [amount, setAmount] = useState(() => prefill(initialPayee))
@@ -66,9 +82,15 @@ export function SettleForm({
     const max = cap(payee)
     if (cents === null) return setError('Enter an amount like 12.50.')
     if (cents < 1) return setError(`Enter an amount of at least ${formatMoney(1, currency)}.`)
-    if (cents > max) return setError(`You can mark at most ${formatMoney(max, currency)} as paid to ${people.name(payee)} right now.`)
+    if (cents > max) {
+      return setError(
+        received
+          ? `${people.name(payee)} owes you at most ${formatMoney(max, currency)} right now.`
+          : `You can mark at most ${formatMoney(max, currency)} as paid to ${people.name(payee)} right now.`,
+      )
+    }
     setError(null)
-    onSubmit({ toUserId: payee, amountCents: cents })
+    onSubmit(received ? { fromUserId: payee, toUserId: me, amountCents: cents } : { toUserId: payee, amountCents: cents })
   }
 
   return (
@@ -76,12 +98,12 @@ export function SettleForm({
       <div className="settle-fields">
         <div>
           <label className="f" htmlFor="settle-payee">
-            Paid to
+            {received ? 'Who paid you' : 'Paid to'}
           </label>
           <select ref={firstField} id="settle-payee" value={payee} onChange={(e) => choosePayee(e.target.value)}>
-            {creditors.map((m) => (
+            {others.map((m) => (
               <option key={m.userId} value={m.userId}>
-                {m.displayName}
+                {received ? `${m.displayName} paid me` : m.displayName}
               </option>
             ))}
           </select>

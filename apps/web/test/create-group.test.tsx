@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, renderApp } from './harness'
 
@@ -79,5 +79,62 @@ describe('Create group page', () => {
     fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
     fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
     expect(await screen.findByText('name: Too long')).toBeTruthy()
+  })
+
+  describe("who's in", () => {
+    const namesField = () => screen.getByLabelText("Who's in?") as HTMLInputElement
+    const addName = (name: string) => {
+      fireEvent.change(namesField(), { target: { value: name } })
+      fireEvent.click(screen.getByRole('button', { name: 'Add name' }))
+    }
+    const chips = () => within(screen.getByRole('list', { name: "Who's in" })).queryAllByRole('listitem').map((li) => li.textContent)
+
+    it('adds names as chips (Add or Enter), removes one, and sends the rest in order', async () => {
+      const calls = fakeApi({ 'POST /groups': () => ({ status: 201, body: { id: 'g9' } }) })
+      renderApp('/groups/new')
+      fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
+
+      addName('  Dave ')
+      fireEvent.change(namesField(), { target: { value: 'Erin' } })
+      fireEvent.keyDown(namesField(), { key: 'Enter' })
+      addName('Frank')
+      expect(chips()).toEqual(['Dave', 'Erin', 'Frank'])
+      expect(namesField().value).toBe('')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Erin' }))
+      expect(chips()).toEqual(['Dave', 'Frank'])
+      fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
+
+      await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ name: 'NYC', members: ['Dave', 'Frank'] }))
+    })
+
+    it('adds a name still in the box when you create the group', async () => {
+      const calls = fakeApi({ 'POST /groups': () => ({ status: 201, body: { id: 'g9' } }) })
+      renderApp('/groups/new')
+      fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
+      fireEvent.change(namesField(), { target: { value: 'Dave' } })
+      fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
+      await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ members: ['Dave'] }))
+    })
+
+    it('stops at 11 names, since the group holds 12 with you', async () => {
+      fakeApi({})
+      renderApp('/groups/new')
+      await screen.findByLabelText('Group name')
+      for (let i = 1; i <= 11; i++) addName(`P${i}`)
+      expect(chips()).toHaveLength(11)
+      expect(namesField().disabled).toBe(true)
+      expect((screen.getByRole('button', { name: 'Add name' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getByText("That's 12 with you, the most a group can hold.")).toBeTruthy()
+    })
+
+    it('explains a name with emoji instead of adding it', async () => {
+      fakeApi({})
+      renderApp('/groups/new')
+      await screen.findByLabelText('Group name')
+      addName('Dave 🍕')
+      expect(chips()).toEqual([])
+      expect(screen.getByRole('alert').textContent).toBe('Names are up to 24 characters, with no emoji.')
+    })
   })
 })

@@ -11,6 +11,11 @@ export const member = (userId: string, displayName: string, avatar: MemberDTO['a
   userId, displayName, nickname: null, avatarUrl: null, role: 'member', active: true, avatar, placeholder: false, ...over,
 })
 
+/** Someone the owner named who hasn't joined yet (a placeholder). */
+export const DAVE = 'ph_dave'
+export const DAVE_AVATAR = { animal: 'bear', color: 'lemon' } as const
+export const dave = (over: Partial<MemberDTO> = {}) => member(DAVE, 'Dave', DAVE_AVATAR, { placeholder: true, ...over })
+
 export const ME_AVATAR = { animal: 'fox', color: 'peach' } as const
 export const BOB_AVATAR = { animal: 'koala', color: 'mint' } as const
 export const CAROL_AVATAR = { animal: 'panda', color: 'sky' } as const

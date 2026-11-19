@@ -1,21 +1,25 @@
 import { SignOutButton, useAuth } from '@clerk/react'
-import { defaultAvatar } from '@squadsplit/shared'
-import { useParams } from 'react-router'
+import { defaultAvatar, type AvatarChoice } from '@squadsplit/shared'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useLocation, useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { SkText } from '../design/Skeleton'
 import { useGroup } from '../groupData'
+import { useMe } from '../useProfileRefresh'
 import { Logo } from './Logo'
+import { PageLink } from './PageLink'
 
 export function TopBar() {
   const { userId } = useAuth()
   const groupId = useParams().id
+  const profileLook = useMe().data?.profileAvatar ?? (userId ? defaultAvatar(userId) : null)
   return (
     <header className="top">
       <Logo to="/groups" />
       {groupId && <GroupCrumb id={groupId} />}
-      {userId && (
+      {userId && profileLook && (
         <div className="me">
-          {groupId ? <MyGroupAvatar groupId={groupId} userId={userId} /> : <Avatar avatar={defaultAvatar(userId)} title="You" />}
+          <MeMenu avatar={groupId ? <MyGroupAvatar groupId={groupId} userId={userId} fallback={profileLook} /> : <Avatar avatar={profileLook} title="You" />} />
           <SignOutButton>
             <button className="btn small ghost">Sign out</button>
           </SignOutButton>
@@ -25,10 +29,56 @@ export function TopBar() {
   )
 }
 
-/** Inside a group you look the way that group sees you (your default until it loads, or if you're not in it). */
-function MyGroupAvatar({ groupId, userId }: { groupId: string; userId: string }) {
+/** Your avatar opens a small menu with a link to your profile look. It closes on Escape, a click away, or moving on. */
+function MeMenu({ avatar }: { avatar: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const { pathname } = useLocation()
+  useEffect(() => setOpen(false), [pathname])
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [open])
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    setOpen(false)
+    button.current?.focus()
+  }
+
+  return (
+    <div className="me-menu" ref={box} onKeyDown={onKeyDown}>
+      <button
+        ref={button}
+        type="button"
+        className="me-button"
+        aria-label="Your menu"
+        aria-expanded={open}
+        aria-controls="me-menu-list"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {avatar}
+      </button>
+      {open && (
+        <div className="me-pop card" id="me-menu-list">
+          <PageLink to="/me" className="me-pop-link">
+            Your profile look
+          </PageLink>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Inside a group you look the way that group sees you (your profile look until it loads, or if you're not in it). */
+function MyGroupAvatar({ groupId, userId, fallback }: { groupId: string; userId: string; fallback: AvatarChoice }) {
   const group = useGroup(groupId)
-  const avatar = group.data?.members.find((m) => m.userId === userId)?.avatar ?? defaultAvatar(userId)
+  const avatar = group.data?.members.find((m) => m.userId === userId)?.avatar ?? fallback
   return <Avatar avatar={avatar} title="You" />
 }
 

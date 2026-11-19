@@ -89,6 +89,8 @@ export interface People {
   /** "You" for the signed-in user, otherwise their name. Pass `lower` mid-sentence. */
   you(userId: string, lower?: boolean): string
   isFormer(userId: string): boolean
+  /** A name the owner added for someone who hasn't joined yet. */
+  isPlaceholder(userId: string): boolean
 }
 
 export function peopleOf(group: GroupDTO, me: string): People {
@@ -100,6 +102,7 @@ export function peopleOf(group: GroupDTO, me: string): People {
     avatar: (userId) => byId.get(userId)?.avatar ?? defaultAvatar(userId),
     you: (userId, lower = false) => (userId === me ? (lower ? 'you' : 'You') : name(userId)),
     isFormer: (userId) => byId.get(userId)?.active !== true,
+    isPlaceholder: (userId) => byId.get(userId)?.placeholder === true,
   }
 }
 
