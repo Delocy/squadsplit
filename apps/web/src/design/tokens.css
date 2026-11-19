@@ -45,7 +45,7 @@ a { color: inherit; }
   .top.guest > .save-account { grid-column: 4; grid-row: 1; }
 }
 @media (max-width: 380px) { .top { column-gap: 8px; } .top .logo h1 { font-size: 19px; } .top .logo .mark { width: 34px; height: 34px; } }
-.logo { display: flex; align-items: center; gap: 9px; text-decoration: none; color: inherit; }
+.logo { display: flex; align-items: center; gap: 9px; min-height: 44px; text-decoration: none; color: inherit; }
 .logo .mark { width: 38px; height: 38px; border-radius: 12px; background: var(--accent-soft); border: 2px solid var(--ink); padding: 3px; }
 .logo h1 { font-size: 21px; font-weight: 700; }
 .spacer { flex: 1; }
@@ -72,13 +72,13 @@ button.av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .card h3 .right { margin-left: auto; }
 
 /* buttons */
-.btn { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; font: 700 14px Fredoka, sans-serif; cursor: pointer;
-  background: var(--card); color: var(--text); box-shadow: 2px 2px 0 var(--ink); display: inline-flex; align-items: center; gap: 7px;
+.btn { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; font: 700 14px Fredoka, sans-serif; cursor: pointer; min-height: 44px;
+  background: var(--card); color: var(--text); box-shadow: 2px 2px 0 var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   text-decoration: none; transition: transform .08s, box-shadow .08s; }
 .btn svg { width: 17px; height: 17px; }
 .btn:active { transform: translate(2px, 2px); box-shadow: none; }
 .btn.primary { background: var(--accent); color: #fff; }
-.btn.small { padding: 4px 10px; font-size: 12.5px; border-radius: 10px; }
+.btn.small { padding: 4px 12px; font-size: 13px; border-radius: 10px; min-height: 34px; }
 .btn.ghost { box-shadow: none; border-color: var(--line); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
@@ -103,12 +103,12 @@ dialog:focus { outline: none; }
 
 /* tabs */
 .tabs { display: inline-flex; flex-wrap: wrap; max-width: 100%; min-width: 0; gap: 2px; background: var(--soft); border: 2px solid var(--line); border-radius: 11px; padding: 2px; }
-.tabs button { border: 0; background: none; color: var(--muted); font: 800 12px Nunito, sans-serif; padding: 4px 10px; white-space: nowrap; border-radius: 8px; cursor: pointer; }
+.tabs button { border: 0; background: none; color: var(--muted); font: 800 12.5px Nunito, sans-serif; padding: 6px 12px; min-height: 32px; white-space: nowrap; border-radius: 8px; cursor: pointer; }
 .tabs button.on { background: var(--card); color: var(--text); box-shadow: 0 0 0 1.5px var(--ink); }
 
 /* forms */
 label.f { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 6px; }
-input[type=text], input[type=number], input[type=date], select { width: 100%; padding: 9px 12px; border: 2px solid var(--line); border-radius: 12px;
+input[type=text], input[type=number], input[type=date], select { width: 100%; min-height: 44px; padding: 9px 12px; border: 2px solid var(--line); border-radius: 12px;
   background: var(--soft); color: var(--text); font: 700 15px Nunito, sans-serif; }
 input:focus, select:focus { outline: none; border-color: var(--accent); }
 .err { color: var(--bad); font-size: 13px; min-height: 18px; margin-top: 6px; }
@@ -118,8 +118,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 400px) { .settle-fields { grid-template-columns: 1fr; } }
 
 /* chips */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: 11px; padding: 3px 9px 3px 4px;
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: 11px; padding: 4px 10px 4px 5px; min-height: 40px;
   font: 800 12.5px Nunito, sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 /* Fixed light pink in both themes so the plum label stays readable in dark mode. */
 .chip.on { border-color: var(--ink); background: #ffe3ef; color: #3d2c42; }
@@ -253,7 +253,8 @@ dialog.out::backdrop { animation: fade-out 160ms ease-in forwards; }
 .dlg-h h3 { font-size: 18px; }
 .dlg-h > .ic > svg { width: 20px; height: 20px; color: var(--accent); }
 .dlg-b { padding: 4px 18px 18px; min-width: 0; overflow-x: hidden; }
-.x { margin-left: auto; border: 0; background: none; color: var(--muted); font: 700 22px Fredoka, sans-serif; cursor: pointer; line-height: 1; }
+.x { margin-left: auto; border: 0; background: none; color: var(--muted); font: 700 22px Fredoka, sans-serif; cursor: pointer; line-height: 1; min-width: 28px; min-height: 32px; }
+.dlg-h .x { width: 44px; height: 44px; margin: -10px -12px -10px auto; display: grid; place-items: center; border-radius: 12px; }
 span.f { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 6px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .amount { font: 700 22px Fredoka, sans-serif !important; padding: 5px 12px !important; }
@@ -314,6 +315,13 @@ input[type=date] { width: auto; }
   .fab-bar .btn { width: 100%; max-width: 560px; min-height: 48px; justify-content: center; font-size: 15px; }
 }
 @media (max-width: 480px) { .two { grid-template-columns: 1fr; } .stats { gap: 6px; } .stat { padding: 8px; } .stat .v { font-size: 16px; } }
+
+/* Tap targets: every control takes a tap of at least 44×44px. One drawn smaller (a small button, a tab, a chip, a
+   swatch) gets an invisible hit area of that size centred on it, so it can stay neat. */
+.btn.small, .tabs button, .chip, .chip-x, .x, .swatch, .me-button, .qs-tap, .qs-steps button, .qs-chip.ghost { position: relative; }
+.btn.small::after, .tabs button::after, .chip::after, .chip-x::after, .x::after, .swatch::after, .me-button::after, .qs-tap::after, .qs-steps button::after, .qs-chip.ghost::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+/* A name chip isn't tapped itself: its × button is. */
+.name-chip::after { content: none; }
 
 /* motion: the animals stay alive */
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
@@ -439,7 +447,7 @@ ul.chips.names:empty { display: none; }
 .me-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .me-button:hover .av svg { transform: rotate(-10deg) translateY(-1px); }
 .me-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; padding: 6px; min-width: 180px; border-radius: 14px; }
-.me-pop-link { display: block; padding: 8px 10px; border-radius: 10px; text-decoration: none; font-weight: 800; white-space: nowrap; }
+.me-pop-link { display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border-radius: 10px; text-decoration: none; font-weight: 800; white-space: nowrap; }
 .me-pop-link:hover, .me-pop-link:focus-visible { background: var(--accent-soft); outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
