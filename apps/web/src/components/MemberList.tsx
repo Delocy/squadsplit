@@ -5,6 +5,7 @@ import { UiIcon } from '../design/icons'
 import { useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { ConfirmBar, useConfirmStep } from './ConfirmBar'
+import { ErrorNote } from './ErrorNote'
 import { GuestTag } from './GuestTag'
 import { NotJoinedTag } from './NotJoinedTag'
 
@@ -27,7 +28,7 @@ export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
       </h3>
       <ul className="list" aria-label="Members">
         {active.map((m) => (
-          <MemberRow key={m.userId} groupId={group.id} member={m} me={me} canRemove={isOwner && m.userId !== me} />
+          <MemberRow key={m.userId} groupId={group.id} member={m} me={me} isOwner={isOwner} />
         ))}
       </ul>
       {former.length > 0 && (
@@ -47,10 +48,16 @@ export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
   )
 }
 
-function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member: MemberDTO; me: string; canRemove: boolean }) {
+/** One active member. The owner can remove anyone else, and sign a guest out of every phone ("Free up name"). */
+function MemberRow({ groupId, member, me, isOwner }: { groupId: string; member: MemberDTO; me: string; isOwner: boolean }) {
   const api = useApi()
-  const confirm = useConfirmStep()
+  const confirmRemove = useConfirmStep()
+  const confirmRelease = useConfirmStep()
   const remove = useGroupMutation(groupId, () => api.del(`/groups/${groupId}/members/${member.userId}`))
+  const release = useGroupMutation(groupId, () => api.post(`/groups/${groupId}/members/${member.userId}/release`))
+  const confirming = confirmRemove.showBar || confirmRelease.showBar
+  const canRemove = isOwner && member.userId !== me
+  const canRelease = isOwner && member.guest
   return (
     <li className="row member">
       <Avatar avatar={member.avatar} />
@@ -63,20 +70,36 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
           {member.placeholder ? <NotJoinedTag /> : member.guest ? <GuestTag /> : member.role === 'owner' ? 'Owner' : 'Member'}
         </div>
       </div>
-      {canRemove && !confirm.showBar && (
-        <button ref={confirm.triggerRef} className="btn small ghost danger" onClick={confirm.open}>
+      {canRelease && !confirming && (
+        <button ref={confirmRelease.triggerRef} className="btn small ghost" onClick={confirmRelease.open}>
+          Free up name
+        </button>
+      )}
+      {canRemove && !confirming && (
+        <button ref={confirmRemove.triggerRef} className="btn small ghost danger" onClick={confirmRemove.open}>
           Remove
         </button>
       )}
-      {confirm.showBar && (
+      {confirmRelease.showBar && (
+        <ConfirmBar
+          question={`Sign ${member.displayName} out on every phone? Their name and expenses stay, ready to claim again.`}
+          yes="Yes, free it up"
+          busyLabel="Freeing…"
+          busy={release.isPending}
+          leaving={confirmRelease.leaving}
+          onYes={() => release.mutate(undefined, { onSettled: confirmRelease.close })}
+          onCancel={confirmRelease.close}
+        />
+      )}
+      {confirmRemove.showBar && (
         <ConfirmBar
           question={`Remove ${member.displayName} from the group?`}
           yes={`Yes, remove ${member.displayName}`}
           busyLabel="Removing…"
           busy={remove.isPending}
-          leaving={confirm.leaving}
-          onYes={() => remove.mutate(undefined, { onSettled: confirm.close })}
-          onCancel={confirm.close}
+          leaving={confirmRemove.leaving}
+          onYes={() => remove.mutate(undefined, { onSettled: confirmRemove.close })}
+          onCancel={confirmRemove.close}
         />
       )}
       {remove.isError && (
@@ -84,6 +107,7 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
           {membershipErrorText(remove.error, member.displayName)}
         </p>
       )}
+      {release.isError && <ErrorNote error={release.error} />}
     </li>
   )
 }

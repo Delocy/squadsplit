@@ -77,7 +77,7 @@ describe('Group settings', () => {
       const before = qr()
 
       fireEvent.click(screen.getByRole('button', { name: 'Reset invite link' }))
-      expect(screen.getByText('The old link will stop working.')).toBeTruthy()
+      expect(screen.getByText('The old link will stop working, and every guest will be signed out.')).toBeTruthy()
       expect(hasCall(calls, 'POST /groups/g1/invite/reset')).toBe(false)
       fireEvent.click(screen.getByRole('button', { name: 'Yes, reset it' }))
 

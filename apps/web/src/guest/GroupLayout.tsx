@@ -40,8 +40,9 @@ export function GroupLayout() {
     )
   }
   const access: GroupAccess = { groupId, guest }
+  // Keyed by how the group is reached, so saving a guest to the account remounts the pages as the account's.
   const page = (
-    <GroupAccessProvider value={access}>
+    <GroupAccessProvider key={guest ? 'guest' : 'account'} value={access}>
       <div className="wrap">
         <TopBar />
         <Outlet />

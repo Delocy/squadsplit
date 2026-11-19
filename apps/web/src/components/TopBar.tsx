@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useLocation, useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { useGroupAccess } from '../guest/GroupAccess'
+import { SaveWithAccount } from '../guest/SaveWithAccount'
 import { balanceMood } from '../design/mood'
 import { Skeleton, SkText } from '../design/Skeleton'
 import { useCachedBalances, useGroup } from '../groupData'
@@ -42,12 +43,13 @@ function AccountMe({ userId, groupId }: { userId: string; groupId: string | unde
   )
 }
 
-/** A guest, in the group they're a guest in: how the group sees them, tagged Guest. */
+/** A guest, in the group they're a guest in: how the group sees them, tagged Guest, and a way to keep it. */
 function GuestMe({ groupId, userId }: { groupId: string; userId: string }) {
   return (
     <div className="me">
       <MyGroupAvatar groupId={groupId} userId={userId} fallback={defaultAvatar(userId)} />
       <GuestTag />
+      <SaveWithAccount groupId={groupId} />
     </div>
   )
 }
