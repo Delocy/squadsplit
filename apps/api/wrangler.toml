@@ -1,0 +1,15 @@
+name = "squadsplit-api"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+# Serve at https://squadsplit-api.tngzhexuan.workers.dev (the dashboard shows it disabled until the first real deploy).
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "squadsplit"
+database_id = "04bb631c-f151-4a96-b045-72ee13478e22"
+migrations_dir = "migrations"
+
+[vars]
+WEB_ORIGIN = "http://localhost:5173"

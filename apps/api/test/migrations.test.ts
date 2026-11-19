@@ -1,0 +1,26 @@
+import { applyD1Migrations, env } from 'cloudflare:test'
+import { expect, it } from 'vitest'
+
+const TABLES = ['expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
+
+it('0001_itemized_currency keeps existing expenses and their shares, taking the currency from the group', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 1))
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', NULL, '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(
+      `INSERT INTO expenses VALUES ('e1', 'g1', 'Dinner', 100, 'alice', 'alice', '🍕', '2026-11-19', 'exact', '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z')`,
+    ),
+    env.DB.prepare(`INSERT INTO expense_shares VALUES ('e1', 'alice', 100)`),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT id, currency, fx_rate_ppm, service_charge_bps, gst_bps FROM expenses').all().then((r) => r.results)).toEqual([
+    { id: 'e1', currency: 'EUR', fx_rate_ppm: 1_000_000, service_charge_bps: null, gst_bps: null },
+  ])
+  expect(await env.DB.prepare('SELECT * FROM expense_shares').all().then((r) => r.results)).toEqual([
+    { expense_id: 'e1', user_id: 'alice', amount_cents: 100 },
+  ])
+})
