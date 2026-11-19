@@ -115,7 +115,7 @@ export function ShareCardWithActions({ split, link }: { split: SplitView; link: 
   return (
     <>
       <ShareCard ref={card} split={split} link={link} />
-      <div className="qs-actions">
+      <div className="qs-actions" role="group" aria-label="Share the card">
         <button type="button" className="btn" onClick={copyText}>
           <UiIcon name="receipt" />
           Copy text

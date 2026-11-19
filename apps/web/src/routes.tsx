@@ -13,6 +13,7 @@ import { Profile } from './pages/Profile'
 import { Wheel } from './pages/Wheel'
 import { EditQuickSplit, NewQuickSplit } from './quick/QuickSplitFlow'
 import { QuickSplitPage } from './quick/QuickSplitPage'
+import { SharedSplitPage } from './quick/SharedSplitPage'
 import { useProfileRefresh } from './useProfileRefresh'
 
 /** `/`: the landing page when signed out, your groups when signed in. */
@@ -55,8 +56,13 @@ function AppShell() {
   )
 }
 
+/** Pages anyone may open with no account: they never use Clerk (see isPublicPath in Root.tsx). */
+export const PUBLIC_PATH = /^\/s\/[^/]+\/?$/
+
 const pages: RouteObject[] = [
   { path: '/', element: <Home /> },
+  // A quick split's share link: outside the signed-in pages, for friends with no account.
+  { path: '/s/:token', element: <SharedSplitPage /> },
   {
     element: <SignedInLayout />,
     children: [

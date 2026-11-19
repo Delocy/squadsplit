@@ -100,6 +100,23 @@ The **leaderboard** ranks members by net balance, most owed first.
 - The pick happens **on the server** with `crypto.getRandomValues`, so the client can't fiddle the result. The client only animates to the winner the server returns.
 - Every spin is saved (who spun, the winner, a snapshot of the weights) and appears in the group feed. It **does not change any money.**
 
+### Quick split (one bill, no group, no accounts)
+For a one-off restaurant meal with people who have no SquadSplit account. The payer enters or scans the bill, types the guests' names, taps who had each dish, and posts a **share card** (a screenshot, or plain text) and a **share link** in their chat. Friends open the link with no sign-in, tap their own name and press "I've paid <payer> $X". There is no PayNow and no QR code: friends pay the payer however they usually do. Turning a quick split into a group is out of scope for now.
+
+- **Limits:** 2–20 people (you are always the first) and 1–50 dishes. Names follow the member-name rules (≤ 24 characters, no emoji) and are case-insensitively unique within a split, because a guest finds themselves by name. Exactly one person paid. Every dish has at least one person, and everyone but the payer has at least one dish. Each dish is 1¢–$1,000,000 and the bill is at most $1,000,000 in all.
+- **Looks:** each person has an animal unique within the split, chosen with `firstFreeAvatar(defaultAvatar(<person id>), taken)`; your own row starts on your profile look. The web app sends the looks it shows, so they don't change on saving.
+- **Charges:** service charge and GST are separate switches (both on at 10% and 9% by default; GST is added after the service charge). A charge that's off is stored as 0. After a scan each one is on only if the receipt has it, at the receipt's rate; when the prices already include the charges (`receiptChargesIncluded`), both start off.
+- **Totals are never stored.** `quickSplitBreakdown` (in `packages/shared`, on top of `splitItemized`/`itemizedTotal`) works out every total from the dishes, so the API, the card and the link page agree to the cent. A shared dish is split evenly, any spare cent going to the payer if they shared it.
+- **Paid:** the payer is never "unpaid"; they show as the one who paid. A guest is ticked by themselves on the link (`paid_marked_by = 'guest'`) or by the payer (`'payer'`), with the time. The payer can untick or tick anyone.
+- **Share link safeguards:**
+  - a 128-bit random token (16 bytes from `crypto.getRandomValues`, 22 characters of base64url), made when the split is saved
+  - it expires 60 days after creation, and the payer can stop sharing at any time; a stopped or expired link answers 410 `link_off` ("This link has been turned off. Ask <payer> for the breakdown."), and there's no turning it back on in v1
+  - it shows first names, looks, dishes and amounts only: no user ids, owner, email, profile data or token
+  - ticks work on the honour system ("Tap your own name. <payer> can see who's ticked, and can fix a wrong tick.")
+  - tick changes are limited to 60 per link per UTC hour, counted in D1 with no IP address (429 `slow_down`); reads aren't limited
+  - the page is kept out of search engines (`X-Robots-Tag: noindex` from Pages and a robots meta tag)
+- Only its owner sees a quick split in the app; anyone else gets 404.
+
 ### Feed
 Expenses, confirmed settlements, spins and joins, all in one list, newest first.
 
@@ -132,6 +149,16 @@ settlements    id (pk), group_id, from_user_id (debtor), to_user_id (creditor), 
                status ('pending'|'confirmed'|'rejected'|'cancelled'), created_at, resolved_at
 spins          id (pk), group_id, spun_by → users, winner_id → users, weights_json, created_at
 receipt_scans  user_id, day ('YYYY-MM-DD', UTC), count      pk(user_id, day)   (0004; the app-wide count is the day's sum)
+quick_splits   id (pk, uuid), owner_id → users, title (1–50), place (nullable, ≤ 60), spent_on (date), currency (default 'SGD'),
+               service_charge_bps, gst_bps (0..3000; 0 = off), share_token (unique), share_expires_at, share_revoked_at (nullable),
+               created_at, updated_at   (0006)
+quick_split_people  id (pk, uuid), split_id → quick_splits (cascade), name, animal, color, position (0 = the owner),
+               is_payer (exactly one per split: unique index where is_payer = 1), paid_at (nullable),
+               paid_marked_by ('guest'|'payer', nullable)
+quick_split_items   id (pk), split_id → quick_splits (cascade), name (1–60), amount_cents (int > 0), position
+quick_split_item_people  item_id → quick_split_items (cascade), person_id → quick_split_people (cascade)   pk(item_id, person_id)
+quick_split_ticks   split_id → quick_splits (cascade), hour ('YYYY-MM-DDTHH', UTC), count   pk(split_id, hour)
+               (tick changes on the share link per hour; rows older than a day are dropped)
 ```
 
 The rule "shares add up to the amount" is enforced in the service layer, inside a single D1 `batch` (transaction).
@@ -142,16 +169,17 @@ The rule "shares add up to the amount" is enforced in the service layer, inside 
 
 ## 3. API (Hono on Cloudflare Workers)
 
-Every route needs a valid Clerk session (`Authorization: Bearer <token>`), except `GET /health`.
+Every route needs a valid Clerk session (`Authorization: Bearer <token>`), except `GET /health` and a quick split's share link (`/s/:token…`), which is mounted before authentication.
 
 Error responses:
 - `401` not signed in
 - **`404` not a member.** We don't reveal whether the group exists.
 - `403` a member without permission
 - `409` the current state blocks the action (balance not zero, expense locked, settlement no longer pending)
+- `410` a quick split's share link has been stopped or has expired (`link_off`)
 - `422` validation failed (zod)
 - `413` the request body is too large (64 KB; 2 MB for a receipt scan)
-- `429` a daily limit was reached (receipt scanning)
+- `429` a limit was reached (receipt scanning per day; share-link ticks per hour)
 - `503` a service we depend on is unavailable (receipt scanning)
 
 | Method & path | Who may call |
@@ -178,6 +206,14 @@ Error responses:
 | `POST /groups/:id/spins` | member |
 | `GET /groups/:id/feed` | member |
 | `POST /groups/:id/receipts/scan` (`{ imageBase64, mimeType: image/jpeg\|png\|webp }`, ≤ 2 MB body, ≤ 1.5 MB and 1600px image; returns items, rates, total and `totalMatches`; never creates an expense) | member |
+| `POST /receipts/scan` (the same scan outside any group, for a quick split's bill; same body, limits, errors and fallback, and the same daily quota) | any user |
+| `GET /quick-splits` (summaries, newest first: title, place, date, total, paid count / people count, link `on`\|`off`, names) | any user (their own) |
+| `POST /quick-splits` (`QuickSplitInput`; opens the share link) → 201 | any user (they become the owner) |
+| `GET /quick-splits/:id`, `PUT /quick-splits/:id` (full replace: people sent with their `id` keep their tick and look; people left out are deleted), `DELETE /quick-splits/:id` | owner (else 404) |
+| `PATCH /quick-splits/:id/people/:personId` (`{ paid }`; 422 `payer_paid` for the payer) | owner |
+| `POST /quick-splits/:id/share/stop` (turns the link off for good) | owner |
+| `GET /s/:token` (names and amounts only; 404 unknown, 410 `link_off`) | anyone with the link, no sign-in |
+| `POST /s/:token/people/:personId/paid` (`{ paid }`; 422 for the payer; 429 `slow_down` past 60 tick changes per link per hour) | anyone with the link, no sign-in |
 
 Request and response schemas are zod objects in `packages/shared`, used by both the API (validation) and the web app (types).
 
@@ -197,6 +233,8 @@ Request and response schemas are zod objects in `packages/shared`, used by both 
   - Add/edit expense
   - Wheel (an animated spin)
   - Group settings (invite link and QR code, members)
+  - **Quick split** (`/quick/new`, from "Quick split" next to "New group"): Bill → People → Assign, then the share card at `/quick/:id` with Copy text, Copy link and Save image (a PNG through the phone's share sheet, or a download), and the payer's ticks, Copy link, Stop sharing, Edit and Delete. The groups page lists recent quick splits with "2 of 3 paid".
+  - **Share link** (`/s/:token`): works signed out and without Clerk loading at all; "Which one are you?" (remembered on the phone), "I've paid <payer> $X" with Undo, a "2 of 3 paid" bar and a PAID stamp once everyone has paid. It refetches every 30 seconds and on focus.
 - Works on a phone first, since people use it at the dinner table.
 
 ---
@@ -225,7 +263,6 @@ squadsplit/                  (npm workspaces)
 ## 6. Roadmap after v1
 
 **v1.1** (agreed 2026-11-19; these address Tricount and Splitwise pain points):
-- **Settle up with a PayNow QR.** It's pre-filled with the creditor's opted-in PayNow phone number and the amount. The app never handles money.
 - **"Poke" nudges** on a debt, and an optional weekly email summary.
 - **Export to CSV.**
 - **Install as a phone app (PWA)** with an offline queue for new expenses.

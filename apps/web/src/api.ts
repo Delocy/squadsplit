@@ -31,7 +31,8 @@ const isErrorBody = (v: unknown): v is ApiErrorBody =>
 export function createApiClient(
   baseUrl: string,
   getToken: () => Promise<string | null>,
-  fetchFn: typeof fetch = fetch,
+  // Looked up on each request, not when the client is made (publicApi is made once, at load).
+  fetchFn: typeof fetch = (input, init) => fetch(input, init),
 ): ApiClient {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers = new Headers()

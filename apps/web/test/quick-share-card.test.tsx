@@ -25,8 +25,10 @@ afterEach(() => {
   Object.assign(navigator, { canShare: undefined, share: undefined })
 })
 
+const actions = () => within(screen.getByRole('group', { name: 'Share the card' }))
+
 async function openCard() {
-  fakeApi({ 'GET /quick-splits/q1': () => ({ status: 200, body: readmeSplit() }) })
+  fakeApi({ 'GET /quick-splits/q1': () => ({ status: 200, body: readmeSplit() }), 'GET /quick-splits': () => ({ status: 200, body: [] }) })
   renderApp('/quick/q1')
   return within(await screen.findByRole('region', { name: 'Share card' }))
 }
@@ -50,7 +52,7 @@ describe('the share card', () => {
 
   it('copies the plain text and shows it, with how it looks in a chat', async () => {
     await openCard()
-    fireEvent.click(screen.getByRole('button', { name: 'Copy text' }))
+    fireEvent.click(actions().getByRole('button', { name: 'Copy text' }))
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(shareCardText(readmeSplit(), LINK)))
     expect((await screen.findByRole('status')).textContent).toContain('Copied. Paste it into your chat.')
     const panel = within(screen.getByRole('region', { name: 'Copy as text' }))
@@ -62,7 +64,7 @@ describe('the share card', () => {
 
   it('copies the link', async () => {
     await openCard()
-    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+    fireEvent.click(actions().getByRole('button', { name: 'Copy link' }))
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(LINK))
   })
 
@@ -70,7 +72,7 @@ describe('the share card', () => {
     const share = vi.fn(async (_data: ShareData) => {})
     Object.assign(navigator, { canShare: () => true, share })
     const card = await openCard()
-    fireEvent.click(screen.getByRole('button', { name: 'Save image' }))
+    fireEvent.click(actions().getByRole('button', { name: 'Save image' }))
     await vi.waitFor(() => expect(share).toHaveBeenCalledOnce())
     expect(image.toBlob.mock.calls[0]![0]).toBe(card.getByText('Team lunch').closest('section'))
     const file = (share.mock.calls[0]![0].files as File[])[0]!
@@ -82,7 +84,7 @@ describe('the share card', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:card', revokeObjectURL: () => {} }))
     await openCard()
-    fireEvent.click(screen.getByRole('button', { name: 'Save image' }))
+    fireEvent.click(actions().getByRole('button', { name: 'Save image' }))
     await vi.waitFor(() => expect(click).toHaveBeenCalledOnce())
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('squadsplit-team-lunch.png')
     expect(imageFileName('Dim sum, Chinatown!')).toBe('squadsplit-dim-sum-chinatown.png')
