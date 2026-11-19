@@ -6,7 +6,7 @@ import { balanceMood } from '../src/design/mood'
 import { squadQuip } from '../src/squadQuip'
 import { ME } from './clerk-mock'
 import { BOB, expense, group, groupHandlers, member, settlement } from './group-fixtures'
-import { fakeApi, renderApp } from './harness'
+import { fakeApi, renderApp, transferLine } from './harness'
 import { mockReducedMotion } from './motion-mock'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -145,7 +145,7 @@ describe('Squad Reacts on the group home', () => {
     expect(within(board).getByText('Alice').closest('.lb-row')!.querySelector('.glint')).toBeTruthy()
 
     const settle = screen.getByRole('region', { name: /Settle up/ })
-    const transfer = within(settle).getByText('Bob → You').closest('.row')!
+    const transfer = within(settle).getByText(transferLine('Bob → You')).closest('.row')!
     expect([...transfer.querySelectorAll('.av')].map((a) => a.getAttribute('data-mood'))).toEqual(['nervous', 'happy'])
 
     // The squad strip on your balance card, and your own avatar in the top bar.

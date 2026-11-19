@@ -74,7 +74,7 @@ button.av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
 /* lists */
-ul.list { list-style: none; padding: 0; margin: 0; display: grid; }
+ul.list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-top: 2px solid var(--line); }
 .row:first-child { border-top: 0; }
 .row .grow { flex: 1; min-width: 0; }
@@ -379,6 +379,18 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 
 /* names of people who haven't joined yet */
 .status.not-joined { flex: none; white-space: nowrap; }
+/* settle-up transfers: each name truncates on its own, the "Not joined yet" tags get their own line under the names,
+   and the amount with its button wraps below as one when even that doesn't fit (320px). */
+.row.transfer { flex-wrap: wrap; row-gap: 6px; }
+.row.transfer .grow { flex: 1 1 100px; }
+.row.transfer .t { flex-wrap: nowrap; gap: 0; white-space: nowrap; min-width: 0; }
+.row.transfer .t .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row.transfer .t .nm.short { flex: none; }
+.row.transfer .t .to { flex: none; white-space: pre; }
+.row.transfer .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.row.transfer .tags .status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.row-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+@media (max-width: 480px) { .row-end { flex-direction: column; align-items: flex-end; gap: 4px; } }
 .lb-row .who { flex-wrap: wrap; row-gap: 2px; }
 .lb-row .who > span:not(.av) { min-width: 0; overflow-wrap: anywhere; }
 .names-help { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }

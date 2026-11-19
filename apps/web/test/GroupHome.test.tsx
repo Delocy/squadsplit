@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
 import { BOB, BOB_AVATAR, CAROL, dave, DAVE, expense, group, groupHandlers, member, ME_AVATAR, settlement } from './group-fixtures'
-import { fakeApi, renderApp } from './harness'
+import { fakeApi, renderApp, transferLine } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 afterEach(() => {
@@ -191,7 +191,7 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       const settle = await screen.findByRole('region', { name: /Settle up/ })
-      expect(await within(settle).findByText('You → Bob')).toBeTruthy()
+      expect(await within(settle).findByText(transferLine('You → Bob'))).toBeTruthy()
       fireEvent.click(within(settle).getByRole('button', { name: 'Mark paid' }))
       // Nothing is sent until the form is submitted.
       expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
@@ -338,7 +338,7 @@ describe('Group home', () => {
         )
         renderApp('/groups/g1')
         const settle = within(await screen.findByRole('region', { name: /Settle up/ }))
-        expect(await settle.findByText('Dave → You')).toBeTruthy()
+        expect(await settle.findByText(transferLine('Dave → You'))).toBeTruthy()
         expect(settle.getByText('Not joined yet')).toBeTruthy()
         fireEvent.click(settle.getByRole('button', { name: 'Mark paid' }))
 
@@ -376,7 +376,7 @@ describe('Group home', () => {
           groupHandlers({ group: withDave(), balances: { balances: { [BOB]: 500, [DAVE]: -500 }, suggestions: [{ fromUserId: DAVE, toUserId: BOB, amountCents: 500 }] } }),
         )
         renderApp('/groups/g1')
-        expect(await screen.findByText('Dave → Bob')).toBeTruthy()
+        expect(await screen.findByText(transferLine('Dave → Bob'))).toBeTruthy()
         expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull()
       })
 
@@ -400,7 +400,7 @@ describe('Group home', () => {
         }),
       )
       renderApp('/groups/g1')
-      expect(await screen.findByText('You → Carol')).toBeTruthy()
+      expect(await screen.findByText(transferLine('You → Carol'))).toBeTruthy()
       expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull()
     })
 
@@ -411,7 +411,7 @@ describe('Group home', () => {
         }),
       )
       renderApp('/groups/g1')
-      expect(await screen.findByText('Bob → You')).toBeTruthy()
+      expect(await screen.findByText(transferLine('Bob → You'))).toBeTruthy()
       expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull()
       cleanup()
 

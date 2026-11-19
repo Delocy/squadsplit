@@ -11,6 +11,9 @@ import { NotJoinedTag } from './NotJoinedTag'
 import { SettleForm, type SettleDirection, type SettlementInput } from './SettleForm'
 import { useSettleMoment } from './SettleMoment'
 
+/** Names up to this long never truncate in a transfer's line. */
+const SHORT_NAME = 8
+
 /**
  * The simplified debts. On one where you are the debtor, "Mark paid" opens a small form, pre-filled with
  * what you can pay that creditor now, to settle any amount with any creditor. On one where someone who hasn't
@@ -78,11 +81,21 @@ export function SuggestedTransfers({
   }
   const owedByPlaceholder = (fromUserId: string) => settlementCap(balances.balances, 0, fromUserId, me)
   const tagged = (userId: string) => (people.isPlaceholder(userId) ? <NotJoinedTag /> : null)
+  // Each name truncates on its own, so a long one never pushes the other out of sight; a short one ("You", "Bob")
+  // never truncates at all.
+  const name = (userId: string) => {
+    const label = people.you(userId)
+    return (
+      <span className={label.length <= SHORT_NAME ? 'nm short' : 'nm'} title={label}>
+        {label}
+      </span>
+    )
+  }
 
   const row = (t: Transfer) => {
     const amount = Math.min(t.amountCents, cap(t.toUserId))
     return (
-      <li className="row" key={`${t.fromUserId}>${t.toUserId}`}>
+      <li className="row transfer" key={`${t.fromUserId}>${t.toUserId}`}>
         <Avatar avatar={people.avatar(t.fromUserId)} size="sm" faded={people.isFormer(t.fromUserId)} {...mood(t.fromUserId)} />
         <span className="arrow">
           <UiIcon name="arrow" />
@@ -90,33 +103,41 @@ export function SuggestedTransfers({
         <Avatar avatar={people.avatar(t.toUserId)} size="sm" faded={people.isFormer(t.toUserId)} {...mood(t.toUserId)} />
         <div className="grow">
           <div className="t">
-            {people.you(t.fromUserId)} → {people.you(t.toUserId)}
-            {tagged(t.fromUserId)}
-            {tagged(t.toUserId)}
+            {name(t.fromUserId)}
+            <span className="to"> → </span>
+            {name(t.toUserId)}
           </div>
+          {(people.isPlaceholder(t.fromUserId) || people.isPlaceholder(t.toUserId)) && (
+            <div className="tags">
+              {tagged(t.fromUserId)}
+              {tagged(t.toUserId)}
+            </div>
+          )}
         </div>
-        <div className="amt-r">{formatMoney(t.amountCents, currency)}</div>
-        {t.fromUserId === me && !people.isFormer(t.toUserId) && (
-          <button
-            className="btn small primary"
-            disabled={amount < 1 || settle.isPending}
-            aria-expanded={formFor?.direction === 'paid' && formFor.other === t.toUserId}
-            title={amount < 1 ? 'Waiting on a confirmation' : undefined}
-            onClick={(e) => open('paid', t.toUserId, e)}
-          >
-            Mark paid
-          </button>
-        )}
-        {t.toUserId === me && people.isPlaceholder(t.fromUserId) && (
-          <button
-            className="btn small primary"
-            disabled={owedByPlaceholder(t.fromUserId) < 1 || settle.isPending}
-            aria-expanded={formFor?.direction === 'received' && formFor.other === t.fromUserId}
-            onClick={(e) => open('received', t.fromUserId, e)}
-          >
-            Mark paid
-          </button>
-        )}
+        <div className="row-end">
+          <div className="amt-r">{formatMoney(t.amountCents, currency)}</div>
+          {t.fromUserId === me && !people.isFormer(t.toUserId) && (
+            <button
+              className="btn small primary"
+              disabled={amount < 1 || settle.isPending}
+              aria-expanded={formFor?.direction === 'paid' && formFor.other === t.toUserId}
+              title={amount < 1 ? 'Waiting on a confirmation' : undefined}
+              onClick={(e) => open('paid', t.toUserId, e)}
+            >
+              Mark paid
+            </button>
+          )}
+          {t.toUserId === me && people.isPlaceholder(t.fromUserId) && (
+            <button
+              className="btn small primary"
+              disabled={owedByPlaceholder(t.fromUserId) < 1 || settle.isPending}
+              aria-expanded={formFor?.direction === 'received' && formFor.other === t.fromUserId}
+              onClick={(e) => open('received', t.fromUserId, e)}
+            >
+              Mark paid
+            </button>
+          )}
+        </div>
       </li>
     )
   }

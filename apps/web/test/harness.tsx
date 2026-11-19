@@ -62,3 +62,9 @@ export function held(reply: Awaited<ReturnType<Handler>>) {
   }
   return { handler, release }
 }
+
+/**
+ * Finds a settle-up transfer by its line, "Dave → You": each name is its own (truncating) element, so the line is
+ * matched on the whole `.t` rather than one text node.
+ */
+export const transferLine = (text: string) => (_: string, el: Element | null) => el?.matches('.row .t') === true && el.textContent === text

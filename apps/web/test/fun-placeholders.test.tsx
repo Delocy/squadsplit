@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
 import { DAVE, dave, expense, group, groupHandlers, settlement } from './group-fixtures'
-import { fakeApi, renderApp } from './harness'
+import { fakeApi, renderApp, transferLine } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 afterEach(() => {
@@ -41,6 +41,34 @@ function recordWithDave(paid: SettlementDTO, net: Record<string, number>) {
   renderApp('/groups/g1')
 }
 
+describe('a settle-up row with someone who has not joined', () => {
+  it('puts each name in its own truncating element, and the tag on its own line under them', async () => {
+    const g = group()
+    g.members.push(dave({ displayName: 'Bartholomew Tan' }))
+    fakeApi(
+      groupHandlers({
+        group: g,
+        expenses: [expense()],
+        balances: { balances: { [ME]: 500, [DAVE]: -500 }, suggestions: [{ fromUserId: DAVE, toUserId: ME, amountCents: 500 }] },
+      }),
+    )
+    renderApp('/groups/g1')
+    const line = await within(await screen.findByRole('region', { name: /Settle up/ })).findByText(transferLine('Bartholomew Tan → You'))
+    expect([...line.querySelectorAll('.nm')].map((n) => n.textContent)).toEqual(['Bartholomew Tan', 'You'])
+    // Truncated names still say who in full on hover.
+    expect(line.querySelector('.nm')!.getAttribute('title')).toBe('Bartholomew Tan')
+    // Only the long name gives way: "You" never truncates.
+    expect([...line.querySelectorAll('.nm')].map((n) => n.classList.contains('short'))).toEqual([false, true])
+    const row = line.closest('.row')!
+    expect(row.querySelector('.grow > .tags')!.textContent).toBe('Not joined yet')
+    expect(line.textContent).not.toContain('Not joined yet')
+    // The amount and Mark paid sit together at the end, so they can wrap below as one on a narrow screen.
+    const end = row.querySelector('.row-end')!
+    expect(end.querySelector('.amt-r')!.textContent).toBe('$5.00')
+    expect(within(end as HTMLElement).getByRole('button', { name: 'Mark paid' })).toBeTruthy()
+  })
+})
+
 describe('Your mix with someone who has not joined', () => {
   it('gives them a mood and sweat from their balance, like anyone', async () => {
     fakeApi(
@@ -55,7 +83,7 @@ describe('Your mix with someone who has not joined', () => {
     const daveAv = strip.getByRole('img', { name: 'Dave' })
     expect(daveAv.getAttribute('data-mood')).toBe('nervous')
     expect(daveAv.parentElement!.querySelectorAll('.sweat')).toHaveLength(2)
-    const row = within(screen.getByRole('region', { name: /Settle up/ })).getByText(/Dave → You/).closest('.row')!
+    const row = within(screen.getByRole('region', { name: /Settle up/ })).getByText(transferLine('Dave → You')).closest('.row')!
     expect([...row.querySelectorAll('.av')].map((a) => a.getAttribute('data-mood'))).toEqual(['nervous', 'happy'])
   })
 

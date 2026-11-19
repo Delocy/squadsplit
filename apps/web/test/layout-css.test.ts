@@ -24,6 +24,20 @@ describe('narrow-screen layout rules', () => {
     expect(rule('.invite-link')).toContain('flex-wrap: wrap')
   })
 
+  it('fits a settle-up row with a "Not joined yet" tag at 320px: names truncate, the end wraps below', () => {
+    expect(rule('.row.transfer')).toContain('flex-wrap: wrap')
+    expect(rule('.row.transfer .grow')).toMatch(/flex: 1 1 \d+px/)
+    expect(rule('.row.transfer .t')).toContain('flex-wrap: nowrap')
+    expect(rule('.row.transfer .t .nm')).toMatch(/min-width: 0;.*overflow: hidden;.*text-overflow: ellipsis/)
+    expect(rule('.row-end')).toContain('margin-left: auto')
+    expect(rule('.row.transfer .t .nm.short')).toContain('flex: none')
+    expect(rule('.row.transfer .tags')).toContain('flex-wrap: wrap')
+    // A list's one column may shrink below its longest word, so a long name can't push every row past the card.
+    expect(rule('ul.list')).toContain('grid-template-columns: minmax(0, 1fr)')
+    // Narrow screens stack the amount over its button, so the row keeps one line for as long as it can.
+    expect(css).toMatch(/@media \(max-width: 480px\) \{ \.row-end \{ flex-direction: column;/)
+  })
+
   it('does not ellipsize the nickname preview', () => {
     expect(rule('.you-preview b')).not.toContain('ellipsis')
   })
