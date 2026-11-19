@@ -3,11 +3,16 @@ import { Hono } from 'hono'
 import {
   computeBalances,
   CreateGroupInput,
+  defaultAvatar,
+  effectiveAvatar,
   UpdateGroupInput,
+  UpdateMemberInput,
   type Currency,
   type GroupDTO,
   type GroupSummaryDTO,
+  type MemberDTO,
 } from '@squadsplit/shared'
+import { activeMemberAvatars, avatarColumns, ensureAvatarFree } from '../avatars'
 import { findActiveRole, requireMember, requireOwner } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
@@ -44,10 +49,13 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
     d
       .select({
         userId: memberships.userId,
-        displayName: users.displayName,
+        profileName: users.displayName,
+        nickname: memberships.nickname,
         avatarUrl: users.avatarUrl,
         role: memberships.role,
         leftAt: memberships.leftAt,
+        avatarAnimal: memberships.avatarAnimal,
+        avatarColor: memberships.avatarColor,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
@@ -63,7 +71,12 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
     currency: group.currency as Currency,
     inviteCode: viewerId === group.ownerId ? group.inviteCode : null,
     ownerId: group.ownerId,
-    members: members.map(({ leftAt, ...m }) => ({ ...m, active: leftAt === null })),
+    members: members.map(({ profileName, leftAt, avatarAnimal, avatarColor, ...m }) => ({
+      ...m,
+      displayName: m.nickname ?? profileName,
+      active: leftAt === null,
+      avatar: effectiveAvatar(m.userId, { animal: avatarAnimal, color: avatarColor }),
+    })),
   }
 }
 
@@ -91,13 +104,13 @@ export function groupRoutes() {
     .post('/', async (c) => {
       const d = db(c.env)
       const me = c.var.userId
-      const input = await parseBody(c, CreateGroupInput)
+      const { nickname, ...input } = await parseBody(c, CreateGroupInput)
       const id = crypto.randomUUID()
       const now = new Date().toISOString()
       await withFreshInviteCode((inviteCode) =>
         d.batch([
           d.insert(groups).values({ id, ...input, inviteCode, ownerId: me, createdAt: now }),
-          d.insert(memberships).values({ groupId: id, userId: me, role: 'owner', joinedAt: now }),
+          d.insert(memberships).values({ groupId: id, userId: me, role: 'owner', joinedAt: now, nickname, ...avatarColumns(defaultAvatar(me)) }),
         ]),
       )
       return c.json(await groupDTO(d, id, me), 201)
@@ -137,6 +150,25 @@ export function groupRoutes() {
         return code
       })
       return c.json({ inviteCode })
+    })
+
+    // The caller's nickname and look in this group. The avatar must differ from every other active member's.
+    .patch('/:id/members/me', async (c) => {
+      const d = db(c.env)
+      const groupId = c.req.param('id')
+      const me = c.var.userId
+      await requireMember(d, groupId, me)
+      const { avatar, nickname } = await parseBody(c, UpdateMemberInput)
+      if (avatar) {
+        const others = (await activeMemberAvatars(d, groupId)).filter((m) => m.userId !== me)
+        ensureAvatarFree(avatar, others.map((m) => m.avatar))
+      }
+      await d
+        .update(memberships)
+        .set({ ...(avatar && avatarColumns(avatar)), ...(nickname !== undefined && { nickname }) })
+        .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, me)))
+      const group = await groupDTO(d, groupId, me)
+      return c.json<MemberDTO>(group.members.find((m) => m.userId === me)!)
     })
 
     // Leaving (the caller removes themselves) or removing (the owner removes someone else).

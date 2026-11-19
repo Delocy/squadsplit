@@ -25,6 +25,19 @@ export async function parseBody<S extends z.ZodType>(c: Context, schema: S): Pro
   return schema.parse(raw)
 }
 
+/** Like parseBody, but an empty body is read as `{}`, for routes whose fields are all optional. */
+export async function parseOptionalBody<S extends z.ZodType>(c: Context, schema: S): Promise<z.output<S>> {
+  const text = await c.req.text()
+  if (text.trim() === '') return schema.parse({})
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new HttpError(422, 'validation_failed', 'Request body must be valid JSON')
+  }
+  return schema.parse(raw)
+}
+
 // `instanceof` fails for a ZodError thrown by another copy of zod, so match the name too.
 const isZodError = (err: Error): err is ZodError => err instanceof ZodError || err.name === 'ZodError'
 

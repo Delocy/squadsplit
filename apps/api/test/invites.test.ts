@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { MAX_GROUP_MEMBERS, type ApiErrorBody, type GroupDTO, type InvitePreviewDTO } from '@squadsplit/shared'
+import { defaultAvatar, MAX_GROUP_MEMBERS, type ApiErrorBody, type GroupDTO, type InvitePreviewDTO } from '@squadsplit/shared'
 import { memberships } from '../src/db/schema'
 import { newInviteCode } from '../src/routes/invites'
 import { db, json, testApp } from './helpers'
@@ -40,6 +40,7 @@ describe('GET /invites/:code', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual<InvitePreviewDTO>({
       groupId: group.id, name: 'Bali trip', emoji: '🏝️', memberCount: 2, alreadyMember: false,
+      takenAvatars: [defaultAvatar('alice'), defaultAvatar('bob')],
     })
   })
 
