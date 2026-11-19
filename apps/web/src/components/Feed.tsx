@@ -15,6 +15,10 @@ const TABS: { key: Tab; label: string }[] = [
 const inTab = (tab: Tab, item: FeedItem) =>
   tab === 'all' || (tab === 'expenses' ? item.type === 'expense' : item.type === 'settlement')
 
+const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** "2026-11-19" → "19 Nov". The date is a calendar day, so it is read and shown in UTC to stay that day everywhere. */
+const shortDate = (spentOn: string) => DAY.format(new Date(`${spentOn}T00:00:00Z`))
+
 const itemKey = (i: FeedItem) =>
   i.type === 'expense' ? `e:${i.expense.id}` : i.type === 'settlement' ? `s:${i.settlement.id}` : i.type === 'spin' ? `w:${i.spin.id}` : `j:${i.userId}`
 
@@ -63,7 +67,7 @@ export function Feed({
             )}
           </div>
           <div className="s">
-            {people.you(e.paidBy)} paid · {categoryLabel(e.category)} · {ways}
+            {shortDate(e.spentOn)} · {people.you(e.paidBy)} paid · {categoryLabel(e.category)} · {ways}
           </div>
         </div>
         <div className="amt-r">

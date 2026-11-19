@@ -343,6 +343,14 @@ describe('Group home', () => {
       }
     })
 
+    it('shows the date each expense was spent on', async () => {
+      fakeApi(groupHandlers({ feed: [{ type: 'expense', at: '2026-11-19T12:00:00.000Z', expense: expense({ spentOn: '2026-01-05' }) }] }))
+      renderApp('/groups/g1')
+      const activity = await screen.findByRole('region', { name: /Activity/ })
+      const [row] = await within(activity).findAllByRole('listitem')
+      expect(row!.querySelector('.s')!.textContent).toBe('5 Jan · You paid · Food · split 2 ways')
+    })
+
     it('filters by tab', async () => {
       fakeApi(groupHandlers({ feed }))
       renderApp('/groups/g1')
