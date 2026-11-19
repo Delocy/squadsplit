@@ -2,7 +2,7 @@ import { defaultAvatar, type GroupSummaryDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { useApi } from '../api'
-import { ErrorNote } from '../components/ErrorNote'
+import { ErrorCard } from '../components/ErrorCard'
 import { GroupLink } from '../components/GroupLink'
 import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
@@ -75,7 +75,7 @@ export function Groups() {
         </div>
       )}
       {groups.isPending && <GroupsSkeleton />}
-      {groups.isError && <ErrorNote error={groups.error} />}
+      {groups.isError && <ErrorCard error={groups.error} onRetry={() => void groups.refetch()} />}
       {groups.data?.length === 0 && (
         <section className="card empty-state">
           <div className="hero-mark bob">

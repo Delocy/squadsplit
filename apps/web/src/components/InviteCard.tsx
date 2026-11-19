@@ -13,8 +13,8 @@ export const COPIED = 'Link copied. Paste it in your chat'
 const RESET_QUESTION =
   'Make a new link? The current link and code stop working. Friends with accounts stay in. Guests on their phones are signed out and need the new link.'
 
-/** "K5KEDQ3M" → "K5KE DQ3M": two halves, easy to read aloud. */
-export const spacedCode = (code: string) => `${code.slice(0, 4)} ${code.slice(4)}`
+/** "K5KEDQ3M" → "K5KE DQ3M": two halves, easy to read aloud, kept on one line (a no-break space). */
+export const spacedCode = (code: string) => `${code.slice(0, 4)}\u00a0${code.slice(4)}`
 
 const canShare = () => typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 

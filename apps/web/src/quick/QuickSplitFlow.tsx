@@ -3,6 +3,7 @@ import { defaultAvatar, type QuickSplitDTO, type QuickSplitInput } from '@squads
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useApi } from '../api'
+import { ErrorCard } from '../components/ErrorCard'
 import { ErrorNote } from '../components/ErrorNote'
 import { PageLink, usePageNavigate } from '../components/PageLink'
 import { BusyLabel } from '../design/Busy'
@@ -137,7 +138,7 @@ export function EditQuickSplit() {
   if (split.isError) {
     return (
       <main className="narrow page">
-        <ErrorNote error={split.error} />
+        <ErrorCard error={split.error} onRetry={() => void split.refetch()} />
       </main>
     )
   }

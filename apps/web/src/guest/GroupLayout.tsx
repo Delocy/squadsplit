@@ -1,8 +1,9 @@
 import { useAuth } from '@clerk/react'
-import type { GroupSummaryDTO } from '@squadsplit/shared'
+import type { GroupSummaryDTO, InvitePreviewDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useParams } from 'react-router'
-import { useApi } from '../api'
+import { ApiError, useApi } from '../api'
+import { JoinWithCode } from '../components/JoinWithCode'
 import { PageLink } from '../components/PageLink'
 import { RequireSignIn } from '../components/RequireSignIn'
 import { GroupHomeSkeleton, SettingsSkeleton, WheelPageSkeleton } from '../components/Skeletons'
@@ -75,21 +76,41 @@ function useGuestFor(groupId: string): GuestPass | null | 'checking' {
   return accountGroups.data?.some((g) => g.id === groupId) ? null : pass
 }
 
-/** The owner reset the link or freed up the name, so this phone's guest pass stopped working. */
+/**
+ * The owner reset the link or freed up the name, so this phone's guest pass stopped working. Which one is told by
+ * the old link: after "Free up name" it still works, so it offers Join again; after a reset it's dead, so it asks for
+ * the new one (anyone in the group can send it) and takes it right here, never sending you back to the dead link.
+ */
 function SignedOutCard({ groupName, code }: { groupName: string; code: string }) {
+  const api = useApi()
+  const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(`/invites/${encodeURIComponent(code)}`) })
+  const dead = invite.error instanceof ApiError && invite.error.status === 404
   return (
     <main className="narrow page">
       <section className="card join" role="alert">
         <div className="hero-mark shiver">
           <Mascot kind="bunny" face="#ffd6e0" mood="nervous" />
         </div>
-        <p>
-          You've been signed out of {groupName}. Ask for the new link to rejoin.
-        </p>
-        {/* After "Free up name" the link still works; after a reset it says so and asks for the new one. */}
-        <PageLink to={`/join/${code}`} className="btn primary">
-          Try the link again
-        </PageLink>
+        <p>You've been signed out of {groupName}.</p>
+        {invite.isSuccess && (
+          <>
+            <p className="s">Your name is free to claim again with the same link.</p>
+            <PageLink to={`/join/${code}`} className="btn primary">
+              Join again
+            </PageLink>
+          </>
+        )}
+        {dead && (
+          <>
+            <p className="s">There's a new invite link for {groupName}. Ask anyone in the group to send it to you.</p>
+            <JoinWithCode placeholder="Paste the new link" />
+          </>
+        )}
+        {invite.isError && !dead && (
+          <button type="button" className="btn primary" onClick={() => void invite.refetch()}>
+            Try again
+          </button>
+        )}
       </section>
     </main>
   )

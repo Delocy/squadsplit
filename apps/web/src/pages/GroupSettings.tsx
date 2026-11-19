@@ -36,7 +36,7 @@ export function GroupSettings() {
   const group = useGroup(id)
 
   if (group.isPending) return <SettingsSkeleton />
-  if (group.isError) return <GroupUnavailable error={group.error} />
+  if (group.isError) return <GroupUnavailable error={group.error} onRetry={() => void group.refetch()} />
 
   const g = group.data
   const isOwner = g.ownerId === me

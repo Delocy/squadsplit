@@ -250,6 +250,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .qr { width: 100%; height: auto; }
 .invite-link { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .invite-link input { flex: 1 1 240px; min-width: 0; }
+.code-join { flex-wrap: nowrap; }
+.code-join input { flex: 1 1 auto; }
 /* a "⋯" menu of rarer actions, in a card or sheet header */
 .more-menu { position: relative; }
 .more-button { width: 44px; height: 44px; margin: -10px -8px -10px 0; border: 0; border-radius: 12px; background: none; color: var(--text); display: grid; place-items: center; cursor: pointer; }

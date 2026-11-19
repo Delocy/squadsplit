@@ -71,9 +71,12 @@ describe('Groups page', () => {
       expect(await screen.findByText('Ski club')).toBeTruthy()
     })
 
-    it.each([['a code that is too short', 'ABC234'], ['a code with letters that codes never use', 'ABCD0I1L']])(
+    it.each([
+      ['a code that is too short', 'ABC234', 'Codes are 8 letters and numbers, like ABCD2345.'],
+      ['a code with letters that codes never use', 'NOPE1234', "Codes don't use O, 0, I, L or 1. Check the letters."],
+    ])(
       'explains %s and stays put',
-      async (_, typed) => {
+      async (_, typed, says) => {
         const calls = fakeApi({ 'GET /groups': () => ({ status: 200, body: [group({})] }), 'GET /quick-splits': () => ({ status: 200, body: [] }) })
         const router = renderApp('/groups')
 
@@ -81,11 +84,42 @@ describe('Groups page', () => {
         fireEvent.change(form.getByLabelText('Invite code'), { target: { value: typed } })
         fireEvent.click(form.getByRole('button', { name: 'Join' }))
 
-        expect(form.getByRole('alert').textContent).toMatch(/8 letters and numbers/)
+        expect(form.getByRole('alert').textContent).toContain(says)
         expect(router.state.location.pathname).toBe('/groups')
         expect(calls.map((c) => c.key).sort()).toEqual(['GET /groups', 'GET /quick-splits'])
       },
     )
+
+    it.each([
+      ['the code as read aloud, with a space', 'abcd 2345'],
+      ['a whole pasted invite link', 'https://squadsplit.app/join/ABCD2345'],
+    ])('takes %s', async (_, typed) => {
+      fakeApi({
+        'GET /groups': () => ({ status: 200, body: [group({})] }),
+        'GET /invites/ABCD2345': () => ({ status: 200, body: invite }),
+      })
+      const router = renderApp('/groups')
+      const form = await joinForm()
+      fireEvent.change(form.getByLabelText('Invite code'), { target: { value: typed } })
+      fireEvent.click(form.getByRole('button', { name: 'Join' }))
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/join/ABCD2345'))
+    })
+
+    it('says a typed code that matches no group is a code it couldn’t find, not a dead link', async () => {
+      fakeApi({
+        'GET /groups': () => ({ status: 200, body: [group({})] }),
+        'GET /invites/ZZZZZZZZ': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Invite not found' } } }),
+      })
+      renderApp('/groups')
+      const form = await joinForm()
+      fireEvent.change(form.getByLabelText('Invite code'), { target: { value: 'ZZZZZZZZ' } })
+      fireEvent.click(form.getByRole('button', { name: 'Join' }))
+
+      expect(
+        await screen.findByText("We couldn't find a group with code ZZZZ ZZZZ. Check it, or ask anyone in the group to send you the invite link."),
+      ).toBeTruthy()
+      expect(screen.queryByText(/doesn't work any more/)).toBeNull()
+    })
 
     it('is offered in the empty state too', async () => {
       fakeApi({
@@ -105,9 +139,28 @@ describe('Groups page', () => {
     })
   })
 
-  it('shows the error when the groups cannot load', async () => {
-    fakeApi({ 'GET /groups': () => ({ status: 500, body: { error: { code: 'internal', message: 'Something broke' } } }) })
+  it('shows the error when the groups cannot load, with Try again', async () => {
+    let fail = true
+    fakeApi({
+      'GET /groups': () => (fail ? { status: 500, body: { error: { code: 'internal', message: 'Something broke' } } } : { status: 200, body: [group({})] }),
+      'GET /quick-splits': () => ({ status: 200, body: [] }),
+    })
     renderApp('/groups')
-    expect(await screen.findByText(/Something broke/)).toBeTruthy()
+    const card = await screen.findByRole('alert')
+    expect(card.textContent).toContain('Something broke')
+    fail = false
+    fireEvent.click(within(card).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('link', { name: /Bali Trip/ })).toBeTruthy()
+  })
+
+  it('says the app can’t be reached, not a raw error, when the network is down', async () => {
+    fakeApi({ 'GET /quick-splits': () => ({ status: 200, body: [] }) })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }))
+    renderApp('/groups')
+    const card = await screen.findByRole('alert')
+    expect(card.textContent).toContain("Can't reach SquadSplit. Check your signal.")
+    expect(within(card).getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 })

@@ -34,7 +34,8 @@ describe('the invite card', () => {
     const invite = await card()
 
     expect(invite.getByText('ABCD2345').closest('p')!.textContent).toBe(link)
-    expect(invite.getByText('ABCD 2345').closest('p')!.textContent).toBe('Code: ABCD 2345')
+    // A no-break space keeps the two halves on one line.
+    expect(invite.getByText('ABCD 2345').closest('p')!.textContent).toBe('Code: ABCD\u00a02345')
     const qr = invite.getByText('Show QR code').closest('details')!
     expect(qr.open).toBe(false)
     expect(within(qr).getByRole('img', { name: 'QR code for the invite link', hidden: true })).toBeTruthy()

@@ -180,9 +180,40 @@ describe('a group page with a guest pass', () => {
     renderApp('/groups/g1')
 
     const card = await screen.findByRole('alert')
-    expect(card.textContent).toContain("You've been signed out of Bali Trip. Ask for the new link to rejoin.")
-    expect(within(card).getByRole('link', { name: 'Try the link again' }).getAttribute('href')).toBe('/join/ABCD2345')
+    expect(card.textContent).toContain("You've been signed out of Bali Trip.")
     expect(storedPass()).toBeNull()
+  })
+
+  it('after a reset, never sends the guest back to the dead link: it asks for the new one and takes it right there', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(
+      groupHandlers({}, {
+        'GET /groups/g1': () => ({ status: 401, body: SIGNED_OUT }),
+        'GET /invites/ABCD2345': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Invite not found' } } }),
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const card = await screen.findByRole('alert')
+    expect(await within(card).findByText("There's a new invite link for Bali Trip. Ask anyone in the group to send it to you.")).toBeTruthy()
+    expect(within(card).queryByRole('link', { name: /Try the link again|Join again/ })).toBeNull()
+    expect(within(card).getByRole('form', { name: 'Join with a code' })).toBeTruthy()
+  })
+
+  it('after "Free up name", where the link still works, offers to join again with it', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(
+      groupHandlers({}, {
+        'GET /groups/g1': () => ({ status: 401, body: SIGNED_OUT }),
+        'GET /invites/ABCD2345': () => ({ status: 200, body: preview() }),
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const card = await screen.findByRole('alert')
+    expect((await within(card).findByRole('link', { name: 'Join again' })).getAttribute('href')).toBe('/join/ABCD2345')
   })
 
   it('shows the group, not the signed-out card, once signed in (the card is only for a signed-out phone)', async () => {

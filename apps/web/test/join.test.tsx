@@ -202,10 +202,26 @@ describe('Join page', () => {
     expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
   })
 
-  it('explains a dead invite link', async () => {
+  it('explains a dead invite link, points to anyone in the group, and takes a new link right there', async () => {
     fakeApi({ 'GET /invites/OLDCODE1': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Invite not found' } } }) })
     renderApp('/join/OLDCODE1')
-    expect(await screen.findByText(/This invite link doesn't work any more/)).toBeTruthy()
+    expect(
+      await screen.findByText("This invite link doesn't work any more. It may have been reset: ask anyone in the group to send you the new one."),
+    ).toBeTruthy()
+    expect(screen.queryByText(/Ask a friend/)).toBeNull()
+    expect(screen.getByRole('form', { name: 'Join with a code' })).toBeTruthy()
+  })
+
+  it('offers Try again when the invite cannot be loaded for another reason', async () => {
+    let fail = true
+    fakeApi({
+      'GET /invites/ABCD2345': () => (fail ? { status: 503, body: { error: { code: 'unavailable', message: 'Down for a moment' } } } : { status: 200, body: preview() }),
+    })
+    renderApp('/join/ABCD2345')
+    const card = await screen.findByRole('alert')
+    fail = false
+    fireEvent.click(within(card).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Bali Trip')).toBeTruthy()
   })
 
   describe('which one are you?', () => {

@@ -30,7 +30,7 @@ export function GroupHome() {
   const fun = useFun(id)
   const feed = useFeed(id)
 
-  if (group.isError) return <GroupUnavailable error={group.error} />
+  if (group.isError) return <GroupUnavailable error={group.error} onRetry={() => void group.refetch()} />
   // The page waits for everything in its first screens and then appears at once: cards filling in one by one would
   // push each other down. Only the leaderboard (side column, below the fold on a phone) fills in on its own.
   if (group.isPending || [balances, expenses, pending, feed].some((q) => q.isPending)) return <GroupHomeSkeleton />
@@ -64,7 +64,12 @@ export function GroupHome() {
           />
         ) : (
           <section className="card balance even" aria-label="Your balance">
-            <ErrorNote error={balances.error} />
+            <div className="feed-error">
+              <ErrorNote error={balances.error} />
+              <button type="button" className="btn small" onClick={() => void balances.refetch()}>
+                Try again
+              </button>
+            </div>
           </section>
         )}
         <section className="card" aria-label="Group stats">
