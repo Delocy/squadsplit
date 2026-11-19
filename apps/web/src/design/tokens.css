@@ -153,13 +153,18 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .badge .t { font: 700 12.5px/1.15 Fredoka, sans-serif; }
 .badge .h { font-size: 11.5px; color: var(--muted); }
 
-/* wheel teaser, and the wheel page */
+/* the wheel: inline on the group home, and bigger on the wheel page */
 .wheel-card .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
 .wheel-wrap { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: center; }
 @media (max-width: 480px) { .wheel-wrap { grid-template-columns: 1fr; justify-items: center; } }
 .wheel { position: relative; width: 210px; height: 210px; }
 .wheel > svg { width: 100%; height: 100%; transition: transform 3s cubic-bezier(.12,.8,.18,1); }
 .wheel .ptr { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); width: 22px; height: 22px; z-index: 2; }
+/* The inline wheel in the group home's side column: the playground's 170px wheel. */
+.wheel-card.compact .wheel-wrap { grid-template-columns: 170px 1fr; gap: 16px; }
+.wheel-card.compact .wheel { width: 170px; height: 170px; }
+@media (max-width: 400px) { .wheel-card.compact .wheel-wrap { grid-template-columns: 1fr; justify-items: center; } }
+.wheel-card .recent-spins { margin-top: 10px; }
 .odds { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; font-size: 13px; }
 .odds li { display: flex; align-items: center; gap: 7px; }
 .odds b { margin-left: auto; font-family: Fredoka, sans-serif; }

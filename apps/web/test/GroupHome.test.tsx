@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
 import { BOB, CAROL, expense, group, groupHandlers, settlement } from './group-fixtures'
@@ -38,13 +38,55 @@ describe('Group home', () => {
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
   })
 
-  it('links Add expense to the form and Who pays next to the wheel', async () => {
+  it('links Add expense to the form, and Who pays next and Recent spins to the wheel page', async () => {
     fakeApi(groupHandlers())
     renderApp('/groups/g1')
     const add = await screen.findAllByRole('link', { name: /Add expense/ })
     expect(add[0]!.getAttribute('href')).toBe('/groups/g1/expenses/new')
-    const wheel = screen.getAllByRole('link', { name: /Who pays next|Spin the wheel/ })
-    expect(wheel.every((a) => a.getAttribute('href') === '/groups/g1/wheel')).toBe(true)
+    expect(screen.getByRole('link', { name: /Who pays next/ }).getAttribute('href')).toBe('/groups/g1/wheel')
+    expect(region(/Who pays next/).getByRole('link', { name: /Recent spins/ }).getAttribute('href')).toBe('/groups/g1/wheel')
+  })
+
+  describe('inline wheel', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows everyone on the wheel with their odds, spins in place and announces the winner when it stops', async () => {
+      // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the 3s spin.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const calls = fakeApi(
+        groupHandlers(
+          { balances: { balances: { [ME]: 3000, [BOB]: -3000 }, suggestions: [{ fromUserId: BOB, toUserId: ME, amountCents: 3000 }] } },
+          {
+            'POST /groups/g1/spins': () => ({
+              status: 201,
+              body: { id: 'w1', groupId: 'g1', spunBy: ME, winnerId: BOB, weights: { [ME]: 1, [BOB]: 4 }, createdAt: '2026-11-19T10:00:00.000Z' },
+            }),
+          },
+        ),
+      )
+      renderApp('/groups/g1')
+      const wheel = within(await screen.findByRole('region', { name: /Who pays next/ }))
+      const odds = within(wheel.getByRole('list', { name: 'Odds' }))
+      expect(await odds.findByText('80%')).toBeTruthy()
+      expect(odds.getByText('Bob')).toBeTruthy()
+      expect(odds.getByText('Alice')).toBeTruthy()
+      // One slice per current member, each with their animal.
+      expect(wheel.getByRole('img', { name: 'The wheel' }).querySelectorAll('path[data-user]')).toHaveLength(2)
+
+      fireEvent.click(wheel.getByRole('button', { name: 'Spin' }))
+      expect(await wheel.findByText('Spinning…')).toBeTruthy()
+      expect(wheel.getByRole('img', { name: 'The wheel' }).style.transform).not.toBe('rotate(0deg)')
+      act(() => vi.advanceTimersByTime(2900))
+      expect(wheel.queryByText('Bob pays next')).toBeNull()
+      act(() => vi.advanceTimersByTime(200))
+      const status = within(wheel.getByRole('status'))
+      expect(status.getByText('Bob pays next')).toBeTruthy()
+      expect(wheel.getByRole('status').querySelector('.av')).toBeTruthy()
+      expect(count(calls, 'POST /groups/g1/spins')).toBe(1)
+      expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+    })
   })
 
   it('says the group cannot be found when you are not a member', async () => {

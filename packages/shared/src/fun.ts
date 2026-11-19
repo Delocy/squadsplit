@@ -81,8 +81,12 @@ export function computeLeaderboard(l: Ledger): { userId: string; netCents: Cents
 
 /** weight = 1 + 3 * debt / maxDebt for current members; every weight is 1 when nobody owes anything. */
 export function spinWeights(l: Ledger): Record<string, number> {
-  const net = computeBalances(l)
-  const debts = Object.fromEntries(l.currentMemberIds.map((id) => [id, Math.max(0, -(net[id] ?? 0))]))
+  return spinWeightsFromBalances(computeBalances(l), l.currentMemberIds)
+}
+
+/** spinWeights from net balances (as GET /balances returns them), for showing the odds before a spin. */
+export function spinWeightsFromBalances(net: Record<string, Cents>, currentMemberIds: string[]): Record<string, number> {
+  const debts = Object.fromEntries(currentMemberIds.map((id) => [id, Math.max(0, -(net[id] ?? 0))]))
   const maxDebt = Math.max(0, ...Object.values(debts))
   return Object.fromEntries(
     Object.entries(debts).map(([id, debt]) => [id, maxDebt === 0 ? 1 : 1 + (3 * debt) / maxDebt]),

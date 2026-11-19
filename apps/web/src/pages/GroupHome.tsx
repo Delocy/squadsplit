@@ -8,6 +8,7 @@ import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
 import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
+import { WheelCard } from '../components/WheelCard'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 
@@ -112,17 +113,12 @@ export function GroupHome() {
 
         <div className="col">
           <Leaderboard fun={fun.data} people={people} currency={g.currency} />
-          <section className="card wheel-card" aria-labelledby="wheel-h">
-            <h3 id="wheel-h">
-              <UiIcon name="wheel" />
-              Who pays next?
-            </h3>
-            <p className="s">Can't decide who gets the next round? Spin the wheel. People who owe more are more likely to be picked.</p>
-            <Link to={wheel} className="btn">
-              <UiIcon name="star" />
-              Spin the wheel
+          <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} compact>
+            <Link to={wheel} className="btn small ghost recent-spins">
+              <UiIcon name="clock" />
+              Recent spins
             </Link>
-          </section>
+          </WheelCard>
         </div>
       </div>
 
