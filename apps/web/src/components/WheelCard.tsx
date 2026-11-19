@@ -86,12 +86,12 @@ export function WheelCard({
       </h3>
       <p className="s">Can't decide who gets the next round? Spin the wheel. People who owe more are more likely to be picked.</p>
       <div className="wheel-wrap">
-        <WheelDisc slices={slices} rotation={rotation} />
+        <WheelDisc slices={slices} rotation={rotation} avatarOf={people.avatar} />
         <div>
           <ul className="odds" aria-label="Odds">
             {slices.map((s) => (
               <li key={s.userId}>
-                <Avatar userId={s.userId} size="sm" />
+                <Avatar avatar={people.avatar(s.userId)} size="sm" />
                 {people.name(s.userId)}
                 <b>{s.percent}%</b>
               </li>
@@ -110,7 +110,7 @@ export function WheelCard({
               <span className="s">Spin to find out</span>
             ) : (
               <div className="pop" key={result.id} ref={winnerRef}>
-                <Avatar userId={result.winnerId} mood="nervous" />
+                <Avatar avatar={people.avatar(result.winnerId)} mood="nervous" />
                 <span>{result.winnerId === me ? 'You pay next' : `${people.name(result.winnerId)} pays next`}</span>
               </div>
             )}

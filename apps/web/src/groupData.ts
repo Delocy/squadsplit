@@ -1,4 +1,4 @@
-import type { BalancesDTO, ExpenseDTO, FeedItem, FunDTO, GroupDTO, MemberDTO, SettlementDTO } from '@squadsplit/shared'
+import { defaultAvatar, type AvatarChoice, type BalancesDTO, type ExpenseDTO, type FeedItem, type FunDTO, type GroupDTO, type MemberDTO, type SettlementDTO } from '@squadsplit/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useApi } from './api'
 import { invalidateGroup, queryKeys } from './queryKeys'
@@ -51,7 +51,10 @@ export function useGroupMutation<TVars, TResult>(groupId: string, mutationFn: (v
 export interface People {
   /** Current members, in the group's order: the only people who can pay, share or be settled with. */
   active: MemberDTO[]
+  /** Their name in this group: their nickname if they set one, otherwise their profile name. */
   name(userId: string): string
+  /** Their look in this group; the default look for someone the group doesn't know. */
+  avatar(userId: string): AvatarChoice
   /** "You" for the signed-in user, otherwise their name. Pass `lower` mid-sentence. */
   you(userId: string, lower?: boolean): string
   isFormer(userId: string): boolean
@@ -63,6 +66,7 @@ export function peopleOf(group: GroupDTO, me: string): People {
   return {
     active: group.members.filter((m) => m.active),
     name,
+    avatar: (userId) => byId.get(userId)?.avatar ?? defaultAvatar(userId),
     you: (userId, lower = false) => (userId === me ? (lower ? 'you' : 'You') : name(userId)),
     isFormer: (userId) => byId.get(userId)?.active !== true,
   }

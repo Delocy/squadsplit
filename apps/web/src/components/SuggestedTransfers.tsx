@@ -52,11 +52,11 @@ export function SuggestedTransfers({
     const amount = Math.min(t.amountCents, cap(t.toUserId))
     return (
       <li className="row" key={`${t.fromUserId}>${t.toUserId}`}>
-        <Avatar userId={t.fromUserId} size="sm" faded={people.isFormer(t.fromUserId)} />
+        <Avatar avatar={people.avatar(t.fromUserId)} size="sm" faded={people.isFormer(t.fromUserId)} />
         <span className="arrow">
           <UiIcon name="arrow" />
         </span>
-        <Avatar userId={t.toUserId} size="sm" faded={people.isFormer(t.toUserId)} />
+        <Avatar avatar={people.avatar(t.toUserId)} size="sm" faded={people.isFormer(t.toUserId)} />
         <div className="grow">
           <div className="t">
             {people.you(t.fromUserId)} → {people.you(t.toUserId)}

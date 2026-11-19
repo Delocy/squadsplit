@@ -1,12 +1,24 @@
-import { MAX_GROUP_MEMBERS, type InvitePreviewDTO } from '@squadsplit/shared'
+import { useAuth } from '@clerk/react'
+import {
+  defaultAvatar,
+  firstFreeAvatar,
+  MAX_GROUP_MEMBERS,
+  sameAvatar,
+  type AvatarChoice,
+  type InvitePreviewDTO,
+  type JoinGroupInput,
+} from '@squadsplit/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
+import { AvatarPicker, avatarErrorOf, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
-import { avatarFor } from '../design/Avatar'
+import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { lookOf } from '../design/Avatar'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
+import { useMe } from '../useProfileRefresh'
 
 export function Join() {
   const code = useParams().code ?? ''
@@ -14,13 +26,24 @@ export function Join() {
   const api = useApi()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const me = useAuth().userId ?? ''
+  const profileName = useMe().data?.displayName ?? ''
+  const nickname = useNicknameDraft(profileName)
+  const [choice, setChoice] = useState<AvatarChoice | null>(null)
+  const [showHint, setShowHint] = useState(false)
 
   const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(path) })
   const join = useMutation({
-    mutationFn: () => api.post<{ groupId: string }>(`${path}/join`),
+    mutationFn: (input: JoinGroupInput) => api.post<{ groupId: string }>(`${path}/join`, input),
     onSuccess: ({ groupId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       navigate(`/groups/${groupId}`, { replace: true })
+    },
+    // Someone took that look in the meantime: refetch who has what, so the picker moves to a free one.
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'avatar_taken') {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.invite(code) })
+      }
     },
   })
 
@@ -54,7 +77,18 @@ export function Join() {
   }
 
   const g = invite.data
-  const look = avatarFor(g.groupId)
+  const look = lookOf(defaultAvatar(g.groupId))
+  // Your pick while it's free; otherwise (and to start with) the first free look from your pick or your default.
+  const avatar =
+    choice && !g.takenAvatars.some((t) => sameAvatar(t, choice)) ? choice : firstFreeAvatar(choice ?? defaultAvatar(me), g.takenAvatars)
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    setShowHint(nickname.invalid)
+    if (nickname.invalid) return
+    join.mutate({ avatar, ...(nickname.change !== undefined && { nickname: nickname.change }) })
+  }
+
   // Full from the preview, or it filled up between the preview and pressing Join.
   const full =
     g.memberCount >= MAX_GROUP_MEMBERS || (join.error instanceof ApiError && join.error.code === 'group_full')
@@ -82,12 +116,21 @@ export function Join() {
             </Link>
           </>
         ) : (
-          <>
-            <button className="btn primary" onClick={() => join.mutate()} disabled={join.isPending}>
+          <form className="you-fields" onSubmit={submit} noValidate>
+            <NicknameField id="join-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
+            <span className="f">Your animal in this group</span>
+            <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
+            <AvatarPicker value={avatar} taken={g.takenAvatars} onChange={setChoice} />
+            {showHint && nickname.invalid && (
+              <p className="err" role="alert">
+                {NICKNAME_HINT}
+              </p>
+            )}
+            <button className="btn primary" type="submit" disabled={join.isPending}>
               {join.isPending ? 'Joining…' : 'Join group'}
             </button>
-            <ErrorNote error={join.error} />
-          </>
+            <ErrorNote error={avatarErrorOf(join.error)} />
+          </form>
         )}
       </section>
     </main>

@@ -1,28 +1,20 @@
+import { AVATAR_ANIMALS, AVATAR_COLORS, type AvatarAnimal, type AvatarChoice, type AvatarColor } from '@squadsplit/shared'
 import type { CSSProperties } from 'react'
 import { Mascot, type Kind, type Mood } from './icons'
 
-const ANIMALS: { kind: Kind; face: string }[] = [
-  { kind: 'bunny', face: '#ffffff' },
-  { kind: 'bear', face: '#f3d2b3' },
-  { kind: 'panda', face: '#ffffff' },
-  { kind: 'kitty', face: '#ffe8a3' },
-  { kind: 'fox', face: '#f8a86a' },
-  { kind: 'hamster', face: '#f5c590' },
-  { kind: 'penguin', face: '#ffffff' },
-  { kind: 'koala', face: '#c3c7d1' },
-]
-// Each animal's signature background, in the same order. The logo pup is not an avatar.
-const BACKGROUNDS = ['#ffc8dd', '#bde0fe', '#cdb4ff', '#b8f2d8', '#ffd8b5', '#fff1a8', '#c5f0f5', '#e6d6ff']
-
-/** FNV-1a: a small, stable string hash, so a user keeps the same animal on every device. */
-function hash(s: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h >>> 0
+/** Each avatar animal's face colour. The logo pup is not an avatar. */
+const FACES: Record<AvatarAnimal, string> = {
+  bunny: '#ffffff',
+  bear: '#f3d2b3',
+  panda: '#ffffff',
+  kitty: '#ffe8a3',
+  fox: '#f8a86a',
+  hamster: '#f5c590',
+  penguin: '#ffffff',
+  koala: '#c3c7d1',
 }
+// Each animal's signature background on the landing page, in AVATAR_ANIMALS order.
+const SIGNATURE = ['#ffc8dd', '#bde0fe', '#cdb4ff', '#b8f2d8', '#ffd8b5', '#fff1a8', '#c5f0f5', '#e6d6ff']
 
 export interface AvatarLook {
   kind: Kind
@@ -30,32 +22,37 @@ export interface AvatarLook {
   bg: string
 }
 
-/** The eight avatar animals on their signature colours. */
-export const SQUAD: AvatarLook[] = ANIMALS.map((a, i) => ({ ...a, bg: BACKGROUNDS[i]! }))
+/** How an avatar choice is drawn: the animal, its face colour, and the background. */
+export const lookOf = (avatar: AvatarChoice): AvatarLook => ({
+  kind: avatar.animal,
+  face: FACES[avatar.animal],
+  bg: AVATAR_COLORS[avatar.color],
+})
 
-/** The animal and background colour for a user. Same id, same look. */
-export function avatarFor(userId: string): AvatarLook {
-  const h = hash(userId)
-  const animal = ANIMALS[h % ANIMALS.length]!
-  const bg = BACKGROUNDS[Math.floor(h / ANIMALS.length) % BACKGROUNDS.length]!
-  return { kind: animal.kind, face: animal.face, bg }
-}
+const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+/** "Fox", for buttons and labels. */
+export const animalLabel = (animal: AvatarAnimal) => capitalised(animal)
+/** "Peach", for buttons and labels. */
+export const colorLabel = (color: AvatarColor) => capitalised(color)
+
+/** The eight avatar animals on their signature colours, for the landing page. */
+export const SQUAD: AvatarLook[] = AVATAR_ANIMALS.map((animal, i) => ({ kind: animal, face: FACES[animal], bg: SIGNATURE[i]! }))
 
 export function Avatar({
-  userId,
+  avatar,
   size,
   mood = 'calm',
   title,
   faded = false,
 }: {
-  userId: string
+  avatar: AvatarChoice
   size?: 'sm' | 'lg'
   mood?: Mood
   title?: string
   /** Greyed out, for someone who has left the group. */
   faded?: boolean
 }) {
-  const look = avatarFor(userId)
+  const look = lookOf(avatar)
   return (
     <span
       className={['av', size, faded && 'gone'].filter(Boolean).join(' ')}

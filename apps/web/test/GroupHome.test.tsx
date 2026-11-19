@@ -1,7 +1,8 @@
+import { AVATAR_COLORS, defaultAvatar } from '@squadsplit/shared'
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
-import { BOB, CAROL, expense, group, groupHandlers, settlement } from './group-fixtures'
+import { BOB, BOB_AVATAR, CAROL, expense, group, groupHandlers, member, ME_AVATAR, settlement } from './group-fixtures'
 import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -191,7 +192,7 @@ describe('Group home', () => {
     it('lets you pay a creditor other than the suggested one, up to what they are owed', async () => {
       const DAVE = 'user_dave'
       const withDave = group()
-      withDave.members.push({ userId: DAVE, displayName: 'Dave', avatarUrl: null, role: 'member', active: true })
+      withDave.members.push(member(DAVE, 'Dave', { animal: 'bear', color: 'lemon' }))
       const calls = fakeApi(
         groupHandlers(
           {
@@ -423,5 +424,35 @@ describe('Group home', () => {
     expect(within(board).getByText('−$42.50')).toBeTruthy()
     expect(within(board).getByText('Debt Goblin').nextElementSibling!.textContent).toBe('Bob')
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+
+  it('draws everyone with their look and name in this group', async () => {
+    const g = group()
+    g.members[1] = member(BOB, 'Bobby', BOB_AVATAR)
+    fakeApi(
+      groupHandlers({
+        group: g,
+        balances: { balances: { [ME]: 100, [BOB]: -100 }, suggestions: [] },
+        fun: { leaderboard: [{ userId: ME, netCents: 100, rank: 1 }, { userId: BOB, netCents: -100, rank: 2 }], badges: [] },
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const board = await screen.findByRole('region', { name: /Leaderboard/ })
+    const bobRow = (await within(board).findByText('Bobby')).closest('.lb-row')!
+    const bobAv = bobRow.querySelector<HTMLElement>('.av')!
+    expect(bobAv.querySelector('svg.mascot-koala')).toBeTruthy()
+    expect(bobAv.style.getPropertyValue('--c')).toBe(AVATAR_COLORS.mint)
+    expect((await screen.findByRole('region', { name: 'Your balance' })).querySelector('svg.mascot-fox')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'You' }).style.getPropertyValue('--c')).toBe(AVATAR_COLORS[ME_AVATAR.color])
+    expect(document.querySelector(`.wheel path[data-user="${BOB}"]`)!.getAttribute('fill')).toBe(AVATAR_COLORS.mint)
+  })
+
+  it('shows your default look in the top bar outside a group', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups')
+    const you = await screen.findByRole('img', { name: 'You' })
+    expect(you.querySelector(`svg.mascot-${defaultAvatar(ME).animal}`)).toBeTruthy()
+    expect(you.style.getPropertyValue('--c')).toBe(AVATAR_COLORS[defaultAvatar(ME).color])
   })
 })

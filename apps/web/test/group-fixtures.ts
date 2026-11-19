@@ -1,10 +1,19 @@
-import type { BalancesDTO, ExpenseDTO, FeedItem, FunDTO, GroupDTO, SettlementDTO } from '@squadsplit/shared'
+import type { BalancesDTO, ExpenseDTO, FeedItem, FunDTO, GroupDTO, MemberDTO, SettlementDTO } from '@squadsplit/shared'
 import { ME } from './clerk-mock'
 import type { Handler } from './harness'
 
 export const BOB = 'user_bob'
 /** A former member: still in the history, never offered as payer or participant. */
 export const CAROL = 'user_carol'
+
+/** A member with the given avatar; their name is their profile name (no nickname) unless `over` says otherwise. */
+export const member = (userId: string, displayName: string, avatar: MemberDTO['avatar'], over: Partial<MemberDTO> = {}): MemberDTO => ({
+  userId, displayName, nickname: null, avatarUrl: null, role: 'member', active: true, avatar, ...over,
+})
+
+export const ME_AVATAR = { animal: 'fox', color: 'peach' } as const
+export const BOB_AVATAR = { animal: 'koala', color: 'mint' } as const
+export const CAROL_AVATAR = { animal: 'panda', color: 'sky' } as const
 
 export const group = (over: Partial<GroupDTO> = {}): GroupDTO => ({
   id: 'g1',
@@ -14,9 +23,9 @@ export const group = (over: Partial<GroupDTO> = {}): GroupDTO => ({
   inviteCode: 'ABCD2345',
   ownerId: ME,
   members: [
-    { userId: ME, displayName: 'Alice', avatarUrl: null, role: 'owner', active: true },
-    { userId: BOB, displayName: 'Bob', avatarUrl: null, role: 'member', active: true },
-    { userId: CAROL, displayName: 'Carol', avatarUrl: null, role: 'member', active: false },
+    member(ME, 'Alice', ME_AVATAR, { role: 'owner' }),
+    member(BOB, 'Bob', BOB_AVATAR),
+    member(CAROL, 'Carol', CAROL_AVATAR, { active: false }),
   ],
   ...over,
 })

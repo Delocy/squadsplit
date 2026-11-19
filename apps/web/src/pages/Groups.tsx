@@ -1,4 +1,4 @@
-import type { GroupSummaryDTO } from '@squadsplit/shared'
+import { defaultAvatar, type GroupSummaryDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
@@ -6,7 +6,7 @@ import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
-import { avatarFor } from '../design/Avatar'
+import { lookOf } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
 import { queryKeys } from '../queryKeys'
 
@@ -17,7 +17,7 @@ function balanceText(cents: number): { label: string; mood: Mood } {
 }
 
 function GroupCard({ group }: { group: GroupSummaryDTO }) {
-  const look = avatarFor(group.id)
+  const look = lookOf(defaultAvatar(group.id))
   const { label, mood } = balanceText(group.myBalanceCents)
   return (
     <li>

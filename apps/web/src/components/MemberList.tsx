@@ -32,7 +32,7 @@ export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
           <ul className="list" aria-label="Former members">
             {former.map((m) => (
               <li className="row" key={m.userId}>
-                <Avatar userId={m.userId} size="sm" faded />
+                <Avatar avatar={m.avatar} size="sm" faded />
                 <div className="grow">{m.displayName}</div>
               </li>
             ))}
@@ -49,7 +49,7 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
   const remove = useGroupMutation(groupId, () => api.del(`/groups/${groupId}/members/${member.userId}`))
   return (
     <li className="row member">
-      <Avatar userId={member.userId} />
+      <Avatar avatar={member.avatar} />
       <div className="grow">
         <div className="t">
           {member.displayName}

@@ -47,7 +47,7 @@ export function GroupHome() {
     <main className="page">
       <div className="summary">
         {balances.data ? (
-          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} userId={me} seed={feed.data?.length ?? 0} />
+          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
         ) : (
           <section className="card balance even" aria-label="Your balance">
             {balances.isError ? <ErrorNote error={balances.error} /> : <p className="empty">Working out balances…</p>}

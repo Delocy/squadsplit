@@ -105,6 +105,27 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .chip .ci { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--tint, #fff); padding: 2px; }
 .chip .ci svg { width: 100%; height: 100%; }
 
+/* your nickname and animal in a group (join page and settings) */
+.you-fields { width: 100%; text-align: left; display: grid; gap: 0; }
+.you-fields > .btn.primary { justify-self: center; margin-top: 14px; }
+.you-fields .form-f { margin-top: 14px; }
+.you-preview { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 10px; }
+.you-preview b { font: 700 17px Fredoka, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker { display: grid; gap: 12px; }
+/* Eight animals: two rows of four on a phone, one row once there's room. */
+.picker-animals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 600px) { .picker-animals { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.pick { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: 14px; padding: 6px 2px;
+  font: 800 11.5px Nunito, sans-serif; cursor: pointer; display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.pick[aria-pressed=true] { border-color: var(--ink); background: var(--accent-soft); box-shadow: 2px 2px 0 var(--ink); }
+.pick:disabled { opacity: .4; cursor: not-allowed; }
+.pick:not(:disabled):hover .av svg { transform: rotate(-10deg) translateY(-1px); }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch { --c: #eee; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ink); background: var(--c); padding: 0; cursor: pointer; }
+.swatch[aria-pressed=true] { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--accent); }
+/* Taken: faded and struck through, so it reads as unavailable without relying on colour alone. */
+.swatch:disabled { cursor: not-allowed; opacity: .45; background: linear-gradient(135deg, transparent 45%, var(--ink) 45% 55%, transparent 55%), var(--c); }
+
 /* group home: summary strip */
 .summary { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; margin: 18px 0; }
 @media (max-width: 860px) { .summary { grid-template-columns: 1fr; } }

@@ -1,4 +1,4 @@
-import type { GroupSummaryDTO } from '@squadsplit/shared'
+import type { GroupSummaryDTO, InvitePreviewDTO } from '@squadsplit/shared'
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, renderApp } from './harness'
@@ -53,7 +53,7 @@ describe('Groups page', () => {
   })
 
   describe('join with a code', () => {
-    const invite = { groupId: 'g9', name: 'Ski club', emoji: '🧡', memberCount: 4, alreadyMember: false }
+    const invite: InvitePreviewDTO = { groupId: 'g9', name: 'Ski club', emoji: '🧡', memberCount: 4, alreadyMember: false, takenAvatars: [] }
     const joinForm = async () => within(await screen.findByRole('form', { name: 'Join with a code' }))
 
     it('opens the invite for a typed code, tidied up', async () => {

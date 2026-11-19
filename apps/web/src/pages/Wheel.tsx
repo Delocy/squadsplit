@@ -54,7 +54,7 @@ function RecentSpins({ items, me, people }: { items: FeedItem[] | undefined; me:
         ) : spins.length ? (
           spins.map((s) => (
             <li className="row" key={s.id}>
-              <Avatar userId={s.winnerId} size="sm" mood="nervous" faded={people.isFormer(s.winnerId)} />
+              <Avatar avatar={people.avatar(s.winnerId)} size="sm" mood="nervous" faded={people.isFormer(s.winnerId)} />
               <div className="grow">
                 <div className="t">{s.winnerId === me ? 'You were picked' : `${people.name(s.winnerId)} was picked`}</div>
                 <div className="s">Spun by {people.you(s.spunBy, true)}</div>

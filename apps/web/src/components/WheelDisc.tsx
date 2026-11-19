@@ -1,5 +1,6 @@
+import type { AvatarChoice } from '@squadsplit/shared'
 import { mascot } from '../design/art'
-import { avatarFor } from '../design/Avatar'
+import { lookOf } from '../design/Avatar'
 import type { Slice } from '../wheel'
 
 const INK = '#3d2c42'
@@ -11,8 +12,8 @@ const point = (deg: number, r: number) => {
 }
 
 /** One pastel slice per person in their avatar colour, with their animal on it. Ported from the playground's renderWheel. */
-function SliceArt({ slice }: { slice: Slice }) {
-  const look = avatarFor(slice.userId)
+function SliceArt({ slice, avatar }: { slice: Slice; avatar: AvatarChoice }) {
+  const look = lookOf(avatar)
   const sweepRad = (slice.sweep * Math.PI) / 180
   const size = Math.min(42, 20 + sweepRad * 14)
   const [fx, fy] = point(slice.start + slice.sweep / 2, 62)
@@ -34,7 +35,16 @@ function SliceArt({ slice }: { slice: Slice }) {
 }
 
 /** The wheel: a dark rim, the slices, a white hub, and the pointer at the top. `rotation` turns it, with a 3s ease (see .wheel in tokens.css). */
-export function WheelDisc({ slices, rotation }: { slices: Slice[]; rotation: number }) {
+export function WheelDisc({
+  slices,
+  rotation,
+  avatarOf,
+}: {
+  slices: Slice[]
+  rotation: number
+  /** Each person's look in the group. */
+  avatarOf: (userId: string) => AvatarChoice
+}) {
   return (
     <div className="wheel">
       <div className="ptr" aria-hidden="true">
@@ -45,7 +55,7 @@ export function WheelDisc({ slices, rotation }: { slices: Slice[]; rotation: num
       <svg viewBox="-112 -112 224 224" role="img" aria-label="The wheel" style={{ transform: `rotate(${rotation}deg)` }}>
         <circle r={104} fill={INK} />
         {slices.map((s) => (
-          <SliceArt key={s.userId} slice={s} />
+          <SliceArt key={s.userId} slice={s} avatar={avatarOf(s.userId)} />
         ))}
         <circle r={13} fill="#fff" stroke={INK} strokeWidth={3} />
       </svg>

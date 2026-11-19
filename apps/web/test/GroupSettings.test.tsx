@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../src/api'
 import { membershipErrorText } from '../src/membershipErrors'
 import { ME } from './clerk-mock'
-import { BOB, CAROL, group, groupHandlers } from './group-fixtures'
+import { BOB, BOB_AVATAR, CAROL, CAROL_AVATAR, group, groupHandlers, ME_AVATAR, member } from './group-fixtures'
 import { fakeApi, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -29,9 +29,9 @@ const bobsGroup = () =>
     ownerId: BOB,
     inviteCode: null,
     members: [
-      { userId: BOB, displayName: 'Bob', avatarUrl: null, role: 'owner', active: true },
-      { userId: ME, displayName: 'Alice', avatarUrl: null, role: 'member', active: true },
-      { userId: CAROL, displayName: 'Carol', avatarUrl: null, role: 'member', active: false },
+      member(BOB, 'Bob', BOB_AVATAR, { role: 'owner' }),
+      member(ME, 'Alice', ME_AVATAR),
+      member(CAROL, 'Carol', CAROL_AVATAR, { active: false }),
     ],
   })
 
@@ -166,6 +166,70 @@ describe('Group settings', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Yes, leave' }))
       expect(await screen.findByText(text)).toBeTruthy()
       expect(router.state.location.pathname).toBe('/groups/g1/settings')
+    })
+  })
+
+  describe('you in this group', () => {
+    const you = () => region('You in this group')
+    const animal = (name: string | RegExp) => within(you().getByRole('group', { name: 'Animal' })).getByRole('button', { name })
+    const colour = (name: string | RegExp) => within(you().getByRole('group', { name: 'Colour' })).getByRole('button', { name })
+
+    it('shows your name and look in the group, greying out only active members’ looks', async () => {
+      fakeApi(groupHandlers())
+      renderApp('/groups/g1/settings')
+
+      const nickname = (await screen.findByLabelText('What should this group call you?')) as HTMLInputElement
+      expect(nickname.value).toBe('Alice')
+      expect(animal('Fox').getAttribute('aria-pressed')).toBe('true')
+      expect(colour('Peach').getAttribute('aria-pressed')).toBe('true')
+      expect((you().getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+
+      fireEvent.click(animal('Koala'))
+      expect((colour(/Mint/) as HTMLButtonElement).disabled).toBe(true) // Bob is the mint koala
+      fireEvent.click(animal('Panda'))
+      expect((colour('Sky') as HTMLButtonElement).disabled).toBe(false) // Carol left, so her look is free
+    })
+
+    it('saves the nickname and look together and refetches the group', async () => {
+      const calls = fakeApi(
+        groupHandlers({}, {
+          'PATCH /groups/g1/members/me': () => ({ status: 200, body: member(ME, 'Captain', { animal: 'bear', color: 'lemon' }) }),
+        }),
+      )
+      renderApp('/groups/g1/settings')
+
+      fireEvent.change(await screen.findByLabelText('What should this group call you?'), { target: { value: ' Captain ' } })
+      fireEvent.click(animal('Bear'))
+      fireEvent.click(colour('Lemon'))
+      fireEvent.click(you().getByRole('button', { name: 'Save' }))
+
+      await vi.waitFor(() =>
+        expect(calls.find((c) => c.key === 'PATCH /groups/g1/members/me')?.body).toEqual({
+          avatar: { animal: 'bear', color: 'lemon' },
+          nickname: 'Captain',
+        }),
+      )
+      await vi.waitFor(() => expect(calls.filter((c) => c.key === 'GET /groups/g1').length).toBeGreaterThan(1))
+    })
+
+    it('sends only what changed, and an empty nickname to clear it', async () => {
+      const calls = fakeApi(groupHandlers({}, { 'PATCH /groups/g1/members/me': () => ({ status: 200, body: member(ME, 'Alice', ME_AVATAR) }) }))
+      renderApp('/groups/g1/settings')
+
+      fireEvent.change(await screen.findByLabelText('What should this group call you?'), { target: { value: '' } })
+      fireEvent.click(you().getByRole('button', { name: 'Save' }))
+
+      await vi.waitFor(() => expect(calls.find((c) => c.key === 'PATCH /groups/g1/members/me')?.body).toEqual({ nickname: '' }))
+    })
+
+    it('explains a look someone else just took', async () => {
+      fakeApi(groupHandlers({}, { 'PATCH /groups/g1/members/me': conflict('avatar_taken', 'Conflict') }))
+      renderApp('/groups/g1/settings')
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Bear' }))
+      fireEvent.click(you().getByRole('button', { name: 'Save' }))
+
+      expect(await you().findByText('Someone in this group already looks like that — pick another.')).toBeTruthy()
     })
   })
 

@@ -41,7 +41,7 @@ export function Feed({
   const [tab, setTab] = useState<Tab>('all')
   const money = (cents: number) => formatMoney(cents, currency)
   const av = (userId: string, mood?: 'happy' | 'calm' | 'nervous') => (
-    <Avatar userId={userId} size="sm" mood={mood} faded={people.isFormer(userId)} />
+    <Avatar avatar={people.avatar(userId)} size="sm" mood={mood} faded={people.isFormer(userId)} />
   )
 
   function expenseRow(e: ExpenseDTO): ReactNode {
