@@ -177,7 +177,7 @@ Badge table (emoji and title are exact copy): 👺 Debt Goblin, 💸 Biggest Spe
   - `MeDTO`
   - `MemberDTO {userId, displayName, avatarUrl, role, active}`
   - `GroupDTO {id, name, emoji, currency, inviteCode /* owner only, else null */, ownerId, members: MemberDTO[]}`
-  - `ExpenseDTO` (ExpenseDTO also includes `locked: boolean`, `createdBy`)
+  - `ExpenseDTO` (ExpenseDTO also includes `locked: boolean`, `createdBy`; Task 6b adds the currency and itemized fields)
   - `SettlementDTO`
   - `BalancesDTO {balances: Record<string,Cents>, suggestions: Transfer[]}`
   - `FunDTO {badges: Badge[], leaderboard}`
@@ -258,12 +258,59 @@ testApp(): { as(userId: string): (path: string, init?: RequestInit) => Promise<R
 - [ ] **Step 2: Run the tests.** Expect FAIL. **Step 3: Implement.** **Step 4: Run the tests.** Expect PASS.
 - [ ] **Step 5: Commit** with the message `feat(api): groups, invites, membership rules`
 
-### Task 7: Expenses + balances endpoint
+### Task 6b: Itemized split + currency-ready expense contract (shared)
 
-**Files:** Create `src/routes/expenses.ts`. Test: `test/expenses.test.ts`.
+Added 2026-11-19. The user approved the itemized bill split (with Singapore service charge and GST) and currency columns that are ready for multiple currencies later. See spec §1 "Expenses" and "Money".
+
+**Files:**
+- Create: `packages/shared/src/itemized.ts`
+- Modify: `packages/shared/src/schemas.ts`, `packages/shared/src/index.ts`
+- Test: `packages/shared/test/itemized.test.ts`, `packages/shared/test/schemas.test.ts`
 
 **Interfaces:**
-- Consumes: `splitEqual`, `isExpenseLocked`, `computeBalances`, `simplifyDebts`, `CreateExpenseInput`, `ExpenseDTO`, `BalancesDTO`, `requireMember`, `loadLedger`.
+- Consumes: `Cents`, `SplitError` (Task 1).
+- Produces:
+```ts
+interface BillItem { name: string; amountCents: Cents; userIds: string[] }
+interface ItemizedBill { items: BillItem[]; serviceChargeBps: number; gstBps: number }
+itemizedTotal(bill: ItemizedBill): Cents                         // BigInt math, rounds half up
+splitItemized(bill: ItemizedBill, payerId: string): Record<string, Cents>  // sums exactly to itemizedTotal; throws SplitError AMOUNT_TOO_SMALL on any 0 share
+SG_PRESET = { serviceChargeBps: 1000, gstBps: 900 } as const
+```
+- In the schema, `CreateExpenseInput.split` gains a third union member: `{ type: 'itemized', items: BillItem[] (1–50; name trimmed, 1–60 chars; userIds non-empty and unique), serviceChargeBps: int 0–3000, gstBps: int 0–3000 }`. A refine requires `amountCents === itemizedTotal(split)`, with the error path `['split']`.
+- `CreateExpenseInput` gains an optional `currency` (`Currency`). If it's omitted, the API uses the group's currency.
+- `ExpenseDTO` gains `currency`, `fxRatePpm`, `serviceChargeBps: number | null`, `gstBps: number | null` and `items: BillItem[] | null`. Also update `contracts.md`.
+
+- [ ] **Step 1: Write the failing tests:**
+  - `itemizedTotal({items:[{name:'Laksa',amountCents:1000,userIds:['a']}], serviceChargeBps:1000, gstBps:900})` → `1199`, because 1000 × 1.1 × 1.09 = 1199.
+  - Two items, A 1000 and B 2000, with the SG preset: the total is `3597`, A gets `1199` and B gets `2398`. The shares add up to the total.
+  - A shared item of 1000 between a and b, plus an item of 500 for a, with no charges: a gets `1000` and b gets `500`.
+  - The largest-remainder method breaks ties toward the lower user id, so the result is deterministic.
+  - A 1¢ item split between 3 people, with no other items → throws `SplitError`.
+  - The schema rejects an itemized expense whose `amountCents` doesn't equal the computed total, with the issue path `split`.
+  - The schema rejects duplicate userIds on an item, an empty items list, 51 items, and `gstBps` of 3001.
+- [ ] **Step 2: Run the tests.** Expect FAIL. **Step 3: Implement.** **Step 4: Run the tests.** Expect PASS.
+- [ ] **Step 5: Commit** with the message `feat(shared): itemized split with service charge and GST`
+
+### Task 7: Expenses + balances endpoint
+
+**Files:**
+- Create: `src/routes/expenses.ts`, plus a new drizzle migration `migrations/0001_itemized_currency.sql` (generated).
+- Modify: `src/db/schema.ts`, `src/db/ledger.ts` if the ledger needs it.
+- Test: `test/expenses.test.ts`
+
+**Schema changes (in the migration):**
+- `expenses` gains:
+  - `currency` (text, not null)
+  - `fx_rate_ppm` (int, not null, default 1000000)
+  - `service_charge_bps` and `gst_bps` (nullable ints)
+- `split_type` CHECK now allows 'itemized'.
+- Two new tables, `expense_items` and `expense_item_users`, as defined in spec §2.
+
+SQLite cannot alter a CHECK constraint, so the migration has to rebuild the `expenses` table. drizzle-kit generates that. Check that the generated SQL keeps all existing rows.
+
+**Interfaces:**
+- Consumes: `splitEqual`, `splitItemized`, `isExpenseLocked`, `computeBalances`, `simplifyDebts`, `CreateExpenseInput`, `ExpenseDTO`, `BalancesDTO`, `requireMember`, `loadLedger`.
 - Produces: the routes `GET|POST /groups/:id/expenses`, `PATCH|DELETE /expenses/:id` and `GET /groups/:id/balances`.
 - `GET /expenses` returns newest `spentOn` first, then newest `createdAt`.
 - Writes go through `db.batch` so the expense and its shares are stored together.
@@ -277,8 +324,11 @@ testApp(): { as(userId: string): (path: string, init?: RequestInit) => Promise<R
   - A third member who is neither creator nor owner tries `PATCH` → 403. The creator → 200. The owner → 200.
   - Once a confirmed settlement involves a participant (seed it in the DB), `PATCH` and `DELETE` → 409 `expense_locked`, and the list shows `locked: true`.
   - A non-member → 404 on every route.
+  - Itemized with the SG preset → 201. The stored shares equal `splitItemized`, and `GET` returns the `items`, `serviceChargeBps` and `gstBps`. A `PATCH` that switches it to equal deletes the old items.
+  - An item user who is not an active member → 422 `not_a_member`.
+  - `currency` differs from the group's currency → 422 `currency_mismatch`. When omitted, it defaults to the group's currency, and `fxRatePpm` is 1000000.
 - [ ] **Step 2: Run the tests.** Expect FAIL. **Step 3: Implement.** **Step 4: Run the tests.** Expect PASS.
-- [ ] **Step 5: Commit** with the message `feat(api): expenses with splits, lock rule, balances`
+- [ ] **Step 5: Commit** with the message `feat(api): expenses with equal/exact/itemized splits, lock rule, balances`
 
 ### Task 8: Settlements (two-sided confirmation)
 
@@ -356,6 +406,10 @@ testApp(): { as(userId: string): (path: string, init?: RequestInit) => Promise<R
   - BalanceCard: +500 → "You're owed $5.00". −500 → "You owe $5.00". 0 → "All square 🎉".
   - ExpenseForm in exact mode with 10.00 total, entering 4.00 and 5.00 → shows "$1.00 left to assign" with submit disabled. Entering 4.00 and 6.00 → submit enabled.
   - In equal mode, the per-person preview uses `splitEqual`.
+  - Itemized mode works like this:
+    - The form has a "Restaurant bill (SG)" toggle that turns on 10% service charge and 9% GST, plus rows for each item, each with a name, a price and member chips.
+    - The total updates live from `itemizedTotal`, and each person's share from `splitItemized`.
+    - Adding Laksa $10.00 for Alice and Satay $20.00 for Bob gives a total of $35.97, with Alice $11.99 and Bob $23.98.
 - [ ] **Step 2: Run the tests.** Expect FAIL. **Step 3: Implement.**
   - "Needs your action" shows pending settlements where I am the creditor (confirm/reject) or the debtor (cancel).
   - A suggested transfer for which I am the debtor gets a "Settle" button that pre-fills the amount.

@@ -22,12 +22,24 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - Split types:
   - **equal**: `floor(amount / n)` each. Leftover cents go to the payer if the payer is a participant, otherwise one cent each to participants in a stable order (by user id).
   - **exact**: the client sends cents per participant. They must be > 0 and add up exactly to the amount.
+  - **itemized** (added 2026-11-19 to fix a real Tricount pain point): the bill is entered as line items. Each item has a name, a price in cents, and the members who shared it.
+    - Each item is split equally between its members, using the same remainder rule as **equal** with the payer as the tie-breaker.
+    - **Service charge** and **GST** are optional percentages in basis points, each 0–3000. The Singapore preset is 1000 (10%) and 900 (9%).
+    - `total = round(subtotal × (1 + sc) × (1 + gst))`. GST is charged on top of the service charge, as Singapore bills do. Use BigInt for the multiplication.
+    - Each person's share of the total is allocated in proportion to their item subtotal, using the largest-remainder method. Ties go to the lower user id. This keeps every share a whole number of cents and makes the shares add up to the total exactly.
+    - The expense's `amount_cents` must equal that total.
+    - If anyone would end up with a 0-cent share, the request is rejected with 422 `amount_too_small`.
+    - The participants are everyone who appears on at least one item.
 - Only the **creator** or the **group owner** can edit or delete an expense.
 - **Lock rule:** an expense is locked (no edit or delete) once a *confirmed* settlement exists whose debtor or creditor is among the expense's people (payer ∪ participants) and whose `resolved_at` is later than the expense's `created_at`.
 
 ### Money
 - One currency per group, chosen when the group is created (ISO code, default `SGD`). It cannot be changed after the first expense.
 - All amounts are **integer cents**. No floating point anywhere in money code.
+- **Ready for multiple currencies later:**
+  - Every expense stores `currency` and `fx_rate_ppm`, an integer exchange rate in parts per million.
+  - In v1, `currency` must equal the group's currency (otherwise 422 `currency_mismatch`) and `fx_rate_ppm` is always 1000000.
+  - Adding real multiple-currency support later then needs no schema change.
 
 ### Settle-up (the shared, two-party action)
 - Only the **debtor** starts a settlement: "I paid Bob $40".
@@ -80,9 +92,13 @@ groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner
 memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable)
                pk(group_id, user_id)
 expenses       id (pk), group_id, description, amount_cents (int > 0), paid_by → users, created_by → users,
-               category (emoji text), spent_on (date), split_type ('equal'|'exact'), created_at, updated_at
+               category (emoji text), spent_on (date), split_type ('equal'|'exact'|'itemized'),
+               currency, fx_rate_ppm (int, default 1000000), service_charge_bps (int, nullable), gst_bps (int, nullable),
+               created_at, updated_at
 expense_shares expense_id → expenses (cascade), user_id → users, amount_cents (int > 0)
                pk(expense_id, user_id)
+expense_items  id (pk), expense_id → expenses (cascade), position (int), name, amount_cents (int > 0)
+expense_item_users item_id → expense_items (cascade), user_id → users      pk(item_id, user_id)
 settlements    id (pk), group_id, from_user_id (debtor), to_user_id (creditor), amount_cents,
                status ('pending'|'confirmed'|'rejected'|'cancelled'), created_at, resolved_at
 spins          id (pk), group_id, spun_by → users, winner_id → users, weights_json, created_at
@@ -168,5 +184,15 @@ squadsplit/                  (npm workspaces)
   - **Worker** (set with `wrangler secret put`): `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`
   - The person who owns the accounts sets these; they are never put in the repo.
 
-## 6. Out of scope (v2)
-Multiple currencies, percentage or share splits, guest participants, ownership transfer, deleting a group, live updates, a preview deploy per PR, a custom domain, permanent achievements, comments and reactions, receipt photos.
+## 6. Roadmap after v1
+
+**v1.1** (agreed 2026-11-19; these address Tricount and Splitwise pain points):
+- **Settle up with a PayNow QR.** It's pre-filled with the creditor's opted-in PayNow phone number and the amount. The app never handles money.
+- **"Poke" nudges** on a debt, and an optional weekly email summary.
+- **Export to CSV.**
+- **Install as a phone app (PWA)** with an offline queue for new expenses.
+
+**Later:** repeating expenses (such as rent), scanning a receipt photo to fill in an itemized bill with AI, and real support for multiple currencies (the columns already exist).
+
+**Out of scope (v2):**
+Percentage or share splits, guest participants, ownership transfer, deleting a group, live updates, a preview deploy per PR, a custom domain, permanent achievements, comments and reactions.
