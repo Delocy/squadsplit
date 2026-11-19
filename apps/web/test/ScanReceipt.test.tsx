@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReceiptScanDTO } from '@squadsplit/shared'
 import { downscaleImage, UnsupportedPhotoError } from '../src/receipt/downscale'
-import { groupHandlers } from './group-fixtures'
+import { expense, groupHandlers } from './group-fixtures'
 import { fakeApi, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -69,8 +69,10 @@ const itemRows = (dialog: ReturnType<typeof within>) =>
 const sgToggle = (dialog: ReturnType<typeof within>) => dialog.getByRole('checkbox', { name: /Restaurant bill/ }) as HTMLInputElement
 
 describe('Scan receipt', () => {
-  it('offers the camera and a photo from the gallery in By item mode only', async () => {
+  it('offers the camera and a photo from the gallery once, in a receipt card at the top of the form', async () => {
     const { dialog } = await openByItem(() => ({ status: 200, body: AI_SCAN }))
+    expect(dialog.getAllByLabelText('Scan receipt')).toHaveLength(1)
+    expect(dialog.getAllByLabelText('Pick a photo')).toHaveLength(1)
     const camera = dialog.getByLabelText('Scan receipt') as HTMLInputElement
     expect(camera.type).toBe('file')
     // An explicit list, not image/*: some desktop and embedded pickers apply image/* badly and grey out .jpeg files.
@@ -82,7 +84,63 @@ describe('Scan receipt', () => {
     expect(gallery.accept).toBe(ACCEPT)
     expect(gallery.hasAttribute('capture')).toBe(false)
 
+  })
+
+  it('shows the receipt card in Equally mode on a new expense, above the description', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    expect(within(dialog).getByRole('button', { name: 'Equally' }).getAttribute('aria-pressed')).toBe('true')
+    const card = within(dialog).getByRole('region', { name: 'Scan a receipt' })
+    expect(card.textContent).toContain("Got a receipt? Scan it and we'll fill in the items.")
+    expect(card.querySelector('svg')).toBeTruthy()
+    expect(within(card).getByLabelText('Scan receipt')).toBeTruthy()
+    expect(within(card).getByLabelText('Pick a photo')).toBeTruthy()
+    // Above the description.
+    expect(card.compareDocumentPosition(within(dialog).getByLabelText('Description')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(dialog.textContent).not.toMatch(EMOJI)
+  })
+
+  it('switches an Equally split to By item when a scan works, filling in the items and the total', async () => {
+    fakeApi(groupHandlers({}, { 'POST /groups/g1/receipts/scan': () => ({ status: 200, body: AI_SCAN }) }))
+    renderApp('/groups/g1/expenses/new')
+    const dialog = within(await screen.findByRole('dialog', { name: 'New expense' }))
+    choose(dialog.getByLabelText('Scan receipt'))
+    expect(await dialog.findByText('Read your receipt — total $93.52 matches. Tap who had what.')).toBeTruthy()
+    expect(dialog.getByRole('button', { name: 'By item' }).getAttribute('aria-pressed')).toBe('true')
+    expect(itemRows(dialog)).toEqual([['Laksa', '60.00'], ['Satay x10', '18.00']])
+    expect(sgToggle(dialog).checked).toBe(true)
+    expect(dialog.getByTestId('bill-total').textContent).toBe('$93.52')
+    // The receipt total is the amount too, should the split go back to Equally.
     fireEvent.click(dialog.getByRole('button', { name: 'Equally' }))
+    expect((dialog.getByLabelText('Amount (SGD)') as HTMLInputElement).value).toBe('93.52')
+  })
+
+  it('asks before replacing an amount typed in Equally mode', async () => {
+    fakeApi(groupHandlers({}, { 'POST /groups/g1/receipts/scan': () => ({ status: 200, body: AI_SCAN }) }))
+    renderApp('/groups/g1/expenses/new')
+    const dialog = within(await screen.findByRole('dialog', { name: 'New expense' }))
+    fireEvent.change(dialog.getByLabelText('Amount (SGD)'), { target: { value: '40' } })
+
+    choose(dialog.getByLabelText('Scan receipt'))
+    expect(await dialog.findByText("Replace what you've entered with the receipt?")).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Keep mine' }))
+    expect(dialog.getByRole('button', { name: 'Equally' }).getAttribute('aria-pressed')).toBe('true')
+    expect((dialog.getByLabelText('Amount (SGD)') as HTMLInputElement).value).toBe('40')
+
+    choose(dialog.getByLabelText('Pick a photo'))
+    fireEvent.click(await dialog.findByRole('button', { name: 'Replace' }))
+    expect(dialog.getByRole('button', { name: 'By item' }).getAttribute('aria-pressed')).toBe('true')
+    expect(itemRows(dialog)).toEqual([['Laksa', '60.00'], ['Satay x10', '18.00']])
+  })
+
+  it('leaves the receipt card out when editing an expense', async () => {
+    fakeApi(groupHandlers({ expenses: [expense()] }))
+    renderApp('/groups/g1/expenses/e1')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    await dialog.findByLabelText('Description')
+    expect(dialog.queryByRole('region', { name: 'Scan a receipt' })).toBeNull()
+    fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
     expect(dialog.queryByLabelText('Scan receipt')).toBeNull()
   })
 
@@ -185,8 +243,8 @@ describe('Scan receipt', () => {
     expect(dialog.queryByText(/^Read your receipt/)).toBeNull()
 
     choose(dialog.getByLabelText('Scan receipt'))
-    expect((await dialog.findByText(/Replace the items you typed/)).textContent).toBe('Replace the items you typed with the 2 from the receipt?')
-    fireEvent.click(dialog.getByRole('button', { name: 'Replace items' }))
+    expect(await dialog.findByText("Replace what you've entered with the receipt?")).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Replace' }))
     expect(itemRows(dialog)).toEqual([
       ['Laksa', '60.00'],
       ['Satay x10', '18.00'],

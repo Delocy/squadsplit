@@ -35,12 +35,15 @@ describe('narrow-screen layout rules', () => {
     expect(rule('.dlg-b')).toContain('min-width: 0')
     expect(rule('.dlg-b')).toContain('overflow-x: hidden')
     expect(rule('.scan-actions')).toContain('flex-wrap: wrap')
+    // The receipt card's text column can shrink at 375px instead of pushing the dialog wider.
+    expect(rule('.scan-card')).toContain('grid-template-columns: auto minmax(0, 1fr)')
+    expect(rule('.scan-lede')).toContain('overflow-wrap: anywhere')
     expect(rule('.scan-banner')).toContain('overflow-wrap: anywhere')
   })
 
-  it('animates the receipt reader with the existing bob motion, which reduced motion turns off', () => {
-    expect(rule('.scan-spin')).toMatch(/animation: bob /)
-    expect(css).toContain('@keyframes bob')
+  it('spins the receipt reader on the Scan button, which reduced motion turns off', () => {
+    expect(rule('.spinner')).toMatch(/animation: spin /)
+    expect(css).toContain('@keyframes spin')
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after, ::backdrop \{ animation: none !important;/)
   })
 

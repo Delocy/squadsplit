@@ -271,17 +271,21 @@ input[type=date] { width: auto; }
 .chip.toggle .hint { display: block; font-weight: 700; font-size: 11.5px; color: var(--muted); }
 .items { display: grid; gap: 8px; margin: 10px 0; }
 .item { border: 2px solid var(--line); border-radius: 14px; padding: 8px; display: grid; gap: 8px; background: var(--soft); }
-/* scan a receipt (By item) */
-.scan { margin-top: 12px; min-width: 0; }
+/* scan a receipt: the card at the top of a new expense */
+.scan-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; align-items: start; margin-top: 14px; padding: 12px;
+  border: 2px solid var(--ink); border-radius: 14px; background: var(--accent-soft); box-shadow: 2px 2px 0 var(--ink); min-width: 0; }
+.scan-ic { width: 40px; height: 40px; border-radius: 12px; border: 2px solid var(--ink); background: var(--card); display: grid; place-items: center; padding: 6px; flex: none; }
+.scan-ic svg { width: 100%; height: 100%; }
+.scan-main { min-width: 0; display: grid; gap: 8px; }
+.scan-lede { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
 .scan-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .scan-actions .btn { position: relative; }
+.scan-actions .btn.ghost { background: var(--card); }
+.scan-actions .btn.busy { opacity: .7; cursor: progress; }
 .scan-actions .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.scan-reading { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--muted); }
-.scan-spin { display: inline-flex; animation: bob 1s ease-in-out infinite; }
-.scan-spin svg { width: 20px; height: 20px; color: var(--accent); }
-.scan-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
+.scan-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
 .scan-confirm p { flex-basis: 100%; margin: 0; }
-.scan-banner { margin: 8px 0 0; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--soft); font-size: 12.5px; overflow-wrap: anywhere; }
+.scan-banner { margin: 0; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--soft); font-size: 12.5px; overflow-wrap: anywhere; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .item-h { display: grid; grid-template-columns: 1fr 96px auto; gap: 6px; align-items: center; }
 .item-h input { padding: 6px 10px; background: var(--card); }

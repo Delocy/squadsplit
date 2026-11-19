@@ -95,8 +95,14 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
   }
 }
 
-/** Whether the user has typed anything into the item rows (so a scan should ask before replacing them). */
-export const hasTypedItems = (d: ExpenseDraft) => d.items.some((it) => it.name.trim() !== '' || it.price.trim() !== '')
+/**
+ * Whether the user has typed an amount, exact shares or item rows: what a scan would replace, so it asks first.
+ * The description, date, category and payer are kept by a scan, so they don't count.
+ */
+export const hasEnteredAmounts = (d: ExpenseDraft) =>
+  d.amount.trim() !== '' ||
+  Object.values(d.exact).some((v) => v.trim() !== '') ||
+  d.items.some((it) => it.name.trim() !== '' || it.price.trim() !== '')
 
 /** Whether a receipt's charges are the SG 10% service charge and 9% GST the restaurant bill toggle adds (to within half a percent). */
 export const isSgRestaurantBill = (r: Pick<ReceiptScanResult, 'serviceChargeBps' | 'gstBps'>) =>
@@ -106,13 +112,15 @@ export const isSgRestaurantBill = (r: Pick<ReceiptScanResult, 'serviceChargeBps'
   Math.abs(r.gstBps - SG_PRESET.gstBps) <= 50
 
 /**
- * The form filled in from a scanned receipt: its items replace the rows (nobody assigned yet), and the restaurant
- * bill toggle is on only for SG 10% + 9% charges, since the form has no other rates.
+ * The form filled in from a scanned receipt: the split becomes By item, its items replace the rows (nobody assigned
+ * yet), and the restaurant bill toggle is on only for SG 10% + 9% charges, since the form has no other rates. The
+ * receipt's total, when it shows one, becomes the amount too, for a switch back to Equally or Exact amounts.
  */
 export function applyScan(d: ExpenseDraft, scan: ReceiptScanResult): ExpenseDraft {
   return {
     ...d,
     mode: 'itemized',
+    amount: scan.totalCents === null ? d.amount : centsToInput(scan.totalCents),
     items: scan.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents) })),
     restaurantBill: isSgRestaurantBill(scan),
   }

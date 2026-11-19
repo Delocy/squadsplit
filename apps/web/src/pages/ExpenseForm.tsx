@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
-import { ScanReceiptButton } from '../components/ScanReceiptButton'
+import { ScanReceiptCard } from '../components/ScanReceiptCard'
 import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
@@ -22,7 +22,7 @@ import {
   applyScan,
   draftFromExpense,
   emptyItem,
-  hasTypedItems,
+  hasEnteredAmounts,
   newDraft,
   summarize,
   type ExpenseDraft,
@@ -248,6 +248,18 @@ function ExpenseFields({
 
   return (
     <form onSubmit={submit} noValidate>
+      {/* New expenses only: one obvious place to start from a receipt, whatever the split. */}
+      {!expense && (
+        <ScanReceiptCard
+          groupId={group.id}
+          currency={currency}
+          hasEnteredAmounts={hasEnteredAmounts(draft)}
+          onScan={(scan) => {
+            setProblem(null)
+            setDraft((d) => applyScan(d, scan))
+          }}
+        />
+      )}
       <div className="two">
         <div>
           <label className="f" htmlFor="exp-desc">
@@ -376,15 +388,6 @@ function ExpenseFields({
 
       {draft.mode === 'itemized' && (
         <>
-          <ScanReceiptButton
-            groupId={group.id}
-            currency={currency}
-            hasTypedItems={hasTypedItems(draft)}
-            onScan={(scan) => {
-              setProblem(null)
-              setDraft((d) => applyScan(d, scan))
-            }}
-          />
           <label className="chip toggle">
             <input type="checkbox" checked={draft.restaurantBill} onChange={(e) => update({ restaurantBill: e.target.checked })} />
             <span>
