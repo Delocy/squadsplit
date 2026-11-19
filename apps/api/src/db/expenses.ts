@@ -121,7 +121,7 @@ export async function loadExpenses(d: Db, filter: { groupId: string } | { expens
 /** D1 binds at most 100 parameters per statement, so multi-row inserts are split to stay under it. */
 const D1_MAX_PARAMS = 100
 
-function chunked<T extends object>(rows: T[]): T[][] {
+export function chunked<T extends object>(rows: T[]): T[][] {
   if (rows.length === 0) return []
   const size = Math.floor(D1_MAX_PARAMS / Object.keys(rows[0]!).length)
   const chunks: T[][] = []

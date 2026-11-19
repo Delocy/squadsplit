@@ -200,3 +200,106 @@ export const receiptScans = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.day] }), index('receipt_scans_day_idx').on(t.day)],
 )
+
+export const PAID_MARKED_BY = ['guest', 'payer'] as const
+
+/**
+ * A quick split: one bill, outside any group, split with people who have no accounts. Only its owner sees it in the
+ * app; anyone with its share link sees the names and amounts. Totals are never stored (see quickSplitBreakdown).
+ */
+export const quickSplits = sqliteTable(
+  'quick_splits',
+  {
+    id: text('id').primaryKey(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id),
+    title: text('title').notNull(),
+    place: text('place'),
+    spentOn: text('spent_on').notNull(),
+    currency: text('currency').notNull().default('SGD'),
+    serviceChargeBps: integer('service_charge_bps'),
+    gstBps: integer('gst_bps'),
+    /** 22 characters of base64url (128 random bits). The link stops at share_expires_at, or once revoked. */
+    shareToken: text('share_token').unique(),
+    shareExpiresAt: text('share_expires_at'),
+    shareRevokedAt: text('share_revoked_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('quick_splits_owner_id_idx').on(t.ownerId),
+    check('quick_splits_service_charge_bps_check', sql`${t.serviceChargeBps} BETWEEN 0 AND 3000`),
+    check('quick_splits_gst_bps_check', sql`${t.gstBps} BETWEEN 0 AND 3000`),
+  ],
+)
+
+/** Who's in a quick split, by name, in the order entered (position 0 is the owner). Exactly one paid the bill. */
+export const quickSplitPeople = sqliteTable(
+  'quick_split_people',
+  {
+    id: text('id').primaryKey(),
+    splitId: text('split_id')
+      .notNull()
+      .references(() => quickSplits.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    animal: text('animal').notNull(),
+    color: text('color').notNull(),
+    position: integer('position').notNull(),
+    isPayer: integer('is_payer', { mode: 'boolean' }).notNull().default(false),
+    /** When they were ticked as paid, and by whom: the guest on the share link, or the payer. Never set for the payer. */
+    paidAt: text('paid_at'),
+    paidMarkedBy: text('paid_marked_by', { enum: PAID_MARKED_BY }),
+  },
+  (t) => [
+    index('quick_split_people_split_id_idx').on(t.splitId),
+    /** One payer per split. Plain column names: SQLite rejects qualified ones here. */
+    uniqueIndex('quick_split_people_payer_uq').on(t.splitId).where(sql`is_payer = 1`),
+    check('quick_split_people_paid_marked_by_check', sql`${t.paidMarkedBy} IN (${oneOf(PAID_MARKED_BY)})`),
+  ],
+)
+
+/** The dishes on a quick split's bill, in bill order. */
+export const quickSplitItems = sqliteTable(
+  'quick_split_items',
+  {
+    id: text('id').primaryKey(),
+    splitId: text('split_id')
+      .notNull()
+      .references(() => quickSplits.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    index('quick_split_items_split_id_idx').on(t.splitId),
+    check('quick_split_items_amount_cents_check', sql`${t.amountCents} > 0`),
+  ],
+)
+
+/** Who had each dish. */
+export const quickSplitItemPeople = sqliteTable(
+  'quick_split_item_people',
+  {
+    itemId: text('item_id')
+      .notNull()
+      .references(() => quickSplitItems.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => quickSplitPeople.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.personId] })],
+)
+
+/** Ticks and unticks on a quick split's share link per UTC hour ('YYYY-MM-DDTHH'), for the hourly limit. */
+export const quickSplitTicks = sqliteTable(
+  'quick_split_ticks',
+  {
+    splitId: text('split_id')
+      .notNull()
+      .references(() => quickSplits.id, { onDelete: 'cascade' }),
+    hour: text('hour').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.splitId, t.hour] }), index('quick_split_ticks_hour_idx').on(t.hour)],
+)

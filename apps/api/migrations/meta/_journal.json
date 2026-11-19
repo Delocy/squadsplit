@@ -43,6 +43,13 @@
       "when": 1795090026815,
       "tag": "0005_named_members_profile_look",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795092386635,
+      "tag": "0006_quick_splits",
+      "breakpoints": true
     }
   ]
 }
