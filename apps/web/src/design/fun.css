@@ -133,11 +133,11 @@
 .big-stamp svg { width: 100%; height: 100%; }
 @keyframes stampDown { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
 @keyframes slipShake { 0%, 100% { transform: none; } 30% { transform: translateY(2px); } }
-.earned { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.moment { position: relative; }
+.earned { position: absolute; top: 6px; right: 6px; z-index: 3; display: grid; justify-items: center; gap: 2px; pointer-events: none; }
 .earned .sticker.slap { animation-delay: 2.6s; }
-.earned .sticker .die { width: 56px; height: 56px; }
-.earned .t { font: 700 15px Fredoka, sans-serif; }
-.earned .s { font-size: 12.5px; color: var(--muted); }
+.earned .sticker .die { width: 44px; height: 44px; padding: 5px; }
+.earned b { font: 700 11px/1.1 Fredoka, sans-serif; animation: phew .3s ease-out 2.8s both; }
 
 /* the empty group's album page */
 .album { position: relative; padding-top: 24px; }

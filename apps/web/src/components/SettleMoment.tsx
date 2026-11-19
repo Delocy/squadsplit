@@ -83,16 +83,15 @@ export function SettleMoment({
         </span>
       </div>
       {newSticker && (
+        // Slapped onto the moment's corner, so it takes no room: it can arrive after the refetched titles do.
         <div className="earned">
-          <div className="sticker slap" style={{ '--r': '-5deg' } as CSSProperties}>
+          <div className="sticker slap" style={{ '--r': '-8deg' } as CSSProperties}>
             <span className="die">
               <BadgeArt badgeKey="good_egg" />
             </span>
           </div>
-          <div>
-            <div className="t">New sticker for {people.name(payer)}</div>
-            <div className="s">Good Egg</div>
-          </div>
+          <span className="sr-only">New sticker for {people.name(payer)}</span>
+          <b>Good Egg</b>
         </div>
       )}
       <button type="button" className="btn small ghost" onClick={onClose}>

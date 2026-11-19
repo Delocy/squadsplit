@@ -31,31 +31,30 @@ export function PendingActions({
   fun?: FunDTO
 }) {
   const api = useApi()
-  const resolve = useGroupMutation(groupId, ({ id, action }: { id: string; action: Action }) =>
-    api.post<SettlementDTO>(`/settlements/${id}/${action}`),
-  )
+  // `done` runs as soon as the API says yes, before the group is refetched (callbacks passed to mutate wait for that).
+  const resolve = useGroupMutation(groupId, async ({ id, action, done }: { id: string; action: Action; done?: () => void }) => {
+    const settlement = await api.post<SettlementDTO>(`/settlements/${id}/${action}`)
+    done?.()
+    return settlement
+  })
   /** The payback you just confirmed, celebrated until you close it, and who held Good Egg before it (if known). */
   const [confirmed, setConfirmed] = useState<{ settlement: SettlementDTO; goodEggBefore: string | null | undefined } | null>(null)
   const goodEgg = (f: FunDTO | undefined) => (f ? (f.badges.find((b) => b.key === 'good_egg')?.userId ?? null) : undefined)
   const act = (s: SettlementDTO, action: Action) => (e: MouseEvent<HTMLButtonElement>) => {
     const button = e.currentTarget
     const goodEggBefore = goodEgg(fun)
-    resolve.mutate(
-      { id: s.id, action },
-      {
-        onSuccess: () => {
-          if (action !== 'confirm') return
-          confetti(button)
-          setConfirmed({ settlement: s, goodEggBefore })
-        },
-      },
-    )
+    // A confirmed payback is celebrated straight away, in its row's place, so the page moves once, as you click.
+    const celebrate = () => {
+      confetti(button)
+      setConfirmed({ settlement: s, goodEggBefore })
+    }
+    resolve.mutate({ id: s.id, action, done: action === 'confirm' ? celebrate : undefined })
   }
 
   const busy = (id: string, action: Action) =>
     resolve.isPending && resolve.variables?.id === id && resolve.variables.action === action
 
-  const mine = pending.filter((s) => s.toUserId === me || s.fromUserId === me)
+  const mine = pending.filter((s) => s.id !== confirmed?.settlement.id && (s.toUserId === me || s.fromUserId === me))
   return (
     <>
       {confirmed && (
