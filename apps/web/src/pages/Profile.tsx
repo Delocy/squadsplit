@@ -6,6 +6,7 @@ import { useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
 import { PageLink } from '../components/PageLink'
+import { ProfileSkeleton } from '../components/Skeletons'
 import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -17,10 +18,17 @@ import { useMe } from '../useProfileRefresh'
  * it. It's yours alone, so every look is open; inside each group you still pick your own.
  */
 export function Profile() {
+  const me = useMe()
+  // Until your profile arrives there's nothing to compare a pick with, so Save would be wrong either way.
+  if (me.isPending) return <ProfileSkeleton />
+  return <ProfileLook me={me.data} />
+}
+
+/** The picker, starting from your saved look (your default if your profile couldn't load). */
+function ProfileLook({ me }: { me: MeDTO | undefined }) {
   const api = useApi()
   const userId = useAuth().userId ?? ''
   const queryClient = useQueryClient()
-  const me = useMe().data
   const current = me?.profileAvatar ?? defaultAvatar(userId)
   const [choice, setChoice] = useState<AvatarChoice | null>(null)
   const avatar = choice ?? current

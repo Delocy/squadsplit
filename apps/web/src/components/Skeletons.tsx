@@ -281,6 +281,27 @@ export function SettingsSkeleton() {
   )
 }
 
+/** `/me` before your profile arrives. */
+export function ProfileSkeleton() {
+  return (
+    <main className="narrow page" aria-busy="true">
+      <Status>Loading your profile look…</Status>
+      <div className="page-h" aria-hidden="true">
+        <h2>Your profile look</h2>
+        <Skeleton w={150} h={27} r={10} />
+      </div>
+      <div className="card" aria-hidden="true">
+        <Heading icon="star">Your animal</Heading>
+        <p className="s">
+          <SkText w={260} />
+        </p>
+        <Skeleton h={44} r={12} />
+        <Skeleton h={160} r={14} style={{ marginTop: 12 }} />
+      </div>
+    </main>
+  )
+}
+
 /** `/join/:code` before the invite preview arrives. */
 export function JoinSkeleton() {
   return (

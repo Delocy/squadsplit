@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
 import { groupHandlers } from './group-fixtures'
-import { fakeApi, renderApp, type Handler } from './harness'
+import { fakeApi, held, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 afterEach(() => {
@@ -75,5 +75,31 @@ describe('profile look', () => {
     fakeApi(groupHandlers({}, { 'GET /me': meWith(LOOK), 'GET /groups/g1': () => new Promise(() => {}) }))
     renderApp('/groups/g1')
     await vi.waitFor(() => expect(screen.getByRole('img', { name: 'You' }).style.getPropertyValue('--c')).toBe(AVATAR_COLORS.mint))
+  })
+
+  it('holds your avatar’s place in the top bar until your profile loads, instead of flashing the default look', async () => {
+    const me = held({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null, profileAvatar: LOOK } })
+    fakeApi({ 'GET /me': me.handler, 'GET /groups': () => ({ status: 200, body: [] }) })
+    renderApp('/groups')
+    const button = await screen.findByRole('button', { name: 'Your menu' })
+    expect(within(button).queryByRole('img', { name: 'You' })).toBeNull()
+    expect(button.querySelector('.sk')).toBeTruthy()
+
+    me.release()
+    await vi.waitFor(() => expect(within(button).getByRole('img', { name: 'You' }).style.getPropertyValue('--c')).toBe(AVATAR_COLORS.mint))
+  })
+
+  it('shows a skeleton on the profile page until your profile loads, then starts from your look', async () => {
+    const me = held({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null, profileAvatar: LOOK } })
+    fakeApi({ 'GET /me': me.handler })
+    renderApp('/me')
+    expect(await screen.findByText('Loading your profile look…')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Animal' })).toBeNull()
+
+    me.release()
+    await vi.waitFor(() => expect(pressed('Animal')).toEqual(['Penguin']))
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Bunny' }))
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
