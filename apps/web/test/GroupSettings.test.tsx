@@ -23,11 +23,10 @@ const conflict = (code: string, message = 'Blocked'): Handler => () => ({ status
 const region = (name: string | RegExp) => within(screen.getByRole('region', { name }))
 const hasCall = (calls: { key: string }[], key: string) => calls.some((c) => c.key === key)
 
-/** The group as Alice sees it when Bob owns it: no invite code. */
+/** The group as Alice sees it when Bob owns it. */
 const bobsGroup = () =>
   group({
     ownerId: BOB,
-    inviteCode: null,
     members: [
       member(BOB, 'Bob', BOB_AVATAR, { role: 'owner' }),
       member(ME, 'Alice', ME_AVATAR),

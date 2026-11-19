@@ -95,14 +95,14 @@ export function groupRoutes() {
           ...placeholders.flatMap((p, i) => insertPlaceholder(d, id, p, new Date(created + i + 1).toISOString())),
         ]),
       )
-      return c.json(await groupDTO(d, id, me), 201)
+      return c.json(await groupDTO(d, id), 201)
     })
 
     .get('/:id', async (c) => {
       const d = db(c.env)
       const groupId = c.req.param('id')
       await requireMember(d, groupId, c.var.userId)
-      return c.json(await groupDTO(d, groupId, c.var.userId))
+      return c.json(await groupDTO(d, groupId))
     })
 
     .patch('/:id', async (c) => {
@@ -120,7 +120,7 @@ export function groupRoutes() {
         }
       }
       await d.update(groups).set(input).where(eq(groups.id, groupId))
-      return c.json(await groupDTO(d, groupId, c.var.userId))
+      return c.json(await groupDTO(d, groupId))
     })
 
     .post('/:id/invite/reset', async (c) => {
@@ -152,7 +152,7 @@ export function groupRoutes() {
       const [placeholder] = newPlaceholders([name], taken)
       const [, written] = await storingLook(d.batch(insertNameIfRoom(d, groupId, placeholder!, new Date().toISOString())))
       if (written.length === 0) throw groupFull()
-      const group = await groupDTO(d, groupId, me)
+      const group = await groupDTO(d, groupId)
       return c.json<MemberDTO>(group.members.find((m) => m.userId === placeholder!.id)!, 201)
     })
 
@@ -173,7 +173,7 @@ export function groupRoutes() {
           .set({ ...(avatar && avatarColumns(avatar)), ...(nickname !== undefined && { nickname }) })
           .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, me))),
       )
-      const group = await groupDTO(d, groupId, me)
+      const group = await groupDTO(d, groupId)
       return c.json<MemberDTO>(group.members.find((m) => m.userId === me)!)
     })
 
@@ -271,6 +271,6 @@ export function groupRoutes() {
         throw err
       }
       if (moved.length === 0) throw new HttpError(404, 'not_found', 'Group not found')
-      return c.json<GroupDTO>(await groupDTO(d, groupId, me))
+      return c.json<GroupDTO>(await groupDTO(d, groupId))
     })
 }

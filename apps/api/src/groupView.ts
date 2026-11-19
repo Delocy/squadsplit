@@ -7,8 +7,8 @@ import { HttpError } from './errors'
 
 const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
-/** The group as `viewerId` sees it: the invite code is for the owner's eyes only. */
-export async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<GroupDTO> {
+/** The group as its members see it. Every member, guests too, sees the invite code, so anyone can share the link. */
+export async function groupDTO(d: Db, groupId: string): Promise<GroupDTO> {
   const [[group], members, sessions] = await d.batch([
     d.select().from(groups).where(eq(groups.id, groupId)).limit(1),
     d
@@ -45,7 +45,7 @@ export async function groupDTO(d: Db, groupId: string, viewerId: string): Promis
     name: group.name,
     emoji: group.emoji,
     currency: group.currency as Currency,
-    inviteCode: viewerId === group.ownerId ? group.inviteCode : null,
+    inviteCode: group.inviteCode,
     ownerId: group.ownerId,
     members: members.map(({ profileName, joinedAt: _joinedAt, leftAt, avatarAnimal, avatarColor, kind, ...m }) => ({
       ...m,

@@ -165,7 +165,7 @@ export function publicInviteRoutes(deps: AuthDeps) {
         nameId !== undefined
           ? await claimAsGuest(d, group.id, nameId, look, tokenHash, now)
           : await joinAsNewGuest(d, group.id, name!, look, tokenHash, now)
-      const member = (await groupDTO(d, group.id, guestId)).members.find((m) => m.userId === guestId)!
+      const member = (await groupDTO(d, group.id)).members.find((m) => m.userId === guestId)!
       return c.json<GuestJoinDTO>({ token, groupId: group.id, member }, 201)
     })
 }

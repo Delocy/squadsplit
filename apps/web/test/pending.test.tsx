@@ -141,7 +141,7 @@ describe('buttons waiting on the server', () => {
     const del = held({ status: 204 })
     fakeApi(
       groupHandlers(
-        { group: group({ ownerId: BOB, inviteCode: null, members: [member(BOB, 'Bob', { animal: 'koala', color: 'mint' }, { role: 'owner' }), member(ME, 'Alice', { animal: 'fox', color: 'peach' })] }) },
+        { group: group({ ownerId: BOB, members: [member(BOB, 'Bob', { animal: 'koala', color: 'mint' }, { role: 'owner' }), member(ME, 'Alice', { animal: 'fox', color: 'peach' })] }) },
         { [`DELETE /groups/g1/members/${ME}`]: del.handler },
       ),
     )

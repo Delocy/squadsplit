@@ -11,7 +11,7 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 ### Groups and membership
 - A **Group** ("squad") is the authorization boundary. Every read and write of group data requires the caller to be a current member.
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
-- People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
+- People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). **Everyone in the group can see and share the invite link and code**, members and guests alike (decided 2026-11-19: the link already lets anyone join, so sharing it adds no risk). Only the owner can reset the code, which stops the old link working.
 - **Named members, Tricount-style** (added 2026-11-19 at the user's request): the creator can name everyone else when creating the group (0–11 names, same rules as a nickname: 1–24 characters, no emoji or control characters), and the owner can add more names later in the group's settings.
   - Each unclaimed name is a real member (a **placeholder**): it has its own unique look (the first free one from its default), can pay, share, be on an item and be settled with, shows on the leaderboard, badges and wheel, and counts towards the cap. The app tags it "Not joined yet". A placeholder never signs in: its `ph_` id is refused as a session.
   - Joining asks **"Which one are you?"** with the unclaimed names and **"I'm new"**. Claiming a name makes you that person everywhere (expenses paid and logged, shares, items, settlements, spins and their weights) in one batch, keeps its look unless you pick another, and makes its name your nickname unless you set one; the placeholder is then deleted. Someone who has ever been in the group can't claim (409 `already_in_group`); a name already claimed, or not one of this group's, is 409 `already_claimed`. Claiming works in a full group, since it takes the name's place. Former members rejoin as themselves and aren't asked.
@@ -207,7 +207,7 @@ Error responses:
 | `GET /groups` | any user (returns their own groups; not a guest) |
 | `POST /groups` (optional `nickname` for the owner, optional `members`: up to 11 names) | any user (they become the owner; not a guest) |
 | `POST /groups/:id/placeholders` (`{ name }`; 409 `group_full`) | owner |
-| `GET /groups/:id` | member |
+| `GET /groups/:id` (includes the invite code, for every member and guest) | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
 | `POST /groups/:id/invite/reset` | owner (also signs every guest of the group out) |
 | `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, your old look if you're a former member, and the unclaimed names with their looks; signed out, `alreadyMember: false` and `myFormerAvatar: null`) | anyone with the code, no sign-in |
@@ -254,7 +254,8 @@ Request and response schemas are zod objects in `packages/shared`, used by both 
   - **Group home:** my balance card, the leaderboard with badges, "needs your action" (settlements waiting for me to confirm), suggested settle-ups, and the feed
   - Add/edit expense
   - Wheel (an animated spin)
-  - Group settings (invite link and QR code, members). The owner sees guests tagged "Guest" with "Free up name" (with a confirm), and the Reset link confirm says it signs out all guests
+  - Group settings (the invite card, members). The owner sees guests tagged "Guest" with "Free up name" (with a confirm)
+  - **The invite card**, for every member and guest: "Share invite link" (the phone's share sheet; hidden where there is none, and Copy leads instead), Copy (a toast says "Link copied. Paste it in your chat"; if copying fails, the link text is selected), the link as text, "Code: XXXX XXXX" spaced for reading aloud, and a "Show QR code" disclosure. The owner's "⋯" menu holds Reset link, whose confirm says the old link and code stop working and guests are signed out. It is the first card on Group settings and on a group with no expenses yet, and the "Invite" button on the group home opens it in a bottom sheet
   - **Quick split** (`/quick/new`, from "Quick split" next to "New group"): Bill → People → Assign, then the share card at `/quick/:id` with Copy text, Copy link and Save image (a PNG through the phone's share sheet, or a download), and the payer's ticks, Copy link, Stop sharing, Edit and Delete. The groups page lists recent quick splits with "2 of 3 paid".
   - **Share link** (`/s/:token`): works signed out and without Clerk loading at all; "Which one are you?" (remembered on the phone), "I've paid <payer> $X" with Undo, a "2 of 3 paid" bar and a PAID stamp once everyone has paid. It refetches every 30 seconds and on focus.
 - Works on a phone first, since people use it at the dinner table.

@@ -181,7 +181,7 @@ export interface MemberDTO {
 }
 /** `POST /invites/:code/guest` (201): the guest's token for this one group, and who they are in it. */
 export interface GuestJoinDTO { token: string; groupId: string; member: MemberDTO }
-export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string | null; ownerId: string; members: MemberDTO[] }
+export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string; ownerId: string; members: MemberDTO[] }
 export interface GroupSummaryDTO { id: string; name: string; emoji: string; currency: Currency; role: 'owner' | 'member'; myBalanceCents: number }
 /**
  * `memberCount` and `takenAvatars` include the unclaimed names (placeholders), which count towards the cap.

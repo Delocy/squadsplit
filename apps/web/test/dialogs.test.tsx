@@ -91,7 +91,6 @@ describe('the settle form', () => {
 describe('confirm bars', () => {
   const bobsGroup = group({
     ownerId: BOB,
-    inviteCode: null,
     members: [member(BOB, 'Bob', { animal: 'koala', color: 'mint' }, { role: 'owner' }), member(ME, 'Alice', { animal: 'fox', color: 'peach' })],
   })
 

@@ -38,7 +38,6 @@ const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
 /** The group as its guest Dave sees it: the owner is someone else (Alice). */
 const guestView = (over: Partial<GroupDTO> = {}) =>
   group({
-    inviteCode: null,
     members: [
       member(ME, 'Alice', ME_AVATAR, { role: 'owner' }),
       member(BOB, 'Bob', BOB_AVATAR),

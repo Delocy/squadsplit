@@ -139,14 +139,21 @@ describe('GET /groups/:id', () => {
     expect((await alice('/groups/no-such-group')).status).toBe(404)
   })
 
-  it('shows the invite code to the owner only', async () => {
+  it('shows the invite code to every member, so anyone in the group can share the link', async () => {
     const group = await groupWithBob()
 
     const asOwner = (await (await alice(`/groups/${group.id}`)).json()) as GroupDTO
     const asMember = (await (await bob(`/groups/${group.id}`)).json()) as GroupDTO
 
     expect(asOwner.inviteCode).toBe(group.inviteCode)
-    expect(asMember.inviteCode).toBeNull()
+    expect(asMember.inviteCode).toBe(group.inviteCode)
+  })
+
+  it('shows the new code to members after the owner resets it', async () => {
+    const group = await groupWithBob()
+    const { inviteCode } = (await (await alice(`/groups/${group.id}/invite/reset`, { method: 'POST' })).json()) as { inviteCode: string }
+
+    expect(((await (await bob(`/groups/${group.id}`)).json()) as GroupDTO).inviteCode).toBe(inviteCode)
   })
 
   it('lists the owner first, then by join time, keeping former members as inactive', async () => {
