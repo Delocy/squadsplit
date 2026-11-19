@@ -19,7 +19,7 @@ describe('itemizedTotal', () => {
   })
 
   it('rounds half up', () => {
-    // 5 * 1.1 = 5.5 -> 6 ; 1 * 1.5 = 1.5 -> 2 ; 3 * 1.1 = 3.3 -> 3
+    // 5 * 1.1 = 5.5 -> 6 ; 1 * 1.3 = 1.3 -> 1 ; 5 * 1.3 = 6.5 -> 7
     const mk = (amountCents: number, serviceChargeBps: number): ItemizedBill => ({
       items: [{ name: 'X', amountCents, userIds: ['a'] }],
       serviceChargeBps,
@@ -89,20 +89,34 @@ describe('splitItemized', () => {
     expect(splitItemized(bill, 'z')).toEqual({ a: 2, b: 1 })
   })
 
-  it('distributes leftover cents by largest fractional remainder', () => {
+  it('distributes the leftover cent by largest remainder, not by id order', () => {
+    // subtotal 22, total 24 (9% GST). Floors are 5/12/6 = 23, so 1 cent is left over.
+    // Remainders (24*sub mod 22) are a:10, b:0, c:12, so c wins. Ordering by id alone would give it to a.
     const bill: ItemizedBill = {
       items: [
-        { name: 'X', amountCents: 100, userIds: ['a'] },
-        { name: 'Y', amountCents: 200, userIds: ['b'] },
-        { name: 'Z', amountCents: 300, userIds: ['c'] },
+        { name: 'X', amountCents: 5, userIds: ['a'] },
+        { name: 'Y', amountCents: 11, userIds: ['b'] },
+        { name: 'Z', amountCents: 6, userIds: ['c'] },
       ],
       serviceChargeBps: 0,
       gstBps: 900,
     }
-    const total = itemizedTotal(bill)
-    const shares = splitItemized(bill, 'a')
-    expect(sum(shares)).toBe(total)
-    expect(shares).toEqual({ a: 109, b: 218, c: 327 })
+    expect(itemizedTotal(bill)).toBe(24)
+    expect(splitItemized(bill, 'q')).toEqual({ a: 5, b: 12, c: 7 })
+  })
+
+  it('rejects duplicate ids on a small item instead of returning a wrong sum', () => {
+    const bill: ItemizedBill = {
+      items: [{ name: 'X', amountCents: 3, userIds: ['a', 'a', 'a', 'a'] }],
+      serviceChargeBps: 0,
+      gstBps: 0,
+    }
+    expect(() => splitItemized(bill, 'a')).toThrow('unique')
+  })
+
+  it('rejects an empty bill with a plain Error', () => {
+    expect(() => splitItemized({ items: [], serviceChargeBps: 0, gstBps: 0 }, 'a')).toThrow(Error)
+    expect(() => splitItemized({ items: [], serviceChargeBps: 0, gstBps: 0 }, 'a')).not.toThrow(SplitError)
   })
 
   it('tolerates a tiny item as long as nobody ends at 0', () => {

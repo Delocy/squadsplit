@@ -15,18 +15,17 @@ export class SplitError extends Error {
 }
 
 /**
- * Splits amountCents equally. Everyone gets floor(amount / n); the remainder
- * goes to the payer if they are a participant, else 1 cent each to the first
- * participants in sorted id order.
+ * Internal: floor(amount / n) each; the remainder goes to the payer if they are a
+ * participant, else 1 cent each to the first participants in sorted id order.
+ * Allows amount < n (some shares are then 0), so callers decide what 0 means.
  */
-export function splitEqual(amountCents: Cents, participantIds: string[], payerId: string): Record<string, Cents> {
+export function distributeEqual(amountCents: Cents, participantIds: string[], payerId: string): Record<string, Cents> {
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
     throw new Error('amountCents must be a positive integer')
   }
   const n = participantIds.length
   if (n === 0) throw new Error('participantIds must not be empty')
   if (new Set(participantIds).size !== n) throw new Error('participantIds must be unique')
-  if (amountCents < n) throw new SplitError()
 
   const base = Math.floor(amountCents / n)
   const remainder = amountCents - base * n
@@ -39,6 +38,17 @@ export function splitEqual(amountCents: Cents, participantIds: string[], payerId
     const sorted = [...participantIds].sort()
     for (let i = 0; i < remainder; i++) shares[sorted[i]!] = base + 1
   }
+  return shares
+}
+
+/**
+ * Splits amountCents equally. Everyone gets floor(amount / n); the remainder
+ * goes to the payer if they are a participant, else 1 cent each to the first
+ * participants in sorted id order. Throws SplitError if amount < n.
+ */
+export function splitEqual(amountCents: Cents, participantIds: string[], payerId: string): Record<string, Cents> {
+  const shares = distributeEqual(amountCents, participantIds, payerId)
+  if (amountCents < participantIds.length) throw new SplitError()
   return shares
 }
 

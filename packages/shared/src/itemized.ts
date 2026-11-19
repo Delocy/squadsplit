@@ -1,4 +1,4 @@
-import { SplitError, splitEqual, type Cents } from './money'
+import { SplitError, distributeEqual, type Cents } from './money'
 
 export interface BillItem { name: string; amountCents: Cents; userIds: string[] }
 export interface ItemizedBill { items: BillItem[]; serviceChargeBps: number; gstBps: number }
@@ -19,32 +19,20 @@ export function itemizedTotal(bill: ItemizedBill): Cents {
   return Number((num * 2n + den) / (den * 2n))
 }
 
-/** Equal split of one item. Unlike splitEqual, an item smaller than its head count is allowed (some get 0). */
-function splitItem(item: BillItem, payerId: string): Record<string, Cents> {
-  if (item.amountCents >= item.userIds.length) return splitEqual(item.amountCents, item.userIds, payerId)
-  const shares: Record<string, Cents> = {}
-  for (const id of item.userIds) shares[id] = 0
-  if (item.userIds.includes(payerId)) {
-    shares[payerId] = item.amountCents
-  } else {
-    const sorted = [...item.userIds].sort()
-    for (let i = 0; i < item.amountCents; i++) shares[sorted[i]!] = 1
-  }
-  return shares
-}
-
 /**
  * Each person's share of the total, proportional to their item subtotal, by the
  * largest-remainder method (ties to the lower user id). Sums exactly to itemizedTotal.
  */
 export function splitItemized(bill: ItemizedBill, payerId: string): Record<string, Cents> {
+  if (bill.items.length === 0) throw new Error('items must not be empty')
   const subs = new Map<string, bigint>()
   for (const item of bill.items) {
-    for (const [uid, cents] of Object.entries(splitItem(item, payerId))) {
+    for (const [uid, cents] of Object.entries(distributeEqual(item.amountCents, item.userIds, payerId))) {
       subs.set(uid, (subs.get(uid) ?? 0n) + BigInt(cents))
     }
   }
   const subtotal = subtotalOf(bill)
+  if (subtotal <= 0n) throw new Error('subtotal must be positive')
   const total = BigInt(itemizedTotal(bill))
 
   const rows = [...subs.entries()].map(([id, sub]) => ({

@@ -138,28 +138,43 @@ describe('CreateExpenseInput itemized', () => {
     expect(paths(r)).toContain('split')
   })
 
-  it('rejects duplicate userIds, empty items, 51 items and gstBps 3001', () => {
+  const itemsOf = (n: number) => Array.from({ length: n }, () => ({ name: 'A', amountCents: 100, userIds: ['u1'] }))
+  const issuePaths = (input: unknown) => {
+    const r = CreateExpenseInput.safeParse(input)
+    return r.success ? null : r.error.issues.map((i) => i.path.join('.'))
+  }
+  // 100 cents with no charges per item, so the total always matches and only the bound under test can fail.
+  const flat = (items: unknown[], over: Record<string, unknown> = {}) =>
+    itemized({ items, serviceChargeBps: 0, gstBps: 0, ...over }, (items as { amountCents: number }[]).reduce((a, i) => a + i.amountCents, 0))
+
+  it('rejects duplicate userIds on an item', () => {
     const dup = [{ name: 'A', amountCents: 100, userIds: ['u1', 'u1'] }]
-    expect(CreateExpenseInput.safeParse(itemized({ items: dup }, 120)).success).toBe(false)
-    expect(CreateExpenseInput.safeParse(itemized({ items: [] }, 100)).success).toBe(false)
-    const many = Array.from({ length: 51 }, () => ({ name: 'A', amountCents: 100, userIds: ['u1'] }))
-    expect(CreateExpenseInput.safeParse(itemized({ items: many }, 5100)).success).toBe(false)
-    expect(CreateExpenseInput.safeParse(itemized({ gstBps: 3001 })).success).toBe(false)
+    expect(issuePaths(flat(dup))).toContain('split.items.0.userIds')
+  })
+
+  it('bounds items to 1..50', () => {
+    expect(CreateExpenseInput.safeParse(flat(itemsOf(50))).success).toBe(true)
+    expect(CreateExpenseInput.safeParse(flat(itemsOf(1))).success).toBe(true)
+    expect(issuePaths(flat(itemsOf(51)))).toContain('split.items')
+    expect(issuePaths({ ...itemized({ items: [] }, 100) })).toContain('split.items')
+  })
+
+  it('bounds gstBps and serviceChargeBps to 0..3000', () => {
+    // total for 100 cents at 30% on top: 130, 169 when both
+    expect(CreateExpenseInput.safeParse(itemized({ items: itemsOf(1), serviceChargeBps: 3000, gstBps: 3000 }, 169)).success).toBe(true)
+    expect(issuePaths(flat(itemsOf(1), { gstBps: 3001 }))).toContain('split.gstBps')
+    expect(issuePaths(flat(itemsOf(1), { gstBps: -1 }))).toContain('split.gstBps')
+    expect(issuePaths(flat(itemsOf(1), { serviceChargeBps: 3001 }))).toContain('split.serviceChargeBps')
+    expect(issuePaths(flat(itemsOf(1), { serviceChargeBps: -1 }))).toContain('split.serviceChargeBps')
   })
 
   it('rejects bad item names, amounts and empty userIds', () => {
-    const bad = (item: object) =>
-      CreateExpenseInput.safeParse(itemized({ items: [{ name: 'A', amountCents: 100, userIds: ['u1'], ...item }] }, 120))
-    expect(bad({ name: '   ' }).success).toBe(false)
-    expect(bad({ name: 'x'.repeat(61) }).success).toBe(false)
-    expect(bad({ amountCents: 0 }).success).toBe(false)
-    expect(bad({ amountCents: 100_000_001 }).success).toBe(false)
-    expect(bad({ userIds: [] }).success).toBe(false)
-  })
-
-  it('accepts bps bounds 0 and 3000 only', () => {
-    expect(CreateExpenseInput.safeParse(itemized({ serviceChargeBps: -1 })).success).toBe(false)
-    expect(CreateExpenseInput.safeParse(itemized({ serviceChargeBps: 0, gstBps: 0 }, 3000)).success).toBe(true)
+    const bad = (item: object) => issuePaths(flat([{ name: 'A', amountCents: 100, userIds: ['u1'], ...item }]))
+    expect(bad({ name: '   ' })).toContain('split.items.0.name')
+    expect(bad({ name: 'x'.repeat(61) })).toContain('split.items.0.name')
+    expect(bad({ amountCents: 0 })).toContain('split.items.0.amountCents')
+    expect(bad({ amountCents: 100_000_001 })).toContain('split.items.0.amountCents')
+    expect(bad({ userIds: [] })).toContain('split.items.0.userIds')
   })
 
   it('validates optional currency', () => {
