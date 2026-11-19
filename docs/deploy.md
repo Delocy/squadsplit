@@ -8,13 +8,13 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 2. DONE: Create the hosted D1 database (APAC, id already in `apps/api/wrangler.toml`).
 3. DONE: Apply both migrations to the remote database.
 4. DONE: Create the Clerk app "SquadSplit" (development instance).
-5. TODO: Create the Pages project. Run from `apps/api`:
+5. DONE: Create the Pages project `squadsplit` (https://squadsplit.pages.dev). For reference, it was created from `apps/api` with:
 
    ```bash
    npx wrangler pages project create squadsplit --production-branch main
    ```
 
-6. TODO: Set the Worker secrets. Run each command from `apps/api` and type the value when prompted (Clerk dashboard, API keys; the publishable key starts with `pk_`, the secret key with `sk_`):
+6. DONE: Set the Worker secrets `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` on `squadsplit-api`. To rotate one, run from `apps/api` and type the value when prompted (Clerk dashboard, API keys; the publishable key starts with `pk_`, the secret key with `sk_`):
 
    ```bash
    npx wrangler secret put CLERK_SECRET_KEY
@@ -24,18 +24,17 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
    npx wrangler secret put CLERK_PUBLISHABLE_KEY
    ```
 
-   If the Worker does not exist yet, wrangler offers to create it; accept.
-
-7. TODO: Create a Cloudflare API token. Dashboard, My Profile, API Tokens, Create Token. Start from the "Edit Cloudflare Workers" template and add Account, D1, Edit and Account, Cloudflare Pages, Edit. Also copy your Account ID (dashboard sidebar or the Workers & Pages overview).
-8. TODO: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
+7. DONE: Create a Cloudflare API token ("Edit Cloudflare Workers" template plus Account, D1, Edit and Account, Cloudflare Pages, Edit) and note the Account ID.
+8. DONE: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`
-   - Variables: `WEB_ORIGIN` is the Pages URL, for example `https://squadsplit.pages.dev` (use whatever Pages assigns, with no trailing slash). `VITE_API_URL` is the Worker URL, `https://squadsplit-api.<your-subdomain>.workers.dev`. Step 6 already created the Worker, so read its workers.dev URL from the Cloudflare dashboard (Workers & Pages, squadsplit-api). The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
+   - Variables: `WEB_ORIGIN` = `https://squadsplit.pages.dev`, `VITE_API_URL` = `https://squadsplit-api.tngzhexuan.workers.dev`. The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
 9. TODO: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
+   Also consider making "First name" a required sign-up field (User & authentication, then the name settings), so friends show up by name instead of an email address.
 10. TODO: Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
 11. TODO: Smoke test. Open the health endpoint and expect `{"ok":true}`:
 
     ```bash
-    curl https://squadsplit-api.<your-subdomain>.workers.dev/health
+    curl https://squadsplit-api.tngzhexuan.workers.dev/health
     ```
 
     Then, with two accounts: create a group, join with the invite code, add an expense, settle up, confirm, and spin the wheel.
@@ -44,7 +43,13 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 
 - `WEB_ORIGIN` is passed to `wrangler deploy` as `--var`, so it overrides the localhost value in `wrangler.toml`. The Worker only accepts Clerk tokens and CORS requests from that origin.
 - `VITE_*` values are baked into the web build, so changing them needs a new deploy.
-- Pages serves `apps/web/public/_redirects` so deep links such as `/join/:code` fall back to the SPA.
+- Deep links such as `/join/:code` fall back to the SPA through Pages' default single-page-app behaviour (the build has no `404.html`). Don't add a `_redirects` rule like `/* /index.html 200`: Pages flags it as an infinite loop and ignores it.
+
+> **Warning:** any manual `wrangler deploy` must pass the origin too, or the Worker falls back to the localhost value in `wrangler.toml` and rejects every request from the live site, locking everyone out. From `apps/api`:
+>
+> ```bash
+> npx wrangler deploy --var WEB_ORIGIN:https://squadsplit.pages.dev
+> ```
 
 ## Going to production later
 
