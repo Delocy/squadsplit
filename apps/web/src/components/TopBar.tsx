@@ -2,6 +2,7 @@ import { SignOutButton, useAuth } from '@clerk/react'
 import { defaultAvatar } from '@squadsplit/shared'
 import { useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
+import { SkText } from '../design/Skeleton'
 import { useGroup } from '../groupData'
 import { Logo } from './Logo'
 
@@ -12,7 +13,6 @@ export function TopBar() {
     <header className="top">
       <Logo to="/groups" />
       {groupId && <GroupCrumb id={groupId} />}
-      <div className="spacer" />
       {userId && (
         <div className="me">
           {groupId ? <MyGroupAvatar groupId={groupId} userId={userId} /> : <Avatar avatar={defaultAvatar(userId)} title="You" />}
@@ -32,9 +32,18 @@ function MyGroupAvatar({ groupId, userId }: { groupId: string; userId: string })
   return <Avatar avatar={avatar} title="You" />
 }
 
-/** "/ Bali Trip · 4 members" on every page inside a group. */
+/** "/ Bali Trip · 4 members" on every page inside a group. Its place is held while it loads, so the page doesn't move. */
 function GroupCrumb({ id }: { id: string }) {
   const group = useGroup(id)
+  if (group.isPending) {
+    return (
+      <div className="crumb" aria-hidden="true">
+        / <b>
+          <SkText w={150} />
+        </b>
+      </div>
+    )
+  }
   if (!group.data) return null
   const count = group.data.members.filter((m) => m.active).length
   return (

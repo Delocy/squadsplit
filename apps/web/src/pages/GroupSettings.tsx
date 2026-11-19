@@ -1,20 +1,25 @@
 import { useAuth } from '@clerk/react'
 import { sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { useApi } from '../api'
-import { AvatarPicker, avatarErrorOf, YouPreview } from '../components/AvatarPicker'
-import { ConfirmBar } from '../components/ConfirmBar'
+import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
+import { ConfirmBar, useConfirmStep } from '../components/ConfirmBar'
 import { ErrorNote } from '../components/ErrorNote'
+import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { InviteCard } from '../components/InviteCard'
 import { MemberList } from '../components/MemberList'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { usePageNavigate } from '../components/PageLink'
+import { SettingsSkeleton } from '../components/Skeletons'
+import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { invalidateGroup, queryKeys } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
 
 const MAX_NAME = 50
@@ -25,13 +30,7 @@ export function GroupSettings() {
   const me = useAuth().userId ?? ''
   const group = useGroup(id)
 
-  if (group.isPending) {
-    return (
-      <main className="page">
-        <p className="empty">Loading the group…</p>
-      </main>
-    )
-  }
+  if (group.isPending) return <SettingsSkeleton />
   if (group.isError) return <GroupUnavailable error={group.error} />
 
   const g = group.data
@@ -41,9 +40,9 @@ export function GroupSettings() {
     <main className="narrow page">
       <div className="page-h">
         <h2>Group settings</h2>
-        <Link to={`/groups/${id}`} className="btn small ghost">
+        <GroupLink groupId={id} className="btn small ghost">
           Back to the group
-        </Link>
+        </GroupLink>
       </div>
       <div className="col">
         {isOwner && g.inviteCode ? (
@@ -120,11 +119,13 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
             </span>
           )}
           <button className="btn primary" type="submit" disabled={save.isPending || !dirty}>
-            Save
+            <BusyLabel busy={save.isPending} label="Saving…">
+              Save
+            </BusyLabel>
           </button>
         </div>
       </form>
-      {save.isError && <ErrorNote error={avatarErrorOf(save.error)} />}
+      {save.isError && <ErrorNote error={save.error} />}
     </section>
   )
 }
@@ -149,7 +150,9 @@ function RenameCard({ group }: { group: GroupDTO }) {
       <form className="invite-link" onSubmit={submit}>
         <input type="text" aria-label="Group name" value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} />
         <button className="btn" type="submit" disabled={rename.isPending || !trimmed || trimmed === group.name}>
-          Save name
+          <BusyLabel busy={rename.isPending} label="Saving…">
+            Save name
+          </BusyLabel>
         </button>
       </form>
       {rename.isError && <ErrorNote error={rename.error} />}
@@ -159,11 +162,11 @@ function RenameCard({ group }: { group: GroupDTO }) {
 
 function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
   const api = useApi()
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const queryClient = useQueryClient()
-  const [confirming, setConfirming] = useState(false)
+  const confirm = useConfirmStep()
   // Not useGroupMutation: refetching this group after leaving would 404 before we navigate away.
-  const leave = useMutation({
+  const leave = useSingleFlightMutation({
     mutationFn: () => api.del(`/groups/${group.id}/members/${me}`),
     onSuccess: () => {
       void navigate('/groups')
@@ -179,16 +182,18 @@ function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
         Leave
       </h3>
       <p className="s">You can leave once you're settled up. You can come back later with an invite link.</p>
-      {confirming ? (
+      {confirm.showBar ? (
         <ConfirmBar
           question={`Leave ${group.name}?`}
           yes="Yes, leave"
+          busyLabel="Leaving…"
           busy={leave.isPending}
-          onYes={() => leave.mutate(undefined, { onError: () => setConfirming(false) })}
-          onCancel={() => setConfirming(false)}
+          leaving={confirm.leaving}
+          onYes={() => leave.mutate(undefined, { onError: confirm.close })}
+          onCancel={confirm.close}
         />
       ) : (
-        <button className="btn danger" onClick={() => setConfirming(true)}>
+        <button ref={confirm.triggerRef} className="btn danger" onClick={confirm.open}>
           Leave group
         </button>
       )}

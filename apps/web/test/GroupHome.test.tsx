@@ -15,6 +15,36 @@ const region = (name: string | RegExp) => within(screen.getByRole('region', { na
 const count = (calls: { key: string }[], key: string) => calls.filter((c) => c.key === key).length
 
 describe('Group home', () => {
+  it('says when the activity can’t load, instead of a skeleton forever, and tries again on request', async () => {
+    let feedFails = true
+    const calls = fakeApi(
+      groupHandlers({}, {
+        'GET /groups/g1/feed': () =>
+          feedFails ? { status: 500, body: { error: { code: 'internal', message: 'Something went wrong' } } } : { status: 200, body: [] },
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const activity = within(await screen.findByRole('region', { name: /Activity/ }))
+    expect(activity.getByRole('alert').textContent).toBe('Something went wrong')
+    expect(screen.getByRole('region', { name: /Activity/ }).querySelector('li[aria-hidden="true"]')).toBeNull() // no skeleton rows
+
+    feedFails = false
+    const before = count(calls, 'GET /groups/g1/feed')
+    fireEvent.click(activity.getByRole('button', { name: 'Try again' }))
+    expect(await activity.findByText('Nothing here yet.')).toBeTruthy()
+    expect(count(calls, 'GET /groups/g1/feed')).toBe(before + 1)
+  })
+
+  it('shows a dash in the stats, not $0.00, when the expenses can’t load', async () => {
+    fakeApi(groupHandlers({}, { 'GET /groups/g1/expenses': () => ({ status: 500, body: { error: { code: 'internal', message: 'Something went wrong' } } }) }))
+    renderApp('/groups/g1')
+
+    const stats = within(await screen.findByRole('region', { name: 'Group stats' }))
+    expect(stats.getAllByText('—')).toHaveLength(3)
+    expect(stats.queryByText('$0.00')).toBeNull()
+  })
+
   it('shows the group, your balance, the stats and no emoji', async () => {
     fakeApi(
       groupHandlers({
@@ -238,7 +268,8 @@ describe('Group home', () => {
       expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
 
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-      expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull()
+      // It slides out first.
+      await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull())
       expect(screen.queryByRole('alert')).toBeNull()
     })
 

@@ -50,3 +50,14 @@ export function renderApp(url: string) {
   )
   return router
 }
+
+/** A handler that holds its reply until `release` is called, so a test can look at the page while a request is out. */
+export function held(reply: Awaited<ReturnType<Handler>>) {
+  let release = () => {}
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  const handler: Handler = async () => {
+    await gate
+    return reply
+  }
+  return { handler, release }
+}

@@ -106,10 +106,23 @@ describe('errors', () => {
     expect(await res.json()).toEqual<ApiErrorBody>({ error: { code: 'validation_failed', message: 'amount: Too small' } })
   })
 
-  it('maps a Hono HTTPException to its own status', async () => {
+  it('maps a Hono HTTPException to its own status, and a 413 to payload_too_large', async () => {
     const res = await appWithRoutes().send('/http-exception')
     expect(res.status).toBe(413)
-    expect(((await res.json()) as ApiErrorBody).error.message).toBe('Payload too large')
+    expect(await res.json()).toEqual<ApiErrorBody>({ error: { code: 'payload_too_large', message: 'Payload too large' } })
+  })
+
+  it('refuses a body over 64 KB on ordinary routes with 413 payload_too_large, and takes one just under', async () => {
+    const { send } = appWithRoutes()
+    const big = await send('/echo', 'alice', { method: 'POST', body: JSON.stringify({ name: 'x'.repeat(64 * 1024) }) })
+    expect(big.status).toBe(413)
+    expect(await big.json()).toEqual<ApiErrorBody>({ error: { code: 'payload_too_large', message: 'That request is too large.' } })
+
+    const fine = await send('/echo', 'alice', { method: 'POST', body: JSON.stringify({ name: 'x'.repeat(60 * 1024) }) })
+    expect(fine.status).toBe(200)
+
+    const group = await send('/groups', 'alice', { method: 'POST', body: JSON.stringify({ name: 'Trip', emoji: 'x'.repeat(70_000) }) })
+    expect(group.status).toBe(413)
   })
 
   it('parseBody returns the validated body', async () => {

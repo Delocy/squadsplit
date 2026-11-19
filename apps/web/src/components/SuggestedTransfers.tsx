@@ -1,8 +1,9 @@
 import { formatMoney, settlementCap, type BalancesDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
-import { useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { ApiError, useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
+import { useExitTransition } from '../design/useExitTransition'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
 import { SettleForm, type SettlementInput } from './SettleForm'
@@ -30,13 +31,22 @@ export function SuggestedTransfers({
   const settle = useGroupMutation(groupId, (t: SettlementInput) => api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t))
   /** The creditor whose "Mark paid" opened the form, or null while it is closed. */
   const [formFor, setFormFor] = useState<string | null>(null)
+  // The form slides out when it closes; then the "Mark paid" button that opened it gets focus back.
+  const form = useExitTransition(formFor)
+  const opener = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (form.shown !== null || !opener.current) return
+    opener.current.focus()
+    opener.current = null
+  }, [form.shown])
 
   const pendingOutgoing = pending.filter((s) => s.fromUserId === me).reduce((sum, s) => sum + s.amountCents, 0)
   const cap = (toUserId: string) => settlementCap(balances.balances, pendingOutgoing, me, toUserId)
   const mine = balances.suggestions.filter((t) => t.fromUserId === me)
 
-  function open(toUserId: string) {
+  function open(toUserId: string, e: MouseEvent<HTMLElement>) {
     settle.reset()
+    opener.current = e.currentTarget
     setFormFor(toUserId)
   }
 
@@ -69,7 +79,7 @@ export function SuggestedTransfers({
             disabled={amount < 1 || settle.isPending}
             aria-expanded={formFor === t.toUserId}
             title={amount < 1 ? 'Waiting on a confirmation' : undefined}
-            onClick={() => open(t.toUserId)}
+            onClick={(e) => open(t.toUserId, e)}
           >
             Mark paid
           </button>
@@ -87,14 +97,15 @@ export function SuggestedTransfers({
           <li className="empty">Everyone is settled up.</li>
         )}
       </ul>
-      {formFor && (
+      {form.shown && (
         <SettleForm
-          key={formFor}
+          key={form.shown}
+          leaving={form.leaving}
           balances={balances.balances}
           pendingOutgoingCents={pendingOutgoing}
           suggestions={mine}
           me={me}
-          initialPayee={formFor}
+          initialPayee={form.shown}
           people={people}
           currency={currency}
           busy={settle.isPending}

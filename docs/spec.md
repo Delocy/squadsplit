@@ -13,13 +13,15 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
 - People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
 - Every participant has an account. There are no guest placeholders.
-- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap.
+- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap. The cap is checked in the same statement that writes the membership, so simultaneous joins can't pass it.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
 - Leaving is a soft delete (`membership.left_at`), so past expenses still show their names.
 - **You in a group** (added 2026-11-19 at the user's request): each membership has its own **animal + colour** avatar and an optional **nickname**.
   - The avatar is one of the 8 member animals (bunny, bear, panda, kitty, fox, hamster, penguin, koala) on one of 6 pastel colours, so 48 combinations. Among a group's **active** members every avatar is unique; former members don't hold theirs.
-  - Joining (and creating a group) lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free. Picking a taken one is 409 `avatar_taken`.
-  - The nickname is 1–24 characters after trimming, with no control characters and no emoji. Empty clears it. Nicknames don't need to be unique.
+  - Joining lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free (the invite preview tells them which, so the Join page starts on it). Picking a taken one is 409 `avatar_taken`.
+  - Creating a group sets only your nickname; you start with your default look and can change it in the group's settings.
+  - The database enforces unique stored looks among active members (migration 0003), so two people picking the same look at once can't both get it. Where effective looks still clash (two members without a stored look whose defaults match), the later joiner is shown the first free combination instead, so no two active members ever look the same.
+  - The nickname is 1–24 characters after trimming, with no control or invisible format characters (such as bidi overrides) and no emoji: no pictographs, flags, keycaps, skin tones or U+FE0F. The plain-text symbols ™ © ® are allowed. Empty clears it. Nicknames don't need to be unique.
   - Inside the group your name is your nickname if you set one, otherwise your profile name. Outside a group (your groups list) the profile name and default look are used.
   - You can change both later in the group's settings.
 
@@ -37,6 +39,13 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
     - The expense's `amount_cents` must equal that total.
     - If anyone would end up with a 0-cent share, the request is rejected with 422 `amount_too_small`.
     - The participants are everyone who appears on at least one item.
+- **Scan a receipt** (added in PR #3): a receipt card at the top of every new expense. "Scan receipt" opens the camera (`<input type="file" capture="environment">`) and "Pick a photo" the gallery; both accept JPEG, PNG, WebP and HEIC/HEIF. A scan only pre-fills the form in By item; it never creates an expense by itself.
+  - **Privacy:** the phone redraws the photo on a canvas at most 1024px on the long edge and re-encodes it as JPEG (quality 0.8), which drops EXIF data such as GPS. The API never stores or logs the image; it logs only a reason code when a scan fails.
+  - **AI scan:** `POST /groups/:id/receipts/scan` (members only) sends the image to Cloudflare Workers AI, `@cf/mistralai/mistral-small-3.1-24b-instruct`, as a `data:` URI image part in `messages`. The model is prompted for strict JSON `{items:[{name, amountCents}], serviceChargeBps, gstBps, totalCents}` (cents; quantity lines merged into one item with the line total; subtotal, payment and change lines skipped). The API takes the first JSON object in the answer, cleans it (1–50 items, names trimmed to 60 characters, amounts 1–100,000,000 cents, rates 0–3000 bps; anything else dropped or read as unknown) and checks the items against the printed total with `itemizedTotal`, allowing 2 cents for the receipt rounding its service charge and GST lines separately.
+  - **Size:** the request body is at most 2 MB (every other route takes 64 KB; over → 413 `payload_too_large`), the image at most 1.5 MB decoded and 1600px on either side, read from its JPEG/PNG/WebP header (→ 422 `image_too_large`; bytes that don't match the type, or no readable header → 422 `not_an_image`). The model may write at most 1,024 tokens.
+  - **Limits (Workers AI free plan, 10,000 neurons a day):** 20 scans per user and 40 for the whole app per UTC day, counted in `receipt_scans` (rows older than 7 days are dropped as new scans are counted). The worst case for one scan (a 1600px image, the prompt, 1,024 tokens out) is estimated at about 180 neurons, so a full day is at most about 7,200. One conditional upsert counts the scan before the model runs, so parallel scans can't overshoot. Over either limit, or when Workers AI reports the account's daily allocation used up (error 4006) → 429 `scan_limit`. A scan is given back only when the model never answered: 4006 (429) or another model error (503 `scan_unavailable`). An answer has used neurons, so it counts even when unreadable: no JSON object, or no usable item → 422 `receipt_unreadable`.
+  - **On-phone fallback:** on 429, 5xx, 422 `receipt_unreadable` or no connection, the web app reads the photo itself with Tesseract.js (2048px copy, English LSTM model), loaded only on that path and served from our own origin (`/tesseract/`, copied from `node_modules` at build time; no CDN). A pure parser turns the text into items, reading service charge and GST rates from "10%"/"9%" or working them out from their amounts.
+  - **Pre-fill:** the items replace the item rows (after asking, if the user entered amounts or items) with nobody assigned yet, and the receipt's total becomes the amount. The receipt's own service charge and GST become the bill's charges at their own rates and are switched on (the toggle reads "Restaurant bill (SG)" for 10% + 9%, otherwise "Receipt charges" with the rates, e.g. "9% GST"); with no charges the toggle is off. So the saved total is what the receipt adds up to (within the 2-cent rounding above), shared in proportion to each person's items. A banner says what happened: total matches, total differs (both amounts), read on the phone (double-check), or couldn't read it (add items by hand).
 - Only the **creator** or the **group owner** can edit or delete an expense.
 - **Lock rule:** an expense is locked (no edit or delete) once a *confirmed* settlement exists whose debtor or creditor is among the expense's people (payer ∪ participants) and whose `resolved_at` is later than the expense's `created_at`.
 
@@ -99,6 +108,7 @@ groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner
 memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable),
                avatar_animal (nullable), avatar_color (nullable), nickname (nullable)
                pk(group_id, user_id)
+               unique(group_id, avatar_animal, avatar_color) where left_at is null and both avatar_* are set (0003)
                avatar_* null (rows from before migration 0002) means the user's default look; nickname null means the profile name
 expenses       id (pk), group_id, description, amount_cents (int > 0), paid_by → users, created_by → users,
                category (emoji text), spent_on (date), split_type ('equal'|'exact'|'itemized'),
@@ -111,6 +121,7 @@ expense_item_users item_id → expense_items (cascade), user_id → users      p
 settlements    id (pk), group_id, from_user_id (debtor), to_user_id (creditor), amount_cents,
                status ('pending'|'confirmed'|'rejected'|'cancelled'), created_at, resolved_at
 spins          id (pk), group_id, spun_by → users, winner_id → users, weights_json, created_at
+receipt_scans  user_id, day ('YYYY-MM-DD', UTC), count      pk(user_id, day)   (0004; the app-wide count is the day's sum)
 ```
 
 The rule "shares add up to the amount" is enforced in the service layer, inside a single D1 `batch` (transaction).
@@ -129,6 +140,9 @@ Error responses:
 - `403` a member without permission
 - `409` the current state blocks the action (balance not zero, expense locked, settlement no longer pending)
 - `422` validation failed (zod)
+- `413` the request body is too large (64 KB; 2 MB for a receipt scan)
+- `429` a daily limit was reached (receipt scanning)
+- `503` a service we depend on is unavailable (receipt scanning)
 
 | Method & path | Who may call |
 |---|---|
@@ -138,7 +152,7 @@ Error responses:
 | `GET /groups/:id` | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
 | `POST /groups/:id/invite/reset` | owner |
-| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken) | any user |
+| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, and your old look if you're a former member) | any user |
 | `POST /invites/:code/join` (optional body `{ avatar?, nickname? }`) | any user (does nothing if already a member) |
 | `PATCH /groups/:id/members/me` (`{ avatar?, nickname? }`, at least one; `nickname: null` or `""` clears) | member |
 | `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0 |
@@ -151,6 +165,7 @@ Error responses:
 | `GET /groups/:id/badges` (badges + leaderboard) | member |
 | `POST /groups/:id/spins` | member |
 | `GET /groups/:id/feed` | member |
+| `POST /groups/:id/receipts/scan` (`{ imageBase64, mimeType: image/jpeg\|png\|webp }`, ≤ 2 MB body, ≤ 1.5 MB and 1600px image; returns items, rates, total and `totalMatches`; never creates an expense) | member |
 
 Request and response schemas are zod objects in `packages/shared`, used by both the API (validation) and the web app (types).
 
@@ -201,14 +216,6 @@ squadsplit/                  (npm workspaces)
 - **"Poke" nudges** on a debt, and an optional weekly email summary.
 - **Export to CSV.**
 - **Install as a phone app (PWA)** with an offline queue for new expenses.
-- **Scan a receipt** using Cloudflare Workers AI (`@cf/meta/llama-3.2-11b-vision-instruct` through the Worker's AI binding). This is free within the shared 10,000-neurons/day allowance, about 40 neurons per receipt.
-  - The client downsizes the photo to about 1024px and strips EXIF.
-  - `POST /groups/:id/receipts/scan` is for members only.
-  - The model is prompted for strict JSON: `{items:[{name, amountCents}], serviceChargeBps?, gstBps?, totalCents?}`. The response is validated with zod and cross-checked with `itemizedTotal`, with a warning if they don't match.
-  - The result pre-fills the itemized form, where the user assigns people.
-  - The image is never stored.
-  - Each user can scan up to 20 receipts a day.
-  - Meta's licence may need a one-time acceptance on the Cloudflare account.
 
 **Later:** repeating expenses (such as rent) and real support for multiple currencies (the columns already exist).
 

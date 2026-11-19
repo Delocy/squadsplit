@@ -8,32 +8,38 @@ import {
   type InvitePreviewDTO,
   type JoinGroupInput,
 } from '@squadsplit/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
-import { AvatarPicker, avatarErrorOf, YouPreview } from '../components/AvatarPicker'
+import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
+import { GroupLink } from '../components/GroupLink'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { PageLink, usePageNavigate } from '../components/PageLink'
+import { JoinSkeleton } from '../components/Skeletons'
 import { lookOf } from '../design/Avatar'
+import { BusyLabel } from '../design/Busy'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
+import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
 
 export function Join() {
   const code = useParams().code ?? ''
   const path = `/invites/${encodeURIComponent(code)}`
   const api = useApi()
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const queryClient = useQueryClient()
   const me = useAuth().userId ?? ''
   const profileName = useMe().data?.displayName ?? ''
   const nickname = useNicknameDraft(profileName)
+  /** The look you picked; null until you pick one. */
   const [choice, setChoice] = useState<AvatarChoice | null>(null)
   const [showHint, setShowHint] = useState(false)
 
   const invite = useQuery({ queryKey: queryKeys.invite(code), queryFn: () => api.get<InvitePreviewDTO>(path) })
-  const join = useMutation({
+  const join = useSingleFlightMutation({
     mutationFn: (input: JoinGroupInput) => api.post<{ groupId: string }>(`${path}/join`, input),
     onSuccess: ({ groupId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
@@ -47,13 +53,7 @@ export function Join() {
     },
   })
 
-  if (invite.isPending) {
-    return (
-      <main className="narrow page">
-        <p className="empty">Checking the invite…</p>
-      </main>
-    )
-  }
+  if (invite.isPending) return <JoinSkeleton />
 
   if (invite.isError) {
     const dead = invite.error instanceof ApiError && invite.error.status === 404
@@ -68,9 +68,9 @@ export function Join() {
           ) : (
             <ErrorNote error={invite.error} />
           )}
-          <Link to="/groups" className="btn small">
+          <PageLink to="/groups" className="btn small">
             Back to your groups
-          </Link>
+          </PageLink>
         </section>
       </main>
     )
@@ -78,15 +78,21 @@ export function Join() {
 
   const g = invite.data
   const look = lookOf(defaultAvatar(g.groupId))
-  // Your pick while it's free; otherwise (and to start with) the first free look from your pick or your default.
-  const avatar =
-    choice && !g.takenAvatars.some((t) => sameAvatar(t, choice)) ? choice : firstFreeAvatar(choice ?? defaultAvatar(me), g.takenAvatars)
+  // What the server gives you if you don't pick: the look you left with (if you're rejoining), else your default,
+  // moved on to the first free look if someone has it.
+  const given = firstFreeAvatar(g.myFormerAvatar ?? defaultAvatar(me), g.takenAvatars)
+  // Your pick while it's free; if someone took it, the first free look from it; with no pick, what you're given.
+  const avatar = choice ? firstFreeAvatar(choice, g.takenAvatars) : given
 
   function submit(e: FormEvent) {
     e.preventDefault()
     setShowHint(nickname.invalid)
     if (nickname.invalid) return
-    join.mutate({ avatar, ...(nickname.change !== undefined && { nickname: nickname.change }) })
+    // The avatar only goes when it differs from what you're given, so the server's rule (old look first) applies.
+    join.mutate({
+      ...(!sameAvatar(avatar, given) && { avatar }),
+      ...(nickname.change !== undefined && { nickname: nickname.change }),
+    })
   }
 
   // Full from the preview, or it filled up between the preview and pressing Join.
@@ -104,16 +110,16 @@ export function Join() {
         {g.alreadyMember ? (
           <>
             <p>You're already in this group.</p>
-            <Link to={`/groups/${g.groupId}`} className="btn primary">
+            <GroupLink groupId={g.groupId} className="btn primary">
               Open group
-            </Link>
+            </GroupLink>
           </>
         ) : full ? (
           <>
             <p>This group is full ({MAX_GROUP_MEMBERS} people), so there's no room to join right now.</p>
-            <Link to="/groups" className="btn small">
+            <PageLink to="/groups" className="btn small">
               Back to your groups
-            </Link>
+            </PageLink>
           </>
         ) : (
           <form className="you-fields" onSubmit={submit} noValidate>
@@ -127,9 +133,11 @@ export function Join() {
               </p>
             )}
             <button className="btn primary" type="submit" disabled={join.isPending}>
-              {join.isPending ? 'Joining…' : 'Join group'}
+              <BusyLabel busy={join.isPending} label="Joining…">
+                Join group
+              </BusyLabel>
             </button>
-            <ErrorNote error={avatarErrorOf(join.error)} />
+            <ErrorNote error={join.error} />
           </form>
         )}
       </section>

@@ -5,3 +5,5 @@ dist
 !.env.example
 .dev.vars
 .DS_Store
+# Copied from node_modules by apps/web/scripts/copy-tesseract.mjs
+apps/web/public/tesseract/

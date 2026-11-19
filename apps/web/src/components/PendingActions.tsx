@@ -2,6 +2,7 @@ import { formatMoney, type SettlementDTO } from '@squadsplit/shared'
 import type { MouseEvent } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
+import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
@@ -34,6 +35,9 @@ export function PendingActions({
     resolve.mutate({ id, action }, { onSuccess: () => action === 'confirm' && confetti(button) })
   }
 
+  const busy = (id: string, action: Action) =>
+    resolve.isPending && resolve.variables?.id === id && resolve.variables.action === action
+
   const mine = pending.filter((s) => s.toUserId === me || s.fromUserId === me)
   return (
     <>
@@ -49,10 +53,14 @@ export function PendingActions({
             </div>
             <div className="acts">
               <button className="btn small primary" onClick={act(s.id, 'confirm')} disabled={resolve.isPending}>
-                Confirm
+                <BusyLabel busy={busy(s.id, 'confirm')} label="Confirming…">
+                  Confirm
+                </BusyLabel>
               </button>
               <button className="btn small" onClick={act(s.id, 'reject')} disabled={resolve.isPending}>
-                Reject
+                <BusyLabel busy={busy(s.id, 'reject')} label="Rejecting…">
+                  Reject
+                </BusyLabel>
               </button>
             </div>
           </div>
@@ -64,7 +72,9 @@ export function PendingActions({
               <div className="s">You marked {formatMoney(s.amountCents, currency)} as paid.</div>
             </div>
             <button className="btn small" onClick={act(s.id, 'cancel')} disabled={resolve.isPending}>
-              Undo
+              <BusyLabel busy={busy(s.id, 'cancel')} label="Undoing…">
+                Undo
+              </BusyLabel>
             </button>
           </div>
         ),

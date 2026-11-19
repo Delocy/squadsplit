@@ -1,7 +1,9 @@
 import { useAuth } from '@clerk/react'
 import type { FeedItem } from '@squadsplit/shared'
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
+import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
+import { RowSkeletons, WheelPageSkeleton } from '../components/Skeletons'
 import { WheelCard } from '../components/WheelCard'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
@@ -17,22 +19,17 @@ export function Wheel() {
   const balances = useBalances(id)
   const feed = useFeed(id)
 
-  if (group.isPending) {
-    return (
-      <main className="page">
-        <p className="empty">Loading the group…</p>
-      </main>
-    )
-  }
   if (group.isError) return <GroupUnavailable error={group.error} />
+  // Appears at once when the wheel's odds and the recent spins are in, so nothing on it moves afterwards.
+  if (group.isPending || balances.isPending || feed.isPending) return <WheelPageSkeleton />
 
   const people = peopleOf(group.data, me)
   return (
     <main className="narrow page">
       <div className="page-h">
-        <Link to={`/groups/${id}`} className="btn small ghost">
+        <GroupLink groupId={id} className="btn small ghost">
           Back to the group
-        </Link>
+        </GroupLink>
       </div>
       <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} />
       <RecentSpins items={feed.data} me={me} people={people} />
@@ -50,7 +47,7 @@ function RecentSpins({ items, me, people }: { items: FeedItem[] | undefined; me:
       </h3>
       <ul className="list">
         {items === undefined ? (
-          <li className="empty">Loading…</li>
+          <RowSkeletons count={3} amount={false} />
         ) : spins.length ? (
           spins.map((s) => (
             <li className="row" key={s.id}>

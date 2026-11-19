@@ -12,7 +12,7 @@ import {
   type GroupSummaryDTO,
   type MemberDTO,
 } from '@squadsplit/shared'
-import { activeMemberAvatars, avatarColumns, ensureAvatarFree } from '../avatars'
+import { activeMemberAvatars, avatarColumns, distinctLooks, ensureAvatarFree, storingLook } from '../avatars'
 import { findActiveRole, requireMember, requireOwner } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
@@ -42,6 +42,8 @@ async function hasPendingSettlement(d: Db, groupId: string, userId: string): Pro
   return pending !== undefined
 }
 
+const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
 /** The group as `viewerId` sees it: the invite code is for the owner's eyes only. */
 async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<GroupDTO> {
   const [[group], members] = await d.batch([
@@ -53,6 +55,7 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
         nickname: memberships.nickname,
         avatarUrl: users.avatarUrl,
         role: memberships.role,
+        joinedAt: memberships.joinedAt,
         leftAt: memberships.leftAt,
         avatarAnimal: memberships.avatarAnimal,
         avatarColor: memberships.avatarColor,
@@ -64,6 +67,13 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
       .orderBy(sql`${memberships.role} <> 'owner'`, asc(memberships.joinedAt), asc(memberships.userId)),
   ])
   if (!group) throw new HttpError(404, 'not_found', 'Group not found')
+  // Active members are shown with distinct looks, settled in join order (as activeMemberAvatars sorts them:
+  // join time, then user id, compared as plain strings like SQLite does); former members with their own look.
+  const activeInJoinOrder = members
+    .filter((m) => m.leftAt === null)
+    .sort((a, b) => compareStrings(a.joinedAt, b.joinedAt) || compareStrings(a.userId, b.userId))
+    .map((m) => ({ userId: m.userId, animal: m.avatarAnimal, color: m.avatarColor }))
+  const shown = new Map(distinctLooks(activeInJoinOrder).map((m) => [m.userId, m.avatar]))
   return {
     id: group.id,
     name: group.name,
@@ -71,11 +81,11 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
     currency: group.currency as Currency,
     inviteCode: viewerId === group.ownerId ? group.inviteCode : null,
     ownerId: group.ownerId,
-    members: members.map(({ profileName, leftAt, avatarAnimal, avatarColor, ...m }) => ({
+    members: members.map(({ profileName, joinedAt: _joinedAt, leftAt, avatarAnimal, avatarColor, ...m }) => ({
       ...m,
       displayName: m.nickname ?? profileName,
       active: leftAt === null,
-      avatar: effectiveAvatar(m.userId, { animal: avatarAnimal, color: avatarColor }),
+      avatar: shown.get(m.userId) ?? effectiveAvatar(m.userId, { animal: avatarAnimal, color: avatarColor }),
     })),
   }
 }
@@ -163,10 +173,12 @@ export function groupRoutes() {
         const others = (await activeMemberAvatars(d, groupId)).filter((m) => m.userId !== me)
         ensureAvatarFree(avatar, others.map((m) => m.avatar))
       }
-      await d
-        .update(memberships)
-        .set({ ...(avatar && avatarColumns(avatar)), ...(nickname !== undefined && { nickname }) })
-        .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, me)))
+      await storingLook(
+        d
+          .update(memberships)
+          .set({ ...(avatar && avatarColumns(avatar)), ...(nickname !== undefined && { nickname }) })
+          .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, me))),
+      )
       const group = await groupDTO(d, groupId, me)
       return c.json<MemberDTO>(group.members.find((m) => m.userId === me)!)
     })

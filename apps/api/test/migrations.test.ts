@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { expect, it } from 'vitest'
 
-const TABLES = ['expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
+const TABLES = ['receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
 
 it('0001_itemized_currency keeps existing expenses and their shares, taking the currency from the group', async () => {
   for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
@@ -48,4 +48,67 @@ it('0002_member_avatar_nickname adds empty avatar and nickname columns to member
   ])
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expenses').first('n')).toBe(1)
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expense_shares').first('n')).toBe(1)
+})
+
+it('0003_active_member_look clears duplicate stored looks among active members, keeping the earliest joiner’s, then makes them unique', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 3))
+  const users = ['alice', 'bob', 'carol', 'dave', 'erin', 'frank']
+  const member = (group: string, user: string, joinedAt: string, leftAt: string | null, animal: string | null, color: string | null) =>
+    env.DB.prepare(`INSERT INTO memberships VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`).bind(
+      group, user, user === 'alice' ? 'owner' : 'member', `2026-11-${joinedAt}T00:00:00.000Z`, leftAt, animal, color,
+    )
+  await env.DB.batch([
+    ...users.map((u) => env.DB.prepare(`INSERT INTO users VALUES (?, ?, NULL, '2026-11-01T00:00:00.000Z')`).bind(u, u)),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g2', 'Tokyo', '🍣', 'SGD', 'HGFEDCBA', 'alice', '2026-11-01T00:00:00.000Z')`),
+    member('g1', 'alice', '01', null, 'fox', 'peach'),
+    member('g1', 'bob', '02', null, 'fox', 'peach'), // clashes with alice: cleared
+    member('g1', 'carol', '02', null, 'koala', 'mint'),
+    member('g1', 'dave', '02', null, 'koala', 'mint'), // same join time as carol: the lower user id keeps it
+    member('g1', 'erin', '03', '2026-11-04T00:00:00.000Z', 'fox', 'peach'), // former member: untouched
+    member('g1', 'frank', '05', null, null, null),
+    member('g2', 'alice', '01', null, 'fox', 'peach'), // another group: untouched
+    member('g2', 'bob', '01', null, 'bear', 'sky'),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  const looks = await env.DB.prepare('SELECT group_id, user_id, avatar_animal, avatar_color FROM memberships ORDER BY group_id, user_id').all()
+  expect(looks.results).toEqual([
+    { group_id: 'g1', user_id: 'alice', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g1', user_id: 'bob', avatar_animal: null, avatar_color: null },
+    { group_id: 'g1', user_id: 'carol', avatar_animal: 'koala', avatar_color: 'mint' },
+    { group_id: 'g1', user_id: 'dave', avatar_animal: null, avatar_color: null },
+    { group_id: 'g1', user_id: 'erin', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g1', user_id: 'frank', avatar_animal: null, avatar_color: null },
+    { group_id: 'g2', user_id: 'alice', avatar_animal: 'fox', avatar_color: 'peach' },
+    { group_id: 'g2', user_id: 'bob', avatar_animal: 'bear', avatar_color: 'sky' },
+  ])
+  await expect(
+    env.DB.prepare(`UPDATE memberships SET avatar_animal = 'fox', avatar_color = 'peach' WHERE group_id = 'g1' AND user_id = 'frank'`).run(),
+  ).rejects.toThrow(/UNIQUE constraint failed/)
+})
+
+it('0004_receipt_scans adds an empty per-user, per-day scan counter without touching existing rows', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 4))
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', NULL, '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO memberships VALUES ('g1', 'alice', 'owner', '2026-11-01T00:00:00.000Z', NULL, 'fox', 'peach', NULL)`),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM receipt_scans').first('n')).toBe(0)
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM memberships').first('n')).toBe(1)
+  const bump = () =>
+    env.DB.prepare(
+      `INSERT INTO receipt_scans (user_id, day, count) VALUES ('alice', '2026-11-19', 1)
+       ON CONFLICT (user_id, day) DO UPDATE SET count = count + 1 RETURNING count`,
+    ).first('count')
+  expect(await bump()).toBe(1)
+  expect(await bump()).toBe(2)
+  await expect(env.DB.prepare(`INSERT INTO receipt_scans VALUES ('alice', '2026-11-19', 1)`).run()).rejects.toThrow(/UNIQUE constraint failed/)
 })

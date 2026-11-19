@@ -1,17 +1,22 @@
 import { eq } from 'drizzle-orm'
 import { Hono, type MiddlewareHandler } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { db } from './db'
 import { users } from './db/schema'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
-import { HttpError, errorBody, handleError } from './errors'
+import { HttpError, errorBody, handleError, payloadTooLarge } from './errors'
 import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
 import { funRoutes } from './routes/fun'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
+import { RECEIPT_SCAN_PATH, receiptRoutes } from './routes/receipts'
 import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
+
+/** The largest request body on every route except a receipt scan. */
+const BODY_LIMIT = 64 * 1024
 
 /** Verifies the bearer token and sets `c.var.userId`. */
 const authenticate =
@@ -58,6 +63,10 @@ export function createApp(deps: AuthDeps) {
 
   app.get('/health', (c) => c.json({ ok: true }))
 
+  // Bodies are small JSON everywhere except a receipt scan, which brings its photo and sets its own larger limit.
+  const smallBodies = bodyLimit({ maxSize: BODY_LIMIT, onError: payloadTooLarge })
+  app.use('*', (c, next) => (RECEIPT_SCAN_PATH.test(c.req.path) ? next() : smallBodies(c, next)))
+
   app.use('*', authenticate(deps))
   // /me upserts the user itself with a fresh profile, so it is mounted before ensureUser.
   app.route('/me', meRoutes(deps))
@@ -67,6 +76,7 @@ export function createApp(deps: AuthDeps) {
   app.route('/groups', groupExpenseRoutes())
   app.route('/groups', groupSettlementRoutes())
   app.route('/groups', funRoutes())
+  app.route('/groups', receiptRoutes())
   app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
   app.route('/settlements', settlementRoutes())

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const ROLES = ['owner', 'member'] as const
 export const SPLIT_TYPES = ['equal', 'exact', 'itemized'] as const
@@ -49,6 +49,10 @@ export const memberships = sqliteTable(
     primaryKey({ columns: [t.groupId, t.userId] }),
     index('memberships_user_id_idx').on(t.userId),
     check('memberships_role_check', sql`${t.role} IN (${oneOf(ROLES)})`),
+    /** No two active members of a group store the same look. Plain column names: SQLite rejects qualified ones here. */
+    uniqueIndex('memberships_active_look_uq')
+      .on(t.groupId, t.avatarAnimal, t.avatarColor)
+      .where(sql`left_at IS NULL AND avatar_animal IS NOT NULL AND avatar_color IS NOT NULL`),
   ],
 )
 
@@ -177,4 +181,15 @@ export const spins = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [index('spins_group_id_idx').on(t.groupId)],
+)
+
+/** Receipt scans per user per UTC day (YYYY-MM-DD), for the daily limits. The app-wide count is the day's sum. */
+export const receiptScans = sqliteTable(
+  'receipt_scans',
+  {
+    userId: text('user_id').notNull(),
+    day: text('day').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] }), index('receipt_scans_day_idx').on(t.day)],
 )

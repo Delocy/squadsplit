@@ -3,6 +3,8 @@ import { formatMoney } from '@squadsplit/shared'
 import { Link, Outlet, useParams } from 'react-router'
 import { BalanceCard } from '../components/BalanceCard'
 import { ErrorNote } from '../components/ErrorNote'
+import { PageLink } from '../components/PageLink'
+import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
@@ -23,18 +25,16 @@ export function GroupHome() {
   const fun = useFun(id)
   const feed = useFeed(id)
 
-  if (group.isPending) {
-    return (
-      <main className="page">
-        <p className="empty">Loading the group…</p>
-      </main>
-    )
-  }
   if (group.isError) return <GroupUnavailable error={group.error} />
+  // The page waits for everything in its first screens and then appears at once: cards filling in one by one would
+  // push each other down. Only the leaderboard (side column, below the fold on a phone) fills in on its own.
+  if (group.isPending || [balances, expenses, pending, feed].some((q) => q.isPending)) return <GroupHomeSkeleton />
 
   const g = group.data
   const people = peopleOf(g, me)
   const money = (cents: number) => formatMoney(cents, g.currency)
+  // Without the expenses (they failed to load) the stats are unknown, not zero.
+  const stat = (cents: number) => (expenses.data ? money(cents) : '—')
   const all = expenses.data ?? []
   const totalSpent = all.reduce((t, e) => t + e.amountCents, 0)
   const myShare = all.reduce((t, e) => t + (e.shares.find((s) => s.userId === me)?.amountCents ?? 0), 0)
@@ -50,36 +50,36 @@ export function GroupHome() {
           <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
         ) : (
           <section className="card balance even" aria-label="Your balance">
-            {balances.isError ? <ErrorNote error={balances.error} /> : <p className="empty">Working out balances…</p>}
+            <ErrorNote error={balances.error} />
           </section>
         )}
         <section className="card" aria-label="Group stats">
           <div className="stats">
             <div className="stat">
               <div className="k">Group spend</div>
-              <div className="v">{money(totalSpent)}</div>
+              <div className="v">{stat(totalSpent)}</div>
             </div>
             <div className="stat">
               <div className="k">Your share</div>
-              <div className="v">{money(myShare)}</div>
+              <div className="v">{stat(myShare)}</div>
             </div>
             <div className="stat">
               <div className="k">You paid</div>
-              <div className="v">{money(myPaid)}</div>
+              <div className="v">{stat(myPaid)}</div>
             </div>
           </div>
           <div className="quick">
-            <Link to={addExpense} className="btn primary add-desktop">
+            <Link to={addExpense} preventScrollReset className="btn primary add-desktop">
               <UiIcon name="plus" />
               Add expense
             </Link>
-            <Link to={wheel} className="btn">
+            <PageLink to={wheel} className="btn">
               <UiIcon name="wheel" />
               Who pays next?
-            </Link>
-            <Link to={`/groups/${id}/settings`} className="btn ghost">
+            </PageLink>
+            <PageLink to={`/groups/${id}/settings`} className="btn ghost">
               Group settings
-            </Link>
+            </PageLink>
           </div>
         </section>
       </div>
@@ -108,21 +108,30 @@ export function GroupHome() {
               />
             )}
           </section>
-          <Feed groupId={id} items={feed.data} me={me} ownerId={g.ownerId} people={people} currency={g.currency} />
+          <Feed
+            groupId={id}
+            items={feed.data}
+            error={feed.error}
+            onRetry={() => void feed.refetch()}
+            me={me}
+            ownerId={g.ownerId}
+            people={people}
+            currency={g.currency}
+          />
         </div>
 
         <div className="col">
           <Leaderboard fun={fun.data} people={people} currency={g.currency} />
           <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} compact>
-            <Link to={wheel} className="btn small ghost recent-spins">
+            <PageLink to={wheel} className="btn small ghost recent-spins">
               <UiIcon name="clock" />
               Recent spins
-            </Link>
+            </PageLink>
           </WheelCard>
         </div>
       </div>
 
-      <Link to={addExpense} className="btn primary fab">
+      <Link to={addExpense} preventScrollReset className="btn primary fab">
         <UiIcon name="plus" />
         Add expense
       </Link>

@@ -6,7 +6,7 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 
 1. DONE: Create the Cloudflare account and run `wrangler login` locally.
 2. DONE: Create the hosted D1 database (APAC, id already in `apps/api/wrangler.toml`).
-3. DONE: Apply both migrations to the remote database.
+3. DONE: Apply the initial migrations to the remote database. From then on CI applies any new migrations on every deploy (`wrangler d1 migrations apply --remote`), before the Worker goes out.
 4. DONE: Create the Clerk app "SquadSplit" (development instance).
 5. DONE: Create the Pages project `squadsplit` (https://squadsplit.pages.dev). For reference, it was created from `apps/api` with:
 
@@ -25,13 +25,14 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
    ```
 
 7. DONE: Create a Cloudflare API token ("Edit Cloudflare Workers" template plus Account, D1, Edit and Account, Cloudflare Pages, Edit) and note the Account ID.
+   - DONE (PR #3, receipt scanning): **Account › Workers AI › Read** added to that API token. `apps/api/wrangler.toml` now binds Workers AI (`[ai] binding = "AI"`), and `wrangler deploy` needs this permission to publish a Worker with that binding. No new secret is needed: the binding uses the account's own Workers AI.
 8. DONE: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`
    - Variables: `WEB_ORIGIN` = `https://squadsplit.pages.dev`, `VITE_API_URL` = `https://squadsplit-api.tngzhexuan.workers.dev`. The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
-9. TODO: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
+9. DONE: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
    Also consider making "First name" a required sign-up field (User & authentication, then the name settings), so friends show up by name instead of an email address.
-10. TODO: Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
-11. TODO: Smoke test. Open the health endpoint and expect `{"ok":true}`:
+10. DONE (v1 live, then PR #2): Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
+11. DONE (v1 and PR #2): Smoke test. Open the health endpoint and expect `{"ok":true}`:
 
     ```bash
     curl https://squadsplit-api.tngzhexuan.workers.dev/health
@@ -43,6 +44,10 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 
 - `WEB_ORIGIN` is passed to `wrangler deploy` as `--var`, so it overrides the localhost value in `wrangler.toml`. The Worker only accepts Clerk tokens and CORS requests from that origin.
 - `VITE_*` values are baked into the web build, so changing them needs a new deploy.
+- `apps/web/public/_headers` sets the caching on Pages: HTML (`/*`, which includes `/`, `/index.html` and the SPA fallback for deep links) gets `Cache-Control: no-cache`, so browsers revalidate it and pick up a new deploy on the next load; the content-hashed `/assets/*` files get `public, max-age=31536000, immutable`. Pages applies every matching rule and joins repeated headers with a comma, so the `/assets/*` rule first drops the inherited value with `! Cache-Control`.
+- **Receipt scanning** uses the Worker's `AI` binding (`@cf/mistralai/mistral-small-3.1-24b-instruct`). AI bindings always run remotely, so `wrangler dev` calls the real Workers AI with your `wrangler login` and uses the same daily allowance; the API tests turn remote bindings off (`remoteBindings: false` in `apps/api/vitest.config.ts`) and inject a fake `AI.run`, so CI's test job needs no Cloudflare credentials.
+- **Free-plan limits:** Workers AI on the Free plan gives the account 10,000 neurons a day, reset at 00:00 UTC; after that, calls fail until the reset. The API caps scans at 20 per user and 40 for the whole app per UTC day (`apps/api/src/receipts/config.ts`). Cloudflare prices the model at 31,876 neurons per million input tokens and 50,488 per million output tokens but doesn't publish an image's token count, so `config.ts` estimates the worst case for one scan: a 1600px image (the largest the API takes) at one token per 28x28 pixels is at most 3,422 tokens, plus about 600 for the prompt, and at most 1,024 tokens out: about 128 + 52 = 180 neurons. 40 scans is then at most about 7,200 neurons, 72% of the allowance; a normal 1024px scan is nearer 70. A test fails if the cap times the worst case goes over 75%. Over a cap, or when Workers AI reports the allowance used up (error 4006), the API answers 429 `scan_limit`; other model failures answer 503 `scan_unavailable`. Those two don't count against the user; an answer the API can't read does (422 `receipt_unreadable`), since it used neurons. In all three cases the web app reads the receipt on the phone instead with Tesseract.js.
+- **Tesseract assets:** `apps/web/scripts/copy-tesseract.mjs` runs before `vite build` and `vite dev` (`prebuild`/`predev`) and copies the worker, the three LSTM WebAssembly cores and `eng.traineddata.gz` (about 14 MB in all, gitignored) into `apps/web/public/tesseract/`, so Pages serves them from our own origin. A phone downloads them only when it falls back to on-phone reading: about 3.7 MB for one core plus 2.8 MB of language data, which Tesseract then keeps in IndexedDB.
 - Deep links such as `/join/:code` fall back to the SPA through Pages' default single-page-app behaviour (the build has no `404.html`). Don't add a `_redirects` rule like `/* /index.html 200`: Pages flags it as an infinite loop and ignores it.
 
 > **Warning:** any manual `wrangler deploy` must pass the origin too, or the Worker falls back to the localhost value in `wrangler.toml` and rejects every request from the live site, locking everyone out. From `apps/api`:
@@ -85,4 +90,4 @@ Migrations are forward-only, so ship a new migration to undo a schema change.
 
 ## Cost
 
-Everything here fits the Cloudflare free tier (Workers, D1, Pages) and Clerk's free tier for a small group of friends.
+Everything here fits the Cloudflare free tier (Workers, D1, Pages, Workers AI within its daily neurons) and Clerk's free tier for a small group of friends.

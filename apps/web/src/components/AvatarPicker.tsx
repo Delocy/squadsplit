@@ -1,15 +1,8 @@
 import { AVATAR_ANIMALS, AVATAR_COLORS, firstFreeAvatar, sameAvatar, type AvatarChoice, type AvatarColor } from '@squadsplit/shared'
 import type { CSSProperties } from 'react'
-import { ApiError } from '../api'
 import { Avatar, animalLabel, colorLabel } from '../design/Avatar'
 
 const COLORS = Object.keys(AVATAR_COLORS) as AvatarColor[]
-
-export const AVATAR_TAKEN_TEXT = 'Someone in this group already looks like that — pick another.'
-
-/** The API's 409 avatar_taken in plain words; any other error is passed through for ErrorNote. */
-export const avatarErrorOf = (error: unknown): unknown =>
-  error instanceof ApiError && error.code === 'avatar_taken' ? new Error(AVATAR_TAKEN_TEXT) : error
 
 /**
  * Pick an animal and a colour for yourself in a group. `taken` are the other active members' looks:

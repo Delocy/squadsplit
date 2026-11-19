@@ -10,6 +10,7 @@ import {
   type Category,
   type Currency,
   type ExpenseDTO,
+  type ReceiptScanResult,
 } from '@squadsplit/shared'
 
 // The add/edit expense form's state and rules, kept apart from the React code.
@@ -37,7 +38,26 @@ export interface ExpenseDraft {
   exact: Record<string, string>
   /** itemized */
   items: ItemDraft[]
+  /** Whether the bill's charges (below) are added on top of the items. */
   restaurantBill: boolean
+  /** The service charge and GST rates the toggle adds: Singapore's 10% + 9%, or a scanned receipt's or saved expense's own. */
+  charges: BillCharges
+}
+
+export interface BillCharges {
+  serviceChargeBps: number
+  gstBps: number
+}
+
+/** Whether the charges are the SG restaurant bill: 10% service charge, then 9% GST. */
+export const isSgCharges = (c: BillCharges) => c.serviceChargeBps === SG_PRESET.serviceChargeBps && c.gstBps === SG_PRESET.gstBps
+
+const percent = (bps: number) => `${bps / 100}%`
+
+/** "10% service charge, then 9% GST", "9% GST" or "10% service charge". */
+export function chargesHint(c: BillCharges): string {
+  const parts = [c.serviceChargeBps > 0 && `${percent(c.serviceChargeBps)} service charge`, c.gstBps > 0 && `${percent(c.gstBps)} GST`]
+  return parts.filter(Boolean).join(', then ')
 }
 
 /** "12", "12.5", "12.50" or ".5" → cents. Anything else (including more than 2 decimals) → null. */
@@ -69,6 +89,7 @@ export function newDraft(me: string, activeIds: string[], today: string): Expens
     items: [emptyItem()],
     // Only used in By item mode, where it starts on (the playground default); the user can switch it off.
     restaurantBill: true,
+    charges: { ...SG_PRESET },
   }
 }
 
@@ -89,8 +110,38 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
     items: e.items?.length
       ? e.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents), userIds: it.userIds }))
       : [emptyItem()],
-    // An itemized expense keeps what was saved; any other starts on, in case it is switched to By item.
-    restaurantBill: e.splitType === 'itemized' ? (e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0 : true,
+    // An itemized expense keeps what was saved, rates included; any other starts on SG, in case it is switched to By item.
+    ...(e.splitType === 'itemized' && ((e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0)
+      ? { restaurantBill: true, charges: { serviceChargeBps: e.serviceChargeBps ?? 0, gstBps: e.gstBps ?? 0 } }
+      : { restaurantBill: e.splitType !== 'itemized', charges: { ...SG_PRESET } }),
+  }
+}
+
+/**
+ * Whether the user has typed an amount, exact shares or item rows: what a scan would replace, so it asks first.
+ * The description, date, category and payer are kept by a scan, so they don't count.
+ */
+export const hasEnteredAmounts = (d: ExpenseDraft) =>
+  d.amount.trim() !== '' ||
+  Object.values(d.exact).some((v) => v.trim() !== '') ||
+  d.items.some((it) => it.name.trim() !== '' || it.price.trim() !== '')
+
+/**
+ * The form filled in from a scanned receipt: the split becomes By item and its items replace the rows (nobody
+ * assigned yet). The receipt's own service charge and GST become the bill's charges (switched on), whatever their
+ * rates, so the saved total is what the receipt adds up to; with no charges the toggle is off. The receipt's total,
+ * when it shows one, becomes the amount too, for a switch back to Equally or Exact amounts.
+ */
+export function applyScan(d: ExpenseDraft, scan: ReceiptScanResult): ExpenseDraft {
+  const charges = { serviceChargeBps: scan.serviceChargeBps ?? 0, gstBps: scan.gstBps ?? 0 }
+  const hasCharges = charges.serviceChargeBps > 0 || charges.gstBps > 0
+  return {
+    ...d,
+    mode: 'itemized',
+    amount: scan.totalCents === null ? d.amount : centsToInput(scan.totalCents),
+    items: scan.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents) })),
+    restaurantBill: hasCharges,
+    charges: hasCharges ? charges : d.charges,
   }
 }
 
@@ -172,7 +223,7 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
       split = { type: 'exact', shares }
     }
   } else {
-    const bps = d.restaurantBill ? SG_PRESET : { serviceChargeBps: 0, gstBps: 0 }
+    const bps = d.restaurantBill ? d.charges : { serviceChargeBps: 0, gstBps: 0 }
     const priced = d.items.map((it) => ({ ...it, cents: parseAmount(it.price) })).filter((it) => it.cents !== null && it.cents >= 1)
     if (priced.length) {
       const items: BillItem[] = priced.map((it) => ({ name: it.name.trim(), amountCents: it.cents!, userIds: ordered(it.userIds) }))

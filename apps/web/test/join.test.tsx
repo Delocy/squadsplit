@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
-  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], ...over,
+  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, ...over,
 })
 
 const animalButton = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Animal' })).getByRole('button', { name })
@@ -39,8 +39,50 @@ describe('Join page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
-    // Your default look, and no nickname since the name was left as your profile name.
-    expect(joinBody(calls)).toEqual({ avatar: defaultAvatar(ME) })
+    // No avatar (you kept the look the server would give you anyway: your default) and no nickname (still your profile name).
+    expect(joinBody(calls)).toEqual({})
+  })
+
+  it('pre-selects the look you left with when you rejoin, and leaves it to the server', async () => {
+    const old = { animal: 'penguin', color: 'lemon' } as const
+    const calls = fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ myFormerAvatar: old }) }),
+      'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+    })
+    renderApp('/join/ABCD2345')
+
+    await screen.findByRole('group', { name: 'Animal' })
+    expect(pressed('Animal')).toEqual(['Penguin'])
+    expect(pressed('Colour')).toEqual(['Lemon'])
+    fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+
+    await vi.waitFor(() => expect(joinBody(calls)).toEqual({}))
+  })
+
+  it('moves on from the look you left with when someone took it while you were away', async () => {
+    const old = { animal: 'penguin', color: 'lemon' } as const
+    fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ myFormerAvatar: old, takenAvatars: [old] }) }) })
+    renderApp('/join/ABCD2345')
+
+    const expected = firstFreeAvatar(old, [old])
+    await screen.findByRole('group', { name: 'Animal' })
+    expect(pressed('Animal')).toEqual([animalLabel(expected.animal)])
+    expect(pressed('Colour')).toEqual([colorLabel(expected.color)])
+  })
+
+  it('sends the look you picked when it differs from the one you were given', async () => {
+    const old = { animal: 'penguin', color: 'lemon' } as const
+    const calls = fakeApi({
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ myFormerAvatar: old }) }),
+      'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+    })
+    renderApp('/join/ABCD2345')
+
+    await screen.findByRole('group', { name: 'Colour' })
+    fireEvent.click(colourButton('Mint'))
+    fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+
+    await vi.waitFor(() => expect(joinBody(calls)).toEqual({ avatar: { animal: 'penguin', color: 'mint' } }))
   })
 
   it('pre-selects the first free look, starting from your default', async () => {
@@ -103,13 +145,14 @@ describe('Join page', () => {
       'GET /invites/ABCD2345': () => ({ status: 200, body: preview({ takenAvatars: taken }) }),
       'POST /invites/ABCD2345/join': () => {
         taken = [defaultAvatar(ME)]
-        return { status: 409, body: { error: { code: 'avatar_taken', message: 'Conflict' } } }
+        return { status: 409, body: { error: { code: 'avatar_taken', message: 'That look was just taken.' } } }
       },
     })
     renderApp('/join/ABCD2345')
     fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
 
-    expect(await screen.findByText('Someone in this group already looks like that — pick another.')).toBeTruthy()
+    // The API's own words.
+    expect(await screen.findByText('That look was just taken.')).toBeTruthy()
     await vi.waitFor(() => expect(calls.filter((c) => c.key === 'GET /invites/ABCD2345')).toHaveLength(2))
     const next = firstFreeAvatar(defaultAvatar(ME), [defaultAvatar(ME)])
     await vi.waitFor(() => expect(pressed('Colour')).toEqual([colorLabel(next.color)]))

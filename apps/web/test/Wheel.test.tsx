@@ -51,7 +51,7 @@ describe('Wheel', () => {
     fakeApi(groupHandlers())
     renderApp('/groups/g1/wheel')
     await screen.findByRole('heading', { name: 'Who pays next?' })
-    expect(odds().getAllByText('50%')).toHaveLength(2)
+    expect(await odds().findAllByText('50%')).toHaveLength(2)
   })
 
   it("spins to the server's winner and announces them when the 3s animation ends", async () => {

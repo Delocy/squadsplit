@@ -1,50 +1,81 @@
 import { defaultAvatar, type AvatarChoice, type BalancesDTO, type ExpenseDTO, type FeedItem, type FunDTO, type GroupDTO, type MemberDTO, type SettlementDTO } from '@squadsplit/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useApi } from './api'
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
+import { useApi, type ApiClient } from './api'
 import { invalidateGroup, queryKeys } from './queryKeys'
+import { useSingleFlightMutation } from './singleFlight'
 
-// One hook per group read, so every screen shares the same cache entries.
+/**
+ * How long a group read counts as fresh. A page opened just after its data was prefetched (see usePrefetchGroup)
+ * uses that data instead of fetching it again. Changes in the group still refetch at once (invalidateGroup).
+ */
+export const GROUP_STALE_MS = 15_000
 
-export function useGroup(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.group(id), queryFn: () => api.get<GroupDTO>(`/groups/${id}`) })
-}
+// One query per group read, so every screen (and the prefetch) shares the same cache entries.
+const groupQuery = (api: ApiClient, id: string) =>
+  queryOptions({ queryKey: queryKeys.group(id), queryFn: () => api.get<GroupDTO>(`/groups/${id}`), staleTime: GROUP_STALE_MS })
 
-export function useBalances(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.balances(id), queryFn: () => api.get<BalancesDTO>(`/groups/${id}/balances`) })
-}
+const balancesQuery = (api: ApiClient, id: string) =>
+  queryOptions({
+    queryKey: queryKeys.balances(id),
+    queryFn: () => api.get<BalancesDTO>(`/groups/${id}/balances`),
+    staleTime: GROUP_STALE_MS,
+  })
 
-export function useExpenses(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.expenses(id), queryFn: () => api.get<ExpenseDTO[]>(`/groups/${id}/expenses`) })
-}
+const expensesQuery = (api: ApiClient, id: string) =>
+  queryOptions({
+    queryKey: queryKeys.expenses(id),
+    queryFn: () => api.get<ExpenseDTO[]>(`/groups/${id}/expenses`),
+    staleTime: GROUP_STALE_MS,
+  })
 
-export function usePendingSettlements(id: string) {
-  const api = useApi()
-  return useQuery({
+const pendingSettlementsQuery = (api: ApiClient, id: string) =>
+  queryOptions({
     queryKey: queryKeys.pendingSettlements(id),
     queryFn: () => api.get<SettlementDTO[]>(`/groups/${id}/settlements?status=pending`),
+    staleTime: GROUP_STALE_MS,
   })
-}
 
-export function useFun(id: string) {
-  const api = useApi()
-  return useQuery({ queryKey: queryKeys.fun(id), queryFn: () => api.get<FunDTO>(`/groups/${id}/badges`) })
-}
+const funQuery = (api: ApiClient, id: string) =>
+  queryOptions({ queryKey: queryKeys.fun(id), queryFn: () => api.get<FunDTO>(`/groups/${id}/badges`), staleTime: GROUP_STALE_MS })
 
-export function useFeed(id: string) {
+const feedQuery = (api: ApiClient, id: string) =>
+  queryOptions({ queryKey: queryKeys.feed(id), queryFn: () => api.get<FeedItem[]>(`/groups/${id}/feed`), staleTime: GROUP_STALE_MS })
+
+export const useGroup = (id: string) => useQuery(groupQuery(useApi(), id))
+export const useBalances = (id: string) => useQuery(balancesQuery(useApi(), id))
+export const useExpenses = (id: string) => useQuery(expensesQuery(useApi(), id))
+export const usePendingSettlements = (id: string) => useQuery(pendingSettlementsQuery(useApi(), id))
+export const useFun = (id: string) => useQuery(funQuery(useApi(), id))
+export const useFeed = (id: string) => useQuery(feedQuery(useApi(), id))
+
+/**
+ * Starts loading what a group's home page waits for before it shows (the group, balances, expenses, pending
+ * settlements and feed), for a link that is about to be followed. Data that is still fresh is not fetched again, so calling it on every hover is cheap.
+ */
+export function usePrefetchGroup(): (id: string) => void {
   const api = useApi()
-  return useQuery({ queryKey: queryKeys.feed(id), queryFn: () => api.get<FeedItem[]>(`/groups/${id}/feed`) })
+  const queryClient = useQueryClient()
+  return useCallback(
+    (id: string) => {
+      void queryClient.prefetchQuery(groupQuery(api, id))
+      void queryClient.prefetchQuery(balancesQuery(api, id))
+      void queryClient.prefetchQuery(expensesQuery(api, id))
+      void queryClient.prefetchQuery(pendingSettlementsQuery(api, id))
+      void queryClient.prefetchQuery(feedQuery(api, id))
+    },
+    [api, queryClient],
+  )
 }
 
 /**
  * A change inside the group. Whether it works or not, everything about the group is refetched
  * afterwards: a failure (say, a settlement that is no longer pending) usually means our copy is stale.
+ * A second press while it is in flight is ignored (see useSingleFlightMutation).
  */
 export function useGroupMutation<TVars, TResult>(groupId: string, mutationFn: (vars: TVars) => Promise<TResult>) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn, onSettled: () => invalidateGroup(queryClient, groupId) })
+  return useSingleFlightMutation({ mutationFn, onSettled: () => invalidateGroup(queryClient, groupId) })
 }
 
 /** Names and avatars for everyone in the group's history, including people who have left. */

@@ -7,16 +7,24 @@ import {
   type GroupDTO,
   type MemberDTO,
 } from '@squadsplit/shared'
-import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { ScanReceiptCard } from '../components/ScanReceiptCard'
+import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
+import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
+import { EXIT_MS, useReducedMotion } from '../design/motion'
 import {
+  applyScan,
+  chargesHint,
+  isSgCharges,
   draftFromExpense,
   emptyItem,
+  hasEnteredAmounts,
   newDraft,
   summarize,
   type ExpenseDraft,
@@ -38,13 +46,22 @@ export function ExpenseForm() {
   const navigate = useNavigate()
   const group = useGroup(groupId)
   const expenses = useExpenses(groupId)
-  const close = () => navigate(`/groups/${groupId}`)
+  const reduced = useReducedMotion()
+  const [leaving, setLeaving] = useState(false)
+  // Back to the group, staying where it was scrolled to. The dialog fades out first (not under reduced motion).
+  const backToGroup = () => navigate(`/groups/${groupId}`, { preventScrollReset: true })
+  const close = () => (reduced ? backToGroup() : setLeaving(true))
+  useEffect(() => {
+    if (!leaving) return
+    const timer = setTimeout(() => navigate(`/groups/${groupId}`, { preventScrollReset: true }), EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [leaving, navigate, groupId])
 
   const expense = expenseId ? expenses.data?.find((e) => e.id === expenseId) : undefined
   const people = group.data ? peopleOf(group.data, me) : null
   const leftMember = expense && people ? formerMemberIn(expense, people) : null
   let body: ReactNode
-  if (!group.data || (expenseId && expenses.isPending)) body = <p className="empty">Loading…</p>
+  if (!group.data || (expenseId && expenses.isPending)) body = <ExpenseFormSkeleton />
   else if (expenseId && !expense) body = <Notice onClose={close}>We can't find this expense. It may have been deleted.</Notice>
   else if (expense?.locked) {
     body = (
@@ -61,15 +78,34 @@ export function ExpenseForm() {
   }
 
   return (
-    <Dialog title={expenseId ? 'Edit expense' : 'New expense'} onClose={close}>
+    <Dialog title={expenseId ? 'Edit expense' : 'New expense'} leaving={leaving} onClose={close}>
       {body}
     </Dialog>
   )
 }
 
-/** A native modal <dialog> (Escape closes it), opened as it mounts. */
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+/**
+ * A native modal <dialog> (Escape closes it), opened as it mounts. It fades and scales in, and out while `leaving`.
+ * When it goes, focus goes back to whatever opened it (the Add expense or Edit link).
+ */
+function Dialog({
+  title,
+  leaving,
+  onClose,
+  children,
+}: {
+  title: string
+  leaving: boolean
+  onClose: () => void
+  children: ReactNode
+}) {
   const ref = useRef<HTMLDialogElement>(null)
+  useLayoutEffect(() => {
+    const opener = document.activeElement
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [])
   useLayoutEffect(() => {
     const d = ref.current
     if (!d || d.open) return
@@ -80,6 +116,8 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   return (
     <dialog
       ref={ref}
+      className={leaving ? 'out' : undefined}
+      tabIndex={-1}
       aria-labelledby="dlg-title"
       onCancel={(e) => {
         e.preventDefault()
@@ -169,6 +207,14 @@ function ExpenseFields({
   const [problem, setProblem] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const submitRef = useRef<HTMLButtonElement>(null)
+  const descriptionRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const description = descriptionRef.current
+    // On a touch screen, focusing a field pops up the keyboard, which would cover the receipt card at the top. Focus
+    // the dialog instead, so screen readers still land in it.
+    if (window.matchMedia?.('(pointer: coarse)').matches) description?.closest('dialog')?.focus()
+    else description?.focus()
+  }, [])
 
   const save = useGroupMutation(group.id, (input: CreateExpenseInput) =>
     expense ? api.patch<ExpenseDTO>(`/expenses/${expense.id}`, input) : api.post<ExpenseDTO>(`/groups/${group.id}/expenses`, input),
@@ -211,12 +257,25 @@ function ExpenseFields({
 
   return (
     <form onSubmit={submit} noValidate>
+      {/* New expenses only: one obvious place to start from a receipt, whatever the split. */}
+      {!expense && (
+        <ScanReceiptCard
+          groupId={group.id}
+          currency={currency}
+          hasEnteredAmounts={hasEnteredAmounts(draft)}
+          onScan={(scan) => {
+            setProblem(null)
+            setDraft((d) => applyScan(d, scan))
+          }}
+        />
+      )}
       <div className="two">
         <div>
           <label className="f" htmlFor="exp-desc">
             Description
           </label>
           <input
+            ref={descriptionRef}
             id="exp-desc"
             type="text"
             maxLength={100}
@@ -341,8 +400,8 @@ function ExpenseFields({
           <label className="chip toggle">
             <input type="checkbox" checked={draft.restaurantBill} onChange={(e) => update({ restaurantBill: e.target.checked })} />
             <span>
-              Restaurant bill (SG)
-              <span className="hint">10% service charge, then 9% GST</span>
+              {isSgCharges(draft.charges) ? 'Restaurant bill (SG)' : 'Receipt charges'}
+              <span className="hint">{chargesHint(draft.charges)}</span>
             </span>
           </label>
           <div className="items">
@@ -397,8 +456,17 @@ function ExpenseFields({
           </button>
           {summary.bill && draft.restaurantBill && (
             <p className="preview">
-              Subtotal <b>{money(summary.bill.subtotal)}</b> · Service charge 10% <b>{money(summary.bill.serviceCharge)}</b> · GST
-              9% <b>{money(summary.bill.gst)}</b>
+              Subtotal <b>{money(summary.bill.subtotal)}</b>
+              {draft.charges.serviceChargeBps > 0 && (
+                <>
+                  {' · '}Service charge {draft.charges.serviceChargeBps / 100}% <b>{money(summary.bill.serviceCharge)}</b>
+                </>
+              )}
+              {draft.charges.gstBps > 0 && (
+                <>
+                  {' · '}GST {draft.charges.gstBps / 100}% <b>{money(summary.bill.gst)}</b>
+                </>
+              )}
             </p>
           )}
         </>
@@ -427,11 +495,18 @@ function ExpenseFields({
       <div className="dlg-f">
         {expense &&
           (confirmDelete ? (
-            <button type="button" className="btn ghost danger" onClick={() => remove.mutate(expense.id, { onSuccess: onDone })} disabled={remove.isPending}>
-              Yes, delete it
+            <button
+              type="button"
+              className="btn ghost danger"
+              onClick={() => remove.mutate(expense.id, { onSuccess: onDone })}
+              disabled={remove.isPending || save.isPending}
+            >
+              <BusyLabel busy={remove.isPending} label="Deleting…">
+                Yes, delete it
+              </BusyLabel>
             </button>
           ) : (
-            <button type="button" className="btn ghost danger" onClick={() => setConfirmDelete(true)}>
+            <button type="button" className="btn ghost danger" onClick={() => setConfirmDelete(true)} disabled={save.isPending}>
               Delete
             </button>
           ))}
@@ -443,9 +518,11 @@ function ExpenseFields({
           ref={submitRef}
           type="submit"
           className="btn primary"
-          disabled={save.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0)}
+          disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0)}
         >
-          {expense ? 'Save changes' : 'Add expense'}
+          <BusyLabel busy={save.isPending} label={expense ? 'Saving…' : 'Adding…'}>
+            {expense ? 'Save changes' : 'Add expense'}
+          </BusyLabel>
         </button>
       </div>
     </form>
