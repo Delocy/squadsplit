@@ -100,10 +100,25 @@ export function receiptItemsTotal(r: ReceiptScanResult): Cents {
  * A receipt rounds its service charge and its GST lines to the cent separately, so its total can be up to a cent
  * away from ours for each of them.
  */
-const ROUNDING_SLACK_CENTS = 2
+export const RECEIPT_TOTAL_TOLERANCE_CENTS = 2
 
-/** Whether the items add up to the printed total; null when the receipt shows none. */
+/**
+ * Whether the receipt lists a charge but its prices already include it: the total equals the plain items, and the
+ * items with the charges added would miss it. False when there is no total or no charge.
+ */
+export function receiptChargesIncluded(r: ReceiptScanResult): boolean {
+  if (r.totalCents === null) return false
+  if (!((r.serviceChargeBps ?? 0) > 0 || (r.gstBps ?? 0) > 0)) return false
+  const plain = r.items.reduce((sum, it) => sum + it.amountCents, 0)
+  return (
+    Math.abs(plain - r.totalCents) <= RECEIPT_TOTAL_TOLERANCE_CENTS &&
+    Math.abs(receiptItemsTotal(r) - r.totalCents) > RECEIPT_TOTAL_TOLERANCE_CENTS
+  )
+}
+
+/** Whether the items add up to the printed total (with the charges on top, or already in the prices); null when the receipt shows none. */
 export function receiptTotalMatches(r: ReceiptScanResult): boolean | null {
   if (r.totalCents === null) return null
-  return Math.abs(receiptItemsTotal(r) - r.totalCents) <= ROUNDING_SLACK_CENTS
+  if (receiptChargesIncluded(r)) return true
+  return Math.abs(receiptItemsTotal(r) - r.totalCents) <= RECEIPT_TOTAL_TOLERANCE_CENTS
 }

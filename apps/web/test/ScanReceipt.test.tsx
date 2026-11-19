@@ -68,8 +68,8 @@ const itemRows = (dialog: ReturnType<typeof within>) =>
     const [name, price] = within(row).getAllByRole('textbox') as HTMLInputElement[]
     return [name!.value, price!.value]
   })
-const sgToggle = (dialog: ReturnType<typeof within>) =>
-  dialog.getByRole('checkbox', { name: /Restaurant bill|Receipt charges/ }) as HTMLInputElement
+const serviceToggle = (dialog: ReturnType<typeof within>) => dialog.getByRole('checkbox', { name: /^Service charge/ }) as HTMLInputElement
+const gstToggle = (dialog: ReturnType<typeof within>) => dialog.getByRole('checkbox', { name: /^GST/ }) as HTMLInputElement
 
 describe('Scan receipt', () => {
   it('offers the camera and a photo from the gallery once, in a receipt card at the top of the form', async () => {
@@ -112,7 +112,7 @@ describe('Scan receipt', () => {
     expect(await dialog.findByText('Read your receipt — total $93.52 matches. Tap who had what.')).toBeTruthy()
     expect(dialog.getByRole('button', { name: 'By item' }).getAttribute('aria-pressed')).toBe('true')
     expect(itemRows(dialog)).toEqual([['Laksa', '60.00'], ['Satay x10', '18.00']])
-    expect(sgToggle(dialog).checked).toBe(true)
+    expect([serviceToggle(dialog).checked, gstToggle(dialog).checked]).toEqual([true, true])
     expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe('93.52')
     // The receipt total is the amount too, should the split go back to Equally.
     fireEvent.click(dialog.getByRole('button', { name: 'Equally' }))
@@ -152,8 +152,9 @@ describe('Scan receipt', () => {
     const { calls, dialog } = await openByItem(
       () => new Promise((resolve) => (answer = () => resolve({ status: 200, body: AI_SCAN }))),
     )
-    sgToggle(dialog).click() // off, so we can see the scan turn it back on
-    expect(sgToggle(dialog).checked).toBe(false)
+    serviceToggle(dialog).click() // off, so we can see the scan turn them back on
+    gstToggle(dialog).click()
+    expect([serviceToggle(dialog).checked, gstToggle(dialog).checked]).toEqual([false, false])
 
     choose(dialog.getByLabelText('Scan receipt'))
     expect((await dialog.findByText('Reading your receipt…')).getAttribute('role')).toBe('status')
@@ -165,7 +166,7 @@ describe('Scan receipt', () => {
       ['Laksa', '60.00'],
       ['Satay x10', '18.00'],
     ])
-    expect(sgToggle(dialog).checked).toBe(true)
+    expect([serviceToggle(dialog).checked, gstToggle(dialog).checked]).toEqual([true, true])
     expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe('93.52')
     expect(calls.find((c) => c.key === 'POST /groups/g1/receipts/scan')!.body).toEqual({ imageBase64: 'SMALL1024', mimeType: 'image/jpeg' })
     expect(tesseract.createWorker).not.toHaveBeenCalled()
@@ -206,17 +207,17 @@ describe('Scan receipt', () => {
   })
 
   it.each([
-    ['GST only', { serviceChargeBps: null, gstBps: 900, totalCents: 8502 }, '9% GST', '$85.02', 'Subtotal $78.00 · GST 9% $7.02'],
-    ['service charge only', { serviceChargeBps: 1000, gstBps: null, totalCents: 8580 }, '10% service charge', '$85.80', 'Subtotal $78.00 · Service charge 10% $7.80'],
-    ['other rates', { serviceChargeBps: 1200, gstBps: 900, totalCents: 9522 }, '12% service charge, then 9% GST', '$95.22', 'Subtotal $78.00 · Service charge 12% $9.36 · GST 9% $7.86'],
-  ])('adds a receipt’s own charges when they are %s, so the saved total is the receipt’s', async (_, charges, hint, total, breakdown) => {
+    ['GST only', { serviceChargeBps: null, gstBps: 900, totalCents: 8502 }, ['Service charge 10%', 'GST 9%'], [false, true], '$85.02', 'Subtotal $78.00 · GST 9% $7.02'],
+    ['service charge only', { serviceChargeBps: 1000, gstBps: null, totalCents: 8580 }, ['Service charge 10%', 'GST 9%'], [true, false], '$85.80', 'Subtotal $78.00 · Service charge 10% $7.80'],
+    ['other rates', { serviceChargeBps: 1200, gstBps: 900, totalCents: 9522 }, ['Service charge 12%', 'GST 9%'], [true, true], '$95.22', 'Subtotal $78.00 · Service charge 12% $9.36 · GST 9% $7.86'],
+  ])('adds a receipt’s own charges when they are %s, so the saved total is the receipt’s', async (_, charges, labels, ons, total, breakdown) => {
     const { calls, dialog } = await openByItem(() => ({ status: 200, body: { ...AI_SCAN, ...charges, totalMatches: true } }))
     choose(dialog.getByLabelText('Scan receipt'))
     expect(await dialog.findByText(`Read your receipt — total ${total} matches. Tap who had what.`)).toBeTruthy()
 
-    const toggle = sgToggle(dialog)
-    expect(toggle.checked).toBe(true)
-    expect(toggle.closest('label')!.textContent).toBe(`Receipt charges${hint}`)
+    // A charge the receipt lacks starts off, at the SG rate.
+    expect([serviceToggle(dialog).checked, gstToggle(dialog).checked]).toEqual(ons)
+    expect([serviceToggle(dialog).closest('label')!.textContent, gstToggle(dialog).closest('label')!.textContent]).toEqual(labels)
     expect((dialog.getByLabelText('Total (SGD)') as HTMLInputElement).value).toBe(total.replace('$', ''))
     expect(dialog.getByText(/^Subtotal/).textContent).toBe(breakdown)
 
@@ -243,7 +244,7 @@ describe('Scan receipt', () => {
       ['Kopi O x2', '2.40'],
       ['Kaya Toast', '3.20'],
     ])
-    expect(sgToggle(dialog).checked).toBe(false)
+    expect([serviceToggle(dialog).checked, gstToggle(dialog).checked]).toEqual([false, false])
     expect(calls.filter((c) => c.key === 'POST /groups/g1/receipts/scan')).toHaveLength(1)
 
     // Self-hosted: worker, core and language data all come from our own origin, never a CDN.

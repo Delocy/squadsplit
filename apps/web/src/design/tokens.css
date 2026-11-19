@@ -268,6 +268,7 @@ input[type=date] { width: auto; }
 .exact-row .who { min-width: 0; overflow-wrap: anywhere; }
 .left { font-size: 13px; color: var(--bad); margin: 8px 0 0; }
 .left.done { color: var(--good); }
+.charges { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip.toggle { margin-top: 12px; padding: 6px 10px; cursor: pointer; }
 .chip.toggle:has(input:checked) { border-color: var(--ink); background: #ffe3ef; color: #3d2c42; }
 .chip.toggle:has(input:checked) .hint { color: #7b6a80; }

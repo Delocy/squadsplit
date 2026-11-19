@@ -51,6 +51,18 @@ describe('scanBanner', () => {
     expect(scanBanner(scanOf(serviceOnly), 'SGD')).toBe('Read your receipt — total $85.80 matches. Tap who had what.')
   })
 
+  it('says so when the prices already include the charges', () => {
+    const cafe = {
+      items: [{ name: 'Gratin', amountCents: 650 }, { name: 'Set', amountCents: 900 }, { name: 'Set', amountCents: 900 }, { name: 'Set', amountCents: 900 }],
+      serviceChargeBps: null,
+      gstBps: 900,
+      totalCents: 3350,
+    }
+    expect(scanBanner(scanOf(cafe), 'SGD')).toBe(
+      'Read your receipt — total $33.50 matches (prices already include the charges). Tap who had what.',
+    )
+  })
+
   it('never shows emoji', () => {
     for (const text of [
       scanBanner(scanOf(result), 'SGD'),

@@ -121,8 +121,8 @@ describe('Expense form', () => {
     type(dialog.getByLabelText('Description'), 'Hawker dinner')
     fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
     // On by default in By item mode, as in the playground.
-    const sg = dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement
-    expect(sg.checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'Service charge 10%' }) as HTMLInputElement).checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'GST 9%' }) as HTMLInputElement).checked).toBe(true)
 
     const first = within(dialog.getByRole('group', { name: 'Item 1' }))
     type(first.getByLabelText('Item name'), 'Laksa')
@@ -155,16 +155,36 @@ describe('Expense form', () => {
     })
   })
 
-  it('by item with the SG toggle switched off: the total is the plain subtotal', async () => {
+  it('by item with both charges switched off: the total is the plain subtotal', async () => {
     const { dialog } = await openNewExpense()
     fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
-    fireEvent.click(dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }))
+    fireEvent.click(dialog.getByRole('checkbox', { name: /^Service charge/ }))
+    fireEvent.click(dialog.getByRole('checkbox', { name: /^GST/ }))
     const first = within(dialog.getByRole('group', { name: 'Item 1' }))
     type(first.getByLabelText('Price'), '12.50')
     fireEvent.click(first.getByRole('button', { name: 'Alice' }))
     fireEvent.click(first.getByRole('button', { name: 'Bob' }))
     expect(totalField(dialog).placeholder).toBe('12.50')
     expect(dialog.getByTestId('preview').textContent).toBe('Each share: Alice $6.25 · Bob $6.25')
+  })
+
+  it('by item: switching service charge off leaves GST alone, in the preview line and the shares', async () => {
+    const { dialog } = await openNewExpense()
+    fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    const first = within(dialog.getByRole('group', { name: 'Item 1' }))
+    type(first.getByLabelText('Price'), '10.00')
+    fireEvent.click(first.getByRole('button', { name: 'Alice' }))
+    expect(dialog.getByText(/^Subtotal/).textContent).toBe('Subtotal $10.00 · Service charge 10% $1.00 · GST 9% $0.99')
+    expect(dialog.getByTestId('preview').textContent).toBe('Each share: Alice $11.99')
+
+    fireEvent.click(dialog.getByRole('checkbox', { name: /^Service charge/ }))
+    expect(dialog.getByText(/^Subtotal/).textContent).toBe('Subtotal $10.00 · GST 9% $0.90')
+    expect(dialog.getByTestId('preview').textContent).toBe('Each share: Alice $10.90')
+    expect(totalField(dialog).placeholder).toBe('10.90')
+
+    fireEvent.click(dialog.getByRole('checkbox', { name: /^GST/ }))
+    expect(dialog.queryByText(/^Subtotal/)).toBeNull()
+    expect(totalField(dialog).placeholder).toBe('10.00')
   })
 
   it('by item: a typed total is checked against the items, and one tap adds the rest as Other', async () => {
@@ -274,15 +294,16 @@ describe('Expense form', () => {
     })
   })
 
-  it('turns the SG toggle on when an equal expense is switched to By item', async () => {
+  it('turns both charges on when an equal expense is switched to By item', async () => {
     fakeApi(groupHandlers({ expenses: [expense({ id: 'e7' })] }))
     renderApp('/groups/g1/expenses/e7')
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
     fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
-    expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'Service charge 10%' }) as HTMLInputElement).checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'GST 9%' }) as HTMLInputElement).checked).toBe(true)
   })
 
-  it('keeps the SG toggle off for an itemized expense saved without it', async () => {
+  it('keeps both charges off for an itemized expense saved without it', async () => {
     const existing = expense({
       id: 'e9',
       amountCents: 1000,
@@ -294,11 +315,12 @@ describe('Expense form', () => {
     fakeApi(groupHandlers({ expenses: [existing] }))
     renderApp('/groups/g1/expenses/e9')
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
-    expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(false)
+    expect((dialog.getByRole('checkbox', { name: /^Service charge/ }) as HTMLInputElement).checked).toBe(false)
+    expect((dialog.getByRole('checkbox', { name: /^GST/ }) as HTMLInputElement).checked).toBe(false)
     expect(totalField(dialog).placeholder).toBe('10.00')
   })
 
-  it('edits an itemized expense with its items and the SG toggle filled in', async () => {
+  it('edits an itemized expense with its items and both charges filled in', async () => {
     const existing = expense({
       id: 'e8',
       amountCents: 3597,
@@ -313,7 +335,8 @@ describe('Expense form', () => {
     fakeApi(groupHandlers({ expenses: [existing] }))
     renderApp('/groups/g1/expenses/e8')
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
-    expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'Service charge 10%' }) as HTMLInputElement).checked).toBe(true)
+    expect((dialog.getByRole('checkbox', { name: 'GST 9%' }) as HTMLInputElement).checked).toBe(true)
     expect((within(dialog.getByRole('group', { name: 'Item 2' })).getByLabelText('Item name') as HTMLInputElement).value).toBe('Satay')
     expect(totalField(dialog).placeholder).toBe('35.97')
   })
