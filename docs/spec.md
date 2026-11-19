@@ -13,13 +13,15 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
 - People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
 - Every participant has an account. There are no guest placeholders.
-- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap.
+- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap. The cap is checked in the same statement that writes the membership, so simultaneous joins can't pass it.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
 - Leaving is a soft delete (`membership.left_at`), so past expenses still show their names.
 - **You in a group** (added 2026-11-19 at the user's request): each membership has its own **animal + colour** avatar and an optional **nickname**.
   - The avatar is one of the 8 member animals (bunny, bear, panda, kitty, fox, hamster, penguin, koala) on one of 6 pastel colours, so 48 combinations. Among a group's **active** members every avatar is unique; former members don't hold theirs.
-  - Joining (and creating a group) lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free. Picking a taken one is 409 `avatar_taken`.
-  - The nickname is 1–24 characters after trimming, with no control characters and no emoji. Empty clears it. Nicknames don't need to be unique.
+  - Joining lets you pick from the combinations that are left. Without a pick you get your default look (a stable hash of your user id), moved on to the first free combination if it's taken. A former member who rejoins keeps their old look if it's still free (the invite preview tells them which, so the Join page starts on it). Picking a taken one is 409 `avatar_taken`.
+  - Creating a group sets only your nickname; you start with your default look and can change it in the group's settings.
+  - The database enforces unique stored looks among active members (migration 0003), so two people picking the same look at once can't both get it. Where effective looks still clash (two members without a stored look whose defaults match), the later joiner is shown the first free combination instead, so no two active members ever look the same.
+  - The nickname is 1–24 characters after trimming, with no control or invisible format characters (such as bidi overrides) and no emoji: no pictographs, flags, keycaps, skin tones or U+FE0F. The plain-text symbols ™ © ® are allowed. Empty clears it. Nicknames don't need to be unique.
   - Inside the group your name is your nickname if you set one, otherwise your profile name. Outside a group (your groups list) the profile name and default look are used.
   - You can change both later in the group's settings.
 
@@ -99,6 +101,7 @@ groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner
 memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable),
                avatar_animal (nullable), avatar_color (nullable), nickname (nullable)
                pk(group_id, user_id)
+               unique(group_id, avatar_animal, avatar_color) where left_at is null and both avatar_* are set (0003)
                avatar_* null (rows from before migration 0002) means the user's default look; nickname null means the profile name
 expenses       id (pk), group_id, description, amount_cents (int > 0), paid_by → users, created_by → users,
                category (emoji text), spent_on (date), split_type ('equal'|'exact'|'itemized'),
@@ -138,7 +141,7 @@ Error responses:
 | `GET /groups/:id` | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
 | `POST /groups/:id/invite/reset` | owner |
-| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken) | any user |
+| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, and your old look if you're a former member) | any user |
 | `POST /invites/:code/join` (optional body `{ avatar?, nickname? }`) | any user (does nothing if already a member) |
 | `PATCH /groups/:id/members/me` (`{ avatar?, nickname? }`, at least one; `nickname: null` or `""` clears) | member |
 | `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0 |

@@ -6,7 +6,7 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 
 1. DONE: Create the Cloudflare account and run `wrangler login` locally.
 2. DONE: Create the hosted D1 database (APAC, id already in `apps/api/wrangler.toml`).
-3. DONE: Apply both migrations to the remote database.
+3. DONE: Apply the initial migrations to the remote database. From then on CI applies any new migrations on every deploy (`wrangler d1 migrations apply --remote`), before the Worker goes out.
 4. DONE: Create the Clerk app "SquadSplit" (development instance).
 5. DONE: Create the Pages project `squadsplit` (https://squadsplit.pages.dev). For reference, it was created from `apps/api` with:
 
@@ -28,10 +28,10 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 8. DONE: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`
    - Variables: `WEB_ORIGIN` = `https://squadsplit.pages.dev`, `VITE_API_URL` = `https://squadsplit-api.tngzhexuan.workers.dev`. The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
-9. TODO: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
+9. DONE: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
    Also consider making "First name" a required sign-up field (User & authentication, then the name settings), so friends show up by name instead of an email address.
-10. TODO: Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
-11. TODO: Smoke test. Open the health endpoint and expect `{"ok":true}`:
+10. DONE (v1 live, then PR #2): Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
+11. DONE (v1 and PR #2): Smoke test. Open the health endpoint and expect `{"ok":true}`:
 
     ```bash
     curl https://squadsplit-api.tngzhexuan.workers.dev/health
@@ -43,6 +43,7 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 
 - `WEB_ORIGIN` is passed to `wrangler deploy` as `--var`, so it overrides the localhost value in `wrangler.toml`. The Worker only accepts Clerk tokens and CORS requests from that origin.
 - `VITE_*` values are baked into the web build, so changing them needs a new deploy.
+- `apps/web/public/_headers` sets the caching on Pages: HTML (`/*`, which includes `/`, `/index.html` and the SPA fallback for deep links) gets `Cache-Control: no-cache`, so browsers revalidate it and pick up a new deploy on the next load; the content-hashed `/assets/*` files get `public, max-age=31536000, immutable`. Pages applies every matching rule and joins repeated headers with a comma, so the `/assets/*` rule first drops the inherited value with `! Cache-Control`.
 - Deep links such as `/join/:code` fall back to the SPA through Pages' default single-page-app behaviour (the build has no `404.html`). Don't add a `_redirects` rule like `/* /index.html 200`: Pages flags it as an infinite loop and ignores it.
 
 > **Warning:** any manual `wrangler deploy` must pass the origin too, or the Worker falls back to the localhost value in `wrangler.toml` and rejects every request from the live site, locking everyone out. From `apps/api`:
