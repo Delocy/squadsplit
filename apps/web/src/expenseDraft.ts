@@ -100,7 +100,8 @@ export function newDraft(me: string, activeIds: string[], today: string): Expens
 export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDraft {
   return {
     description: e.description,
-    amount: centsToInput(e.amountCents),
+    // An itemized expense's total follows its items (see the By item Total field), so nothing is pinned.
+    amount: e.splitType === 'itemized' ? '' : centsToInput(e.amountCents),
     category: e.category,
     paidBy: e.paidBy,
     spentOn: e.spentOn,
@@ -163,6 +164,8 @@ export interface DraftSummary {
   leftToAssign: number | null
   /** itemized mode */
   bill: BillBreakdown | null
+  /** itemized mode, with a total typed (or scanned) that the items plus charges don't match; `diff` is target minus items (positive: short). */
+  check: { itemsTotal: number; diff: number; message: string } | null
   /** Why the expense can't be saved yet, in plain words; null when it can. */
   problem: string | null
   /** The request body, when there is no problem. */
@@ -170,6 +173,8 @@ export interface DraftSummary {
 }
 
 const MAX_CENTS = 100_000_000
+/** How far the items' total may sit from a typed total: a receipt rounds its charges separately (as receiptTotalMatches allows). */
+const TOTAL_TOLERANCE_CENTS = 2
 const TOO_SMALL = "That's too small to split between that many people."
 
 const tryShares = (f: () => Record<string, number>): Record<string, number> | 'too_small' => {
@@ -190,9 +195,10 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
   }
   const typed = parseAmount(d.amount)
   const typedAmount = typed !== null && typed >= 1 ? typed : null
-  const out: DraftSummary = { amountCents: null, shares: null, tooSmall: false, leftToAssign: null, bill: null, problem: null, input: null }
+  const out: DraftSummary = { amountCents: null, shares: null, tooSmall: false, leftToAssign: null, bill: null, check: null, problem: null, input: null }
   let split: CreateExpenseInput['split'] | null = null
   let splitProblem: string | null = null
+  let checkProblem: string | null = null
 
   if (d.mode === 'equal') {
     out.amountCents = typedAmount
@@ -232,6 +238,14 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
       const subtotal = items.reduce((sum, it) => sum + it.amountCents, 0)
       out.bill = { subtotal, serviceCharge: withService - subtotal, gst: total - withService, total }
       out.amountCents = total
+      const target = parseAmount(d.amount)
+      if (d.amount.trim() !== '' && (target === null || target < 1)) checkProblem = `Check the total: use an amount like ${centsToInput(total)}.`
+      else if (target !== null && Math.abs(total - target) > TOTAL_TOLERANCE_CENTS) {
+        const diff = target - total
+        const message = `Items + charges come to ${money(total)}, ${diff > 0 ? `${money(diff)} not on any item` : `${money(-diff)} more than the total`}.`
+        out.check = { itemsTotal: total, diff, message }
+        checkProblem = message
+      }
       if (items.every((it) => it.userIds.length)) {
         const shares = tryShares(() => splitItemized({ items, ...bps }, d.paidBy))
         if (shares === 'too_small') {
@@ -244,6 +258,7 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
       } else if (items.some((it) => !it.name)) splitProblem = 'Give every item a name.'
       else if (out.shares) split = { type: 'itemized', items, ...bps }
     } else splitProblem = 'Add at least one item with a price.'
+    splitProblem ??= checkProblem
   }
 
   if (!d.description.trim()) out.problem = 'Add a description.'
@@ -265,4 +280,29 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
     else out.problem = parsed.error.issues[0]?.message ?? 'Check the expense details.'
   }
   return out
+}
+
+/**
+ * Adds an "Other" item, shared by everyone, that makes up what the items are short of the typed total. Its price is
+ * the pre-charge amount whose item-plus-charges total lands closest to the gap. Untouched blank rows are dropped.
+ * Does nothing unless the items are priced and short.
+ */
+export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft {
+  const target = parseAmount(d.amount)
+  const bps = d.restaurantBill ? d.charges : { serviceChargeBps: 0, gstBps: 0 }
+  const kept = d.items.filter((it) => it.name.trim() !== '' || it.price.trim() !== '' || it.userIds.length > 0)
+  const priced: BillItem[] = kept.flatMap((it) => {
+    const cents = parseAmount(it.price)
+    return cents !== null && cents >= 1 ? [{ name: it.name.trim(), amountCents: cents, userIds: it.userIds }] : []
+  })
+  if (target === null || !priced.length) return d
+  const totalWith = (price: number) => itemizedTotal({ items: [...priced, { name: 'Other', amountCents: price, userIds: activeIds }], ...bps })
+  const gap = target - itemizedTotal({ items: priced, ...bps })
+  if (gap < 1) return d
+  const guess = Math.round(gap / ((1 + bps.serviceChargeBps / 10_000) * (1 + bps.gstBps / 10_000)))
+  let best = Math.max(1, guess)
+  for (let price = Math.max(1, guess - 5); price <= guess + 5; price++) {
+    if (Math.abs(totalWith(price) - target) < Math.abs(totalWith(best) - target)) best = price
+  }
+  return { ...d, items: [...kept, { ...emptyItem(), name: 'Other', price: centsToInput(best), userIds: activeIds }] }
 }
