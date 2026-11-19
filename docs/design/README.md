@@ -12,3 +12,10 @@
   - a main column with Settle up (and its needs-action count) and a tabbed Activity feed
   - a side column with the leaderboard and its badge grid, and the wheel
   - Add expense as a modal dialog, opened from a floating button on mobile
+- **Motion (the user specifically likes it, so keep it):**
+  - The balance mascot bobs gently, and shivers when you owe money. The logo bobs too.
+  - Badge art floats, with staggered delays. Avatars, category tiles and badge art tilt or bounce on hover.
+  - Rows that need your action have a bobbing avatar, and the wheel pointer ticks.
+  - The wheel spins for 3 seconds, and the winner pops in with a shivering avatar.
+  - SVG heart and star confetti bursts when you add an expense, confirm a payment, or the wheel picks someone.
+  - All of it is switched off under `prefers-reduced-motion`.

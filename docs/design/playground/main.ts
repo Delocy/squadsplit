@@ -60,7 +60,7 @@ const av = (u: string, size = '', mood: Mood = 'calm') => {
 
 function confetti(from: HTMLElement) {
   const r = from.getBoundingClientRect()
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 20; i++) {
     const s = document.createElement('span')
     s.className = 'confetti'
     s.innerHTML = confettiPiece(i)
@@ -271,7 +271,7 @@ function render(redrawWheel = true) {
 
   const badges = computeBadges(ledger)
   $('#badges').innerHTML = badges.length
-    ? badges.map(b => `<div class="badge"><div class="art">${badgeArt(b.key)}</div><div style="min-width:0"><div class="t">${b.title}</div><div class="h">${nm(b.userId)}</div></div></div>`).join('')
+    ? badges.map((b, i) => `<div class="badge"><div class="art" style="--d:${(i * 0.45).toFixed(2)}s">${badgeArt(b.key)}</div><div style="min-width:0"><div class="t">${b.title}</div><div class="h">${nm(b.userId)}</div></div></div>`).join('')
     : '<div class="empty">No titles handed out yet.</div>'
 
   if (redrawWheel) renderWheel(spinWeights(ledger))
