@@ -359,8 +359,9 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: shimmer 1.4s ease-in-out infinite; }
 @media (prefers-color-scheme: dark) { .sk::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .07), transparent); } }
 @keyframes shimmer { to { transform: translateX(100%); } }
-/* One line of text: the bar plus its margins is exactly one line box of the text it stands in for. */
-.sk.text { height: .95em; height: calc(1lh - .5em); margin: .25em 0; border-radius: 6px; }
+/* One line of text: the bar plus its margins is exactly one line box of the text it stands in for.
+   inline-block, so the margins never collapse into the neighbouring lines'. */
+.sk.text { display: inline-block; vertical-align: top; height: .95em; height: calc(1lh - .5em); margin: .25em 0; border-radius: 6px; }
 .spinner { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

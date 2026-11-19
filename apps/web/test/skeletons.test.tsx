@@ -27,45 +27,47 @@ describe('skeletons while loading', () => {
     expect(skeletons()).toBe(0)
   })
 
-  it('lays the group home out in skeletons until the group loads, then each card fills in on its own', async () => {
+  it('lays the group home out in skeletons until its first screens can show at once; the leaderboard fills in later', async () => {
     const g = held(ok(group()))
     const balances = held(ok({ balances: { [ME]: 1200, [BOB]: -1200 }, suggestions: [] }))
     const feed = held(ok([]))
     const fun = held(ok({ badges: [], leaderboard: [] }))
-    const expenses = held(ok([]))
     fakeApi(
       groupHandlers({}, {
         'GET /groups/g1': g.handler,
         'GET /groups/g1/balances': balances.handler,
         'GET /groups/g1/feed': feed.handler,
         'GET /groups/g1/badges': fun.handler,
-        'GET /groups/g1/expenses': expenses.handler,
       }),
     )
     renderApp('/groups/g1')
     expect((await screen.findByRole('status')).textContent).toBe('Loading the group…')
-    const page = document.querySelector('main[aria-busy="true"]')!
+    const page = () => document.querySelector('main[aria-busy="true"]')
     // The same grid as the real page: summary strip, main column and side column.
-    expect(page.querySelector('.summary .card.balance .sk')).toBeTruthy()
-    expect(page.querySelectorAll('.main > .col')).toHaveLength(2)
-    expect(page.querySelector('.wheel-card.compact .wheel .sk')).toBeTruthy()
+    expect(page()!.querySelector('.summary .card.balance .sk')).toBeTruthy()
+    expect(page()!.querySelectorAll('.main > .col')).toHaveLength(2)
+    expect(page()!.querySelector('.wheel-card.compact .wheel .sk')).toBeTruthy()
+    // The group name's place in the top bar is held too.
+    expect(document.querySelector('.top .crumb .sk')).toBeTruthy()
 
     g.release()
-    const balance = await screen.findByRole('region', { name: 'Your balance' })
-    expect(balance.getAttribute('aria-busy')).toBe('true')
-    expect(skeletons(balance)).toBeGreaterThan(0)
-    expect(skeletons(screen.getByRole('region', { name: 'Group stats' }))).toBe(3)
-    expect(skeletons(screen.getByRole('region', { name: /^Activity/ }))).toBeGreaterThan(0)
-    // One leaderboard row per current member while the board loads.
-    expect(screen.getByRole('region', { name: 'Leaderboard' }).querySelectorAll('.lb-row')).toHaveLength(2)
-    expect(skeletons(screen.getByRole('list', { name: 'Odds' }))).toBe(2)
-
     balances.release()
+    await vi.waitFor(() => expect(document.querySelector('.top .crumb')!.textContent).toContain('Bali Trip'))
+    // Still waiting for the feed: no half-filled page.
+    expect(page()).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Your balance' })).toBeNull()
+
     feed.release()
+    const balance = await screen.findByRole('region', { name: 'Your balance' })
+    expect(balance.textContent).toContain('$12.00')
+    expect(page()).toBeNull()
+    // One leaderboard row per current member while the board loads.
+    const board = screen.getByRole('region', { name: 'Leaderboard' })
+    expect(board.querySelectorAll('.lb-row')).toHaveLength(2)
+    expect(skeletons(board)).toBeGreaterThan(0)
+
     fun.release()
-    expenses.release()
     await vi.waitFor(() => expect(skeletons()).toBe(0))
-    expect(screen.getByRole('region', { name: 'Your balance' }).textContent).toContain('$12.00')
   })
 
   it('keeps showing the group, not skeletons, while it refetches after a change', async () => {

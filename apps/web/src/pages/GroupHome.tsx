@@ -4,7 +4,7 @@ import { Link, Outlet, useParams } from 'react-router'
 import { BalanceCard } from '../components/BalanceCard'
 import { ErrorNote } from '../components/ErrorNote'
 import { PageLink } from '../components/PageLink'
-import { BalanceSkeleton, GroupHomeSkeleton, RowSkeletons } from '../components/Skeletons'
+import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
@@ -12,7 +12,6 @@ import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
 import { WheelCard } from '../components/WheelCard'
 import { UiIcon } from '../design/icons'
-import { SkText } from '../design/Skeleton'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 
 /** `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog opens over it. */
@@ -26,13 +25,14 @@ export function GroupHome() {
   const fun = useFun(id)
   const feed = useFeed(id)
 
-  if (group.isPending) return <GroupHomeSkeleton />
   if (group.isError) return <GroupUnavailable error={group.error} />
+  // The page waits for everything in its first screens and then appears at once: cards filling in one by one would
+  // push each other down. Only the leaderboard (side column, below the fold on a phone) fills in on its own.
+  if (group.isPending || [balances, expenses, pending, feed].some((q) => q.isPending)) return <GroupHomeSkeleton />
 
   const g = group.data
   const people = peopleOf(g, me)
-  // Stats wait for the expenses: a $0.00 that then jumps would look like real data.
-  const money = (cents: number) => (expenses.data ? formatMoney(cents, g.currency) : <SkText w="70%" />)
+  const money = (cents: number) => formatMoney(cents, g.currency)
   const all = expenses.data ?? []
   const totalSpent = all.reduce((t, e) => t + e.amountCents, 0)
   const myShare = all.reduce((t, e) => t + (e.shares.find((s) => s.userId === me)?.amountCents ?? 0), 0)
@@ -47,8 +47,8 @@ export function GroupHome() {
         {balances.data ? (
           <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
         ) : (
-          <section className="card balance even" aria-label="Your balance" aria-busy={!balances.isError}>
-            {balances.isError ? <ErrorNote error={balances.error} /> : <BalanceSkeleton />}
+          <section className="card balance even" aria-label="Your balance">
+            <ErrorNote error={balances.error} />
           </section>
         )}
         <section className="card" aria-label="Group stats">
@@ -94,8 +94,8 @@ export function GroupHome() {
                 </span>
               )}
             </h3>
-            {pending.data && <PendingActions groupId={id} pending={pending.data} me={me} people={people} currency={g.currency} />}
-            {balances.data && !pending.isPending && (
+            <PendingActions groupId={id} pending={pending.data ?? []} me={me} people={people} currency={g.currency} />
+            {balances.data && (
               <SuggestedTransfers
                 groupId={id}
                 balances={balances.data}
@@ -104,11 +104,6 @@ export function GroupHome() {
                 people={people}
                 currency={g.currency}
               />
-            )}
-            {(balances.isPending || pending.isPending) && !balances.isError && (
-              <ul className="list">
-                <RowSkeletons count={1} />
-              </ul>
             )}
           </section>
           <Feed groupId={id} items={feed.data} me={me} ownerId={g.ownerId} people={people} currency={g.currency} />
