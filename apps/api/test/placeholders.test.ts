@@ -23,6 +23,8 @@ import {
   spins,
   users,
 } from '../src/db/schema'
+import { isForeignKeyViolation } from '../src/errors'
+import { deletePlaceholder } from '../src/placeholders'
 import { db, json, testApp } from './helpers'
 
 const app = testApp()
@@ -159,6 +161,16 @@ describe('DELETE /groups/:id/members/:placeholderId', () => {
     const dave = idOf(group, 'Dave')
     await db().insert(spins).values({ id: 's1', groupId: group.id, spunBy: 'alice', winnerId: dave, weightsJson: '{}', createdAt: new Date().toISOString() })
     expect(await errorCode(await alice(`/groups/${group.id}/members/${dave}`, { method: 'DELETE' }))).toBe('name_in_use')
+  })
+
+  it('cannot delete a name that something started using after the check (the database refuses it)', async () => {
+    const group = await createGroup(['Dave'])
+    const dave = idOf(group, 'Dave')
+    await db().insert(spins).values({ id: 's1', groupId: group.id, spunBy: 'alice', winnerId: dave, weightsJson: '{}', createdAt: new Date().toISOString() })
+    const d = db()
+    const err = await d.batch(deletePlaceholder(d, group.id, dave)).catch((e: unknown) => e)
+    expect(isForeignKeyViolation(err)).toBe(true)
+    expect(placeholdersOf(await getGroup(group.id))).toHaveLength(1)
   })
 
   it('is 403 for a member who is not the owner', async () => {

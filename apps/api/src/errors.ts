@@ -24,6 +24,14 @@ export function isUniqueViolation(err: unknown, columns: string): boolean {
   return false
 }
 
+/** Whether `err` is SQLite refusing a write that would leave a foreign key pointing at nothing. */
+export function isForeignKeyViolation(err: unknown): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if (e.message.includes('FOREIGN KEY constraint failed')) return true
+  }
+  return false
+}
+
 /** For hono's bodyLimit: a body over the route's limit. */
 export const payloadTooLarge = (): never => {
   throw new HttpError(413, 'payload_too_large', 'That request is too large.')

@@ -94,9 +94,8 @@ export function deletePlaceholder(d: Db, groupId: string, userId: string) {
 
 /**
  * The caller (`userId`) becomes the placeholder everywhere, as one batch: their membership takes the placeholder's
- * place (with `look` and `nickname`, joined now), every expense, share, item, settlement and spin (and the spin's
- * weights) moves to them,
- * and the placeholder's user row goes. The caller has never been in the group, so no moved row can clash with
+ * place (with `look` and `nickname`, joined now); every expense, share, item, settlement and spin (with the spin's
+ * weights) moves to them; and the placeholder's user row goes. The caller has never been in the group, so no moved row can clash with
  * one of theirs. The first statement returns the membership it moved: none means someone claimed it first, and
  * then every other statement finds nothing to move either.
  */

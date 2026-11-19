@@ -19,7 +19,7 @@ import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
 import { expenses, groups, memberships, settlements, users } from '../db/schema'
 import type { AppEnv } from '../env'
-import { HttpError, parseBody } from '../errors'
+import { HttpError, isForeignKeyViolation, parseBody } from '../errors'
 import {
   deletePlaceholder,
   insertPlaceholder,
@@ -28,7 +28,7 @@ import {
   placeholderInUse,
 } from '../placeholders'
 import { profileAvatarOf } from '../users'
-import { withFreshInviteCode } from './invites'
+import { groupFull, withFreshInviteCode } from './invites'
 
 async function balanceOf(d: Db, groupId: string, userId: string): Promise<number> {
   return computeBalances(await loadLedger(d, groupId))[userId] ?? 0
@@ -50,8 +50,6 @@ async function hasPendingSettlement(d: Db, groupId: string, userId: string): Pro
     .get()
   return pending !== undefined
 }
-
-const groupFull = () => new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
 
 async function isPlaceholder(d: Db, userId: string): Promise<boolean> {
   const row = await d.select({ kind: users.kind }).from(users).where(eq(users.id, userId)).get()
@@ -236,10 +234,16 @@ export function groupRoutes() {
       if (!targetRole) throw new HttpError(404, 'not_found', 'Member not found')
       // A name nobody has claimed is deleted outright, but only while nothing in the group's history uses it.
       if (await isPlaceholder(d, targetId)) {
-        if (await placeholderInUse(d, targetId)) {
-          throw new HttpError(409, 'name_in_use', "This name is already in the group's expenses or history, so it stays until they join and claim it.")
+        const nameInUse = () =>
+          new HttpError(409, 'name_in_use', "This name is already in the group's expenses or history, so it stays until they join and claim it.")
+        if (await placeholderInUse(d, targetId)) throw nameInUse()
+        try {
+          await d.batch(deletePlaceholder(d, groupId, targetId))
+        } catch (err) {
+          // Something started using the name after the check: its rows still point at the placeholder.
+          if (isForeignKeyViolation(err)) throw nameInUse()
+          throw err
         }
-        await d.batch(deletePlaceholder(d, groupId, targetId))
         return c.body(null, 204)
       }
       if (targetRole === 'owner') throw new HttpError(409, 'owner_cannot_leave', "The owner can't leave the group")

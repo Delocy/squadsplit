@@ -119,7 +119,7 @@ async function claim(
   if (moved.length === 0) throw alreadyClaimed()
 }
 
-const groupFull = () => new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
+export const groupFull = () => new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
 
 export function inviteRoutes() {
   return new Hono<AppEnv>()
