@@ -49,7 +49,7 @@ export function RowSkeletons({ count, lead = 'avatar', amount = true }: { count:
 }
 
 /** Inside a `.card.balance`: the empty mascot circle and the label, amount and quip lines. */
-export function BalanceSkeleton() {
+function BalanceSkeleton() {
   return (
     <>
       <Skeleton className="buddy" circle />
