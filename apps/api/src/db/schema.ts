@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const ROLES = ['owner', 'member'] as const
-export const SPLIT_TYPES = ['equal', 'exact'] as const
+export const SPLIT_TYPES = ['equal', 'exact', 'itemized'] as const
 export const SETTLEMENT_STATUSES = ['pending', 'confirmed', 'rejected', 'cancelled'] as const
 
 /** SQL `IN (...)` list for a CHECK constraint over a fixed set of string literals. */
@@ -65,6 +65,12 @@ export const expenses = sqliteTable(
     category: text('category').notNull(),
     spentOn: text('spent_on').notNull(),
     splitType: text('split_type', { enum: SPLIT_TYPES }).notNull(),
+    currency: text('currency').notNull(),
+    /** Exchange rate to the group currency in parts per million; always 1000000 in v1. */
+    fxRatePpm: integer('fx_rate_ppm').notNull().default(1_000_000),
+    /** Itemized only, in basis points; null for equal and exact splits. */
+    serviceChargeBps: integer('service_charge_bps'),
+    gstBps: integer('gst_bps'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
@@ -90,6 +96,38 @@ export const expenseShares = sqliteTable(
     primaryKey({ columns: [t.expenseId, t.userId] }),
     check('expense_shares_amount_cents_check', sql`${t.amountCents} > 0`),
   ],
+)
+
+/** The line items of an itemized expense, in bill order. */
+export const expenseItems = sqliteTable(
+  'expense_items',
+  {
+    id: text('id').primaryKey(),
+    expenseId: text('expense_id')
+      .notNull()
+      .references(() => expenses.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    name: text('name').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+  },
+  (t) => [
+    index('expense_items_expense_id_idx').on(t.expenseId),
+    check('expense_items_amount_cents_check', sql`${t.amountCents} > 0`),
+  ],
+)
+
+/** Who shared each item of an itemized expense. */
+export const expenseItemUsers = sqliteTable(
+  'expense_item_users',
+  {
+    itemId: text('item_id')
+      .notNull()
+      .references(() => expenseItems.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.userId] })],
 )
 
 export const settlements = sqliteTable(

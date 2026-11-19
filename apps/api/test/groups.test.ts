@@ -37,7 +37,7 @@ async function seedExpense(groupId: string, paidBy: string, shares: Record<strin
   const amountCents = Object.values(shares).reduce((a, b) => a + b, 0)
   await db().insert(expenses).values({
     id, groupId, description: 'Dinner', amountCents, paidBy, createdBy: paidBy,
-    category: '🍕', spentOn: '2026-11-19', splitType: 'exact', createdAt: now, updatedAt: now,
+    category: '🍕', spentOn: '2026-11-19', splitType: 'exact', currency: 'SGD', createdAt: now, updatedAt: now,
   })
   await db().insert(expenseShares).values(Object.entries(shares).map(([userId, cents]) => ({ expenseId: id, userId, amountCents: cents })))
   return id

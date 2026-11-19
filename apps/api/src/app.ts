@@ -6,6 +6,7 @@ import { users } from './db/schema'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
 import { HttpError, errorBody, handleError } from './errors'
+import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
 import { groupRoutes } from './routes/groups'
 import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
@@ -61,6 +62,8 @@ export function createApp(deps: AuthDeps) {
   // Every route mounted below this line can rely on the caller's users row existing.
   app.use('*', ensureUser(deps))
   app.route('/groups', groupRoutes())
+  app.route('/groups', groupExpenseRoutes())
+  app.route('/expenses', expenseRoutes())
   app.route('/invites', inviteRoutes())
 
   return app
