@@ -1,7 +1,9 @@
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { queryKeys } from '../src/queryKeys'
 import { ME } from './clerk-mock'
-import { BOB, group, groupHandlers, member } from './group-fixtures'
+import { BOB, expense, group, groupHandlers, member } from './group-fixtures'
 import { fakeApi, renderApp } from './harness'
 import { mockReducedMotion } from './motion-mock'
 
@@ -124,6 +126,35 @@ describe('the expense dialog', () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
   })
 
+  it('asks before a swipe-back (or any route change) drops unsaved changes, and focuses Cancel on Keep editing', async () => {
+    fakeApi(groupHandlers())
+    const router = renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Dinner' } })
+
+    await act(() => router.navigate('/groups/g1'))
+    const ask = within(within(dialog).getByRole('group', { name: 'Discard this expense?' }))
+    expect(router.state.location.pathname).toBe('/groups/g1/expenses/new')
+    fireEvent.click(ask.getByRole('button', { name: 'Keep editing' }))
+    await vi.waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' })))
+
+    await act(() => router.navigate('/groups/g1'))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+  })
+
+  it('says why when the expenses fail to load, not "may have been deleted"', async () => {
+    // A 4xx, so the page doesn't retry first (Try again itself is ErrorCard's, tested with the groups list).
+    const calls = fakeApi(groupHandlers({}, { 'GET /groups/g1/expenses': () => ({ status: 409, body: { error: { code: 'blocked', message: 'Something broke' } } }) }))
+    renderApp('/groups/g1/expenses/e7')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    expect((await dialog.findByRole('alert')).textContent).toContain('Something broke')
+    expect(dialog.queryByText(/may have been deleted/)).toBeNull()
+    // Read by the home (and its prefetch), not again by the sheet: no loop of refetches.
+    await new Promise((r) => setTimeout(r, 200))
+    expect(calls.filter((c) => c.key === 'GET /groups/g1/expenses').length).toBeLessThanOrEqual(2)
+  })
+
   it('closes without asking when nothing was typed', async () => {
     fakeApi(groupHandlers())
     const router = renderApp('/groups/g1/expenses/new')
@@ -171,6 +202,19 @@ describe('the settle form', () => {
     fireEvent.change(form.getByLabelText('Amount'), { target: { value: '' } })
     expect(form.getByRole('button', { name: 'Mark as paid' })).toBeTruthy()
     expect(document.body.textContent).not.toContain('Submit')
+  })
+
+  it('closes the form and says why when its row goes while it is open', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    fakeApi(groupHandlers({ balances: owing }))
+    renderApp('/groups/g1', queryClient)
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '12.40' } })
+
+    // Someone added an expense: the suggestions changed, and "You → Bob" is gone.
+    act(() => queryClient.setQueryData(queryKeys.balances('g1'), { balances: { [ME]: 0, [BOB]: 0 }, suggestions: [] }))
+    expect(await screen.findByText('Settle up changed while you had that open. Have another look before you mark it paid.')).toBeTruthy()
+    await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull())
   })
 
   it('slides out on Cancel and gives focus back to Mark paid', async () => {

@@ -7,9 +7,10 @@ import {
   type MemberDTO,
 } from '@squadsplit/shared'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useBlocker, useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ConfirmBar, useConfirmStep } from '../components/ConfirmBar'
+import { ErrorCard } from '../components/ErrorCard'
 import { ErrorNote } from '../components/ErrorNote'
 import { ScanReceiptCard } from '../components/ScanReceiptCard'
 import { TotalFixup } from '../components/TotalFixup'
@@ -57,7 +58,9 @@ export function ExpenseForm() {
   const me = useMyId()
   const navigate = useNavigate()
   const group = useGroup(groupId)
-  const expenses = useExpenses(groupId)
+  // The group home under the sheet reads these already. Refetching as the sheet mounts would turn a failed read
+  // back into "loading", where the home shows its skeleton, unmounts the sheet, and the two take turns forever.
+  const expenses = useExpenses(groupId, { overHome: true })
   // Back to the group, staying where it was scrolled to. The sheet slides out first (not under reduced motion).
   const sheet = useSheetClose(() => navigate(`/groups/${groupId}`, { preventScrollReset: true }))
   const guard: CloseGuard = useRef(null)
@@ -70,7 +73,8 @@ export function ExpenseForm() {
   const people = group.data ? peopleOf(group.data, me) : null
   const leftMember = expense && people ? formerMemberIn(expense, people) : null
   let body: ReactNode
-  if (!group.data || (expenseId && expenses.isPending)) body = <ExpenseFormSkeleton />
+  if (expenseId && expenses.isError) body = <ErrorCard error={expenses.error} onRetry={() => void expenses.refetch()} />
+  else if (!group.data || (expenseId && expenses.isPending)) body = <ExpenseFormSkeleton />
   else if (expenseId && !expense) body = <Notice onClose={sheet.close}>We can't find this expense. It may have been deleted.</Notice>
   else if (expense?.locked) {
     body = (
@@ -211,6 +215,19 @@ function ExpenseFields({
   }
   // Gone (saved, or the sheet shows something else): nothing left to ask about.
   useEffect(() => () => void (guard.current = null), [guard])
+  // Leaving the route another way (iOS's edge swipe-back pops it without a cancel) asks the same question.
+  const allowLeave = useRef(false)
+  const done = () => {
+    allowLeave.current = true
+    onDone()
+  }
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) => dirty && !allowLeave.current && currentLocation.pathname !== nextLocation.pathname,
+  )
+  const blocked = blocker.state === 'blocked'
+  useEffect(() => {
+    if (blocked) confirmDiscard.open()
+  }, [blocked]) // confirmDiscard.open is a new function each render
 
   const update = (patch: Partial<ExpenseDraft>) => {
     setProblem(null)
@@ -230,7 +247,7 @@ function ExpenseFields({
     save.mutate(summary.input, {
       onSuccess: () => {
         if (!expense) confetti(button)
-        onDone()
+        done()
       },
     })
   }
@@ -311,7 +328,7 @@ function ExpenseFields({
       </div>
       {/* At the total: one line on how far off the items are, and the fix. */}
       {draft.mode === 'itemized' && summary.check && (
-        <TotalFixup check={summary.check} money={money} onAdd={() => update(addOtherItem(draft, activeIds))} />
+        <TotalFixup check={summary.check} sharers={activeIds.length} money={money} onAdd={() => update(addOtherItem(draft, activeIds))} />
       )}
 
       <label className="f" htmlFor="exp-date">
@@ -518,7 +535,7 @@ function ExpenseFields({
             busyLabel="Deleting…"
             busy={remove.isPending}
             leaving={confirmDelete.leaving}
-            onYes={() => remove.mutate(expense.id, { onSuccess: onDone })}
+            onYes={() => remove.mutate(expense.id, { onSuccess: done })}
             onCancel={confirmDelete.close}
           />
         ) : (
@@ -543,12 +560,20 @@ function ExpenseFields({
             busyLabel="Discarding…"
             busy={false}
             leaving={confirmDiscard.leaving}
-            onYes={onDone}
-            onCancel={confirmDiscard.close}
+            onYes={() => {
+              allowLeave.current = true
+              if (blocked) blocker.proceed()
+              else onDone()
+            }}
+            onCancel={() => {
+              if (blocked) blocker.reset()
+              confirmDiscard.close()
+            }}
           />
         ) : (
           <>
-            <button type="button" className="btn ghost" onClick={onCancel}>
+            {/* Keep editing gives focus back here. */}
+            <button ref={confirmDiscard.triggerRef} type="button" className="btn ghost" onClick={onCancel}>
               Cancel
             </button>
             <button

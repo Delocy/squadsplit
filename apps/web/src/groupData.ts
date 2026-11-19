@@ -46,7 +46,12 @@ export const useGroup = (id: string) => useQuery(groupQuery(useApi(), id))
 export const useBalances = (id: string) => useQuery(balancesQuery(useApi(), id))
 /** The group's balances if a page has loaded them already; never fetches them itself. */
 export const useCachedBalances = (id: string) => useQuery({ ...balancesQuery(useApi(), id), enabled: false })
-export const useExpenses = (id: string) => useQuery(expensesQuery(useApi(), id))
+/**
+ * `overHome` for a view that opens over the group home, which reads them already: mounting it neither refetches nor
+ * retries a failed read (see ExpenseForm).
+ */
+export const useExpenses = (id: string, { overHome = false } = {}) =>
+  useQuery({ ...expensesQuery(useApi(), id), ...(overHome && { refetchOnMount: false, retryOnMount: false }) })
 export const usePendingSettlements = (id: string) => useQuery(pendingSettlementsQuery(useApi(), id))
 export const useFun = (id: string) => useQuery(funQuery(useApi(), id))
 export const useFeed = (id: string) => useQuery(feedQuery(useApi(), id))
