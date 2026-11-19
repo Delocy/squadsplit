@@ -50,8 +50,8 @@ export const useFun = (id: string) => useQuery(funQuery(useApi(), id))
 export const useFeed = (id: string) => useQuery(feedQuery(useApi(), id))
 
 /**
- * Starts loading what a group's home page shows first (the group, balances, expenses and feed), for a link that
- * is about to be followed. Data that is still fresh is not fetched again, so calling it on every hover is cheap.
+ * Starts loading what a group's home page waits for before it shows (the group, balances, expenses, pending
+ * settlements and feed), for a link that is about to be followed. Data that is still fresh is not fetched again, so calling it on every hover is cheap.
  */
 export function usePrefetchGroup(): (id: string) => void {
   const api = useApi()
@@ -61,6 +61,7 @@ export function usePrefetchGroup(): (id: string) => void {
       void queryClient.prefetchQuery(groupQuery(api, id))
       void queryClient.prefetchQuery(balancesQuery(api, id))
       void queryClient.prefetchQuery(expensesQuery(api, id))
+      void queryClient.prefetchQuery(pendingSettlementsQuery(api, id))
       void queryClient.prefetchQuery(feedQuery(api, id))
     },
     [api, queryClient],

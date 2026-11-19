@@ -10,7 +10,7 @@ afterEach(() => {
 })
 
 const summary = { id: 'g1', name: 'Bali Trip', emoji: '🧡', currency: 'SGD', role: 'owner', myBalanceCents: 0 }
-const CORE = ['GET /groups/g1', 'GET /groups/g1/balances', 'GET /groups/g1/expenses', 'GET /groups/g1/feed']
+const CORE = ['GET /groups/g1', 'GET /groups/g1/balances', 'GET /groups/g1/expenses', 'GET /groups/g1/settlements?status=pending', 'GET /groups/g1/feed']
 const count = (calls: { key: string }[], key: string) => calls.filter((c) => c.key === key).length
 
 async function groupCard() {
@@ -25,7 +25,7 @@ describe('prefetching a group', () => {
     ['pointing at', (el: Element) => fireEvent.pointerEnter(el)],
     ['focusing', (el: Element) => fireEvent.focus(el)],
     ['touching', (el: Element) => fireEvent.touchStart(el)],
-  ])('starts loading the group, its balances, expenses and feed on %s its card', async (_, warm) => {
+  ])('starts loading everything the group home waits for on %s its card', async (_, warm) => {
     const { calls, card } = await groupCard()
     expect(calls.some((c) => CORE.includes(c.key))).toBe(false)
     warm(card)
