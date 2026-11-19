@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { env } from 'cloudflare:test'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import type { ApiErrorBody, MeDTO } from '@squadsplit/shared'
+import { createApp } from '../src/app'
 import { users } from '../src/db/schema'
-import { db, testApp } from './helpers'
+import { db, fakeDeps, testApp } from './helpers'
 
 const app = testApp()
 
@@ -42,6 +44,35 @@ describe('GET /me', () => {
     await app.as('alice')('/me')
     const rows = await db().select().from(users).where(eq(users.id, 'alice'))
     expect(rows).toHaveLength(1)
+  })
+
+  describe('when Clerk is unreachable', () => {
+    const clerkDown = createApp({
+      ...fakeDeps,
+      fetchProfile: async () => {
+        throw new Error('Clerk API unreachable')
+      },
+    })
+    const asAlice = () => clerkDown.request('/me', { headers: { Authorization: 'Bearer alice' } }, env)
+    afterEach(() => vi.restoreAllMocks())
+
+    it('answers with the stored profile and logs the failure', async () => {
+      await db().insert(users).values({ id: 'alice', displayName: 'Alice', avatarUrl: 'https://img/a', createdAt: '2026-01-01T00:00:00.000Z' })
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const res = await asAlice()
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'Alice', avatarUrl: 'https://img/a' })
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('fetchProfile failed'), expect.any(Error))
+    })
+
+    it('still fails for a first-time user, since there is no stored profile to fall back to', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const res = await asAlice()
+      expect(res.status).toBe(500)
+      expect(await db().select().from(users)).toEqual([])
+    })
   })
 
   it('starts each test with an empty database', async () => {

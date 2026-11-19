@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Bindings } from '../src/env'
 
 const clerkVerifyToken = vi.hoisted(() => vi.fn())
+const clerkGetUser = vi.hoisted(() => vi.fn())
 vi.mock('@clerk/backend', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@clerk/backend')>()),
   verifyToken: clerkVerifyToken,
+  createClerkClient: () => ({ users: { getUser: clerkGetUser } }),
 }))
 
 // The pool preloads the main Worker (src/index.ts), so src/deps.ts is already cached with the real
@@ -25,6 +27,7 @@ const env: Bindings = {
 afterEach(() => {
   vi.restoreAllMocks()
   clerkVerifyToken.mockReset()
+  clerkGetUser.mockReset()
 })
 
 describe('clerkDeps(env).verifyToken', () => {
@@ -46,5 +49,46 @@ describe('clerkDeps(env).verifyToken', () => {
 
     expect(warn).toHaveBeenCalledWith(expect.any(String), 'jwk-remote-failed-to-load')
     expect(JSON.stringify(warn.mock.calls)).not.toContain(token)
+  })
+
+  it('returns null for a pending session (sign-up or a session task not finished yet)', async () => {
+    clerkVerifyToken.mockResolvedValue({ sub: 'user_123', sts: 'pending' })
+    expect(await (await clerkDeps(env)).verifyToken('pending-token')).toBeNull()
+  })
+
+  it('accepts an active session', async () => {
+    clerkVerifyToken.mockResolvedValue({ sub: 'user_123', sts: 'active' })
+    expect(await (await clerkDeps(env)).verifyToken('active-token')).toBe('user_123')
+  })
+})
+
+describe('clerkDeps(env).fetchProfile', () => {
+  const email = (emailAddress: string) => ({ emailAddress })
+  const clerkUser = (fields: Record<string, unknown>) => ({
+    fullName: null,
+    firstName: null,
+    username: null,
+    primaryEmailAddress: null,
+    emailAddresses: [],
+    imageUrl: 'https://img.clerk.com/u1',
+    ...fields,
+  })
+
+  it.each([
+    ['the full name', { fullName: 'Alice Tan', firstName: 'Alice', username: 'alicet' }, 'Alice Tan'],
+    ['the first name when there is no full name', { firstName: 'Alice', username: 'alicet' }, 'Alice'],
+    ['the username when there is no name', { username: 'alicet', primaryEmailAddress: email('alice@example.com') }, 'alicet'],
+    [
+      'the part of the primary email before the @, never the whole address',
+      { primaryEmailAddress: email('alice.tan@example.com'), emailAddresses: [email('old@example.com'), email('alice.tan@example.com')] },
+      'alice.tan',
+    ],
+    ['the first email when none is marked primary', { emailAddresses: [email('bob@example.com')] }, 'bob'],
+    ['"Someone" when there is nothing to go on', {}, 'Someone'],
+  ])('uses %s', async (_case, fields, displayName) => {
+    clerkGetUser.mockResolvedValue(clerkUser(fields))
+    const profile = await (await clerkDeps(env)).fetchProfile('user_1')
+    expect(clerkGetUser).toHaveBeenCalledWith('user_1')
+    expect(profile).toEqual({ displayName, avatarUrl: 'https://img.clerk.com/u1' })
   })
 })

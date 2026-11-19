@@ -31,7 +31,7 @@ describe('Create group page', () => {
     fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: 'NYC' } })
     fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'USD' } })
     fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
-    await vi.waitFor(() => expect(calls[0]?.body).toMatchObject({ currency: 'USD' }))
+    await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups')?.body).toMatchObject({ currency: 'USD' }))
   })
 
   it('asks for a name instead of calling the API when it is blank', async () => {
@@ -40,7 +40,7 @@ describe('Create group page', () => {
     fireEvent.change(await screen.findByLabelText('Group name'), { target: { value: '   ' } })
     fireEvent.click(screen.getByRole('button', { name: /Create group/ }))
     expect(await screen.findByText('Give the group a name.')).toBeTruthy()
-    expect(calls).toHaveLength(0)
+    expect(calls.some((c) => c.key === 'POST /groups')).toBe(false)
   })
 
   it('shows the API error message when creating fails', async () => {

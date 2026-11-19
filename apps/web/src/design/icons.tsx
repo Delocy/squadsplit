@@ -9,8 +9,9 @@ function Art({ html, className }: { html: string; className?: string }) {
   return <span className={className ? `ic ${className}` : 'ic'} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
+/** An animal face. The `<svg>` carries `mascot-<kind>` as its class. */
 export const Mascot = ({ kind, face, mood = 'calm' }: { kind: Kind; face: string; mood?: Mood }) => (
-  <Art html={mascot(kind, face, mood)} />
+  <Art html={mascot(kind, face, mood, `mascot-${kind}`)} />
 )
 
 /** Category art for a stored category value (an emoji). The emoji itself is never shown. */
