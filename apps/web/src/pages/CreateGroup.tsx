@@ -1,10 +1,10 @@
 import { CreateGroupInput, CURRENCIES, type Currency, type GroupDTO } from '@squadsplit/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { PageLink, usePageNavigate } from '../components/PageLink'
 import { UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
 import { useMe } from '../useProfileRefresh'
@@ -14,7 +14,7 @@ const GROUP_EMOJI = '🧡'
 
 export function CreateGroup() {
   const api = useApi()
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<Currency>('SGD')
@@ -87,9 +87,9 @@ export function CreateGroup() {
           <ErrorNote error={create.error} />
         )}
         <div className="form-f">
-          <Link to="/groups" className="btn ghost">
+          <PageLink to="/groups" className="btn ghost">
             Cancel
-          </Link>
+          </PageLink>
           <button type="submit" className="btn primary" disabled={create.isPending}>
             {create.isPending ? 'Creating…' : 'Create group'}
           </button>

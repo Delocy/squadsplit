@@ -10,11 +10,12 @@ import {
 } from '@squadsplit/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { PageLink, usePageNavigate } from '../components/PageLink'
 import { lookOf } from '../design/Avatar'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -24,7 +25,7 @@ export function Join() {
   const code = useParams().code ?? ''
   const path = `/invites/${encodeURIComponent(code)}`
   const api = useApi()
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const queryClient = useQueryClient()
   const me = useAuth().userId ?? ''
   const profileName = useMe().data?.displayName ?? ''
@@ -69,9 +70,9 @@ export function Join() {
           ) : (
             <ErrorNote error={invite.error} />
           )}
-          <Link to="/groups" className="btn small">
+          <PageLink to="/groups" className="btn small">
             Back to your groups
-          </Link>
+          </PageLink>
         </section>
       </main>
     )
@@ -111,16 +112,16 @@ export function Join() {
         {g.alreadyMember ? (
           <>
             <p>You're already in this group.</p>
-            <Link to={`/groups/${g.groupId}`} className="btn primary">
+            <PageLink to={`/groups/${g.groupId}`} className="btn primary">
               Open group
-            </Link>
+            </PageLink>
           </>
         ) : full ? (
           <>
             <p>This group is full ({MAX_GROUP_MEMBERS} people), so there's no room to join right now.</p>
-            <Link to="/groups" className="btn small">
+            <PageLink to="/groups" className="btn small">
               Back to your groups
-            </Link>
+            </PageLink>
           </>
         ) : (
           <form className="you-fields" onSubmit={submit} noValidate>

@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/react'
 import { sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ConfirmBar } from '../components/ConfirmBar'
@@ -11,6 +11,7 @@ import { GroupUnavailable } from '../components/GroupUnavailable'
 import { InviteCard } from '../components/InviteCard'
 import { MemberList } from '../components/MemberList'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
+import { PageLink, usePageNavigate } from '../components/PageLink'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
@@ -41,9 +42,9 @@ export function GroupSettings() {
     <main className="narrow page">
       <div className="page-h">
         <h2>Group settings</h2>
-        <Link to={`/groups/${id}`} className="btn small ghost">
+        <PageLink to={`/groups/${id}`} className="btn small ghost">
           Back to the group
-        </Link>
+        </PageLink>
       </div>
       <div className="col">
         {isOwner && g.inviteCode ? (
@@ -159,7 +160,7 @@ function RenameCard({ group }: { group: GroupDTO }) {
 
 function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
   const api = useApi()
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
   // Not useGroupMutation: refetching this group after leaving would 404 before we navigate away.

@@ -41,7 +41,8 @@ export function ExpenseForm() {
   const navigate = useNavigate()
   const group = useGroup(groupId)
   const expenses = useExpenses(groupId)
-  const close = () => navigate(`/groups/${groupId}`)
+  // Back to the group, staying where it was scrolled to.
+  const close = () => navigate(`/groups/${groupId}`, { preventScrollReset: true })
 
   const expense = expenseId ? expenses.data?.find((e) => e.id === expenseId) : undefined
   const people = group.data ? peopleOf(group.data, me) : null

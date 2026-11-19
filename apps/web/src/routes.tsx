@@ -1,5 +1,5 @@
 import { Show } from '@clerk/react'
-import { Navigate, Outlet, type RouteObject } from 'react-router'
+import { Navigate, Outlet, ScrollRestoration, type RouteObject } from 'react-router'
 import { RequireSignIn } from './components/RequireSignIn'
 import { TopBar } from './components/TopBar'
 import { CreateGroup } from './pages/CreateGroup'
@@ -39,7 +39,20 @@ function SignedInLayout() {
   )
 }
 
-export const routes: RouteObject[] = [
+/**
+ * Around every page: new pages start at the top, and Back returns to where you were. Opening or closing the expense
+ * dialog keeps the group where it is (its links pass `preventScrollReset`).
+ */
+function AppShell() {
+  return (
+    <>
+      <Outlet />
+      <ScrollRestoration />
+    </>
+  )
+}
+
+const pages: RouteObject[] = [
   { path: '/', element: <Home /> },
   {
     element: <SignedInLayout />,
@@ -62,3 +75,5 @@ export const routes: RouteObject[] = [
   },
   { path: '*', element: <Navigate to="/" replace /> },
 ]
+
+export const routes: RouteObject[] = [{ element: <AppShell />, children: pages }]

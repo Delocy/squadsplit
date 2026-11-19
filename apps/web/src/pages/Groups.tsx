@@ -1,11 +1,11 @@
 import { defaultAvatar, type GroupSummaryDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
-import { Link } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
+import { PageLink } from '../components/PageLink'
 import { lookOf } from '../design/Avatar'
 import { Mascot, UiIcon, type Mood } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -21,7 +21,7 @@ function GroupCard({ group }: { group: GroupSummaryDTO }) {
   const { label, mood } = balanceText(group.myBalanceCents)
   return (
     <li>
-      <Link to={`/groups/${group.id}`} className="card group-card">
+      <PageLink to={`/groups/${group.id}`} className="card group-card">
         <span className={mood === 'nervous' ? 'tile shiver' : 'tile'} style={{ '--tb': look.bg } as CSSProperties}>
           <Mascot kind={look.kind} face={look.face} mood={mood} />
         </span>
@@ -37,17 +37,17 @@ function GroupCard({ group }: { group: GroupSummaryDTO }) {
             </span>
           )}
         </span>
-      </Link>
+      </PageLink>
     </li>
   )
 }
 
 function NewGroupButton() {
   return (
-    <Link to="/groups/new" className="btn primary">
+    <PageLink to="/groups/new" className="btn primary">
       <UiIcon name="plus" />
       New group
-    </Link>
+    </PageLink>
   )
 }
 

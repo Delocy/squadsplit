@@ -1,6 +1,6 @@
 import { INVITE_CODE_ALPHABET, INVITE_CODE_LENGTH } from '@squadsplit/shared'
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { usePageNavigate } from './PageLink'
 
 const INVITE_CODE = new RegExp(`^[${INVITE_CODE_ALPHABET}]{${INVITE_CODE_LENGTH}}$`)
 
@@ -12,7 +12,7 @@ function normaliseInviteCode(typed: string): string | null {
 
 /** "Got a code from a friend?": opens `/join/<CODE>`, which previews the group before joining. */
 export function JoinWithCode() {
-  const navigate = useNavigate()
+  const navigate = usePageNavigate()
   const [typed, setTyped] = useState('')
   const [error, setError] = useState<string | null>(null)
 

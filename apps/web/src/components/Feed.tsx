@@ -75,7 +75,7 @@ export function Feed({
           <span className="sub">{share ? `your share ${money(share)}` : 'not involved'}</span>
         </div>
         {canEdit && (
-          <Link to={`/groups/${groupId}/expenses/${e.id}`} className="btn small ghost" aria-label={`Edit ${e.description}`}>
+          <Link to={`/groups/${groupId}/expenses/${e.id}`} preventScrollReset className="btn small ghost" aria-label={`Edit ${e.description}`}>
             Edit
           </Link>
         )}

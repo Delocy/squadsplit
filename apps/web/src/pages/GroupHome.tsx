@@ -3,6 +3,7 @@ import { formatMoney } from '@squadsplit/shared'
 import { Link, Outlet, useParams } from 'react-router'
 import { BalanceCard } from '../components/BalanceCard'
 import { ErrorNote } from '../components/ErrorNote'
+import { PageLink } from '../components/PageLink'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
@@ -69,17 +70,17 @@ export function GroupHome() {
             </div>
           </div>
           <div className="quick">
-            <Link to={addExpense} className="btn primary add-desktop">
+            <Link to={addExpense} preventScrollReset className="btn primary add-desktop">
               <UiIcon name="plus" />
               Add expense
             </Link>
-            <Link to={wheel} className="btn">
+            <PageLink to={wheel} className="btn">
               <UiIcon name="wheel" />
               Who pays next?
-            </Link>
-            <Link to={`/groups/${id}/settings`} className="btn ghost">
+            </PageLink>
+            <PageLink to={`/groups/${id}/settings`} className="btn ghost">
               Group settings
-            </Link>
+            </PageLink>
           </div>
         </section>
       </div>
@@ -114,15 +115,15 @@ export function GroupHome() {
         <div className="col">
           <Leaderboard fun={fun.data} people={people} currency={g.currency} />
           <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} compact>
-            <Link to={wheel} className="btn small ghost recent-spins">
+            <PageLink to={wheel} className="btn small ghost recent-spins">
               <UiIcon name="clock" />
               Recent spins
-            </Link>
+            </PageLink>
           </WheelCard>
         </div>
       </div>
 
-      <Link to={addExpense} className="btn primary fab">
+      <Link to={addExpense} preventScrollReset className="btn primary fab">
         <UiIcon name="plus" />
         Add expense
       </Link>
