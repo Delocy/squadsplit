@@ -76,6 +76,22 @@ describe('POST /quick-splits', () => {
     expect(s.people.every((p) => p.paidAt === null && p.paidMarkedBy === null)).toBe(true)
   })
 
+  it("gives a shared dish's spare cent by entry order, as the web's preview does, whatever the saved ids are", async () => {
+    const input = {
+      ...README_INPUT,
+      items: [
+        { name: 'Laksa', amountCents: 1000, personIndexes: [0] },
+        { name: 'Teh tarik', amountCents: 325, personIndexes: [1, 2] },
+      ],
+    }
+    for (let i = 0; i < 4; i++) {
+      const s = await createSplit(input)
+      expect(personNamed(s, 'Wei Ling').dishes).toEqual([{ name: 'Teh tarik', shareCents: 163, sharedBy: 2 }])
+      expect(personNamed(s, 'Arjun').dishes).toEqual([{ name: 'Teh tarik', shareCents: 162, sharedBy: 2 }])
+      expect([personNamed(s, 'Wei Ling').totalCents, personNamed(s, 'Arjun').totalCents]).toEqual([196, 194])
+    }
+  })
+
   it(`opens a share link at once: 128 random bits as 22 base64url characters, for ${QUICK_SPLIT_LINK_DAYS} days`, async () => {
     const a = await createSplit()
     const b = await createSplit()

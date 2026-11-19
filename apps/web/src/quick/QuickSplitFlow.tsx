@@ -19,9 +19,11 @@ import { useQuickSplit, useStoreQuickSplit } from './quickData'
 import { StepBar, type Step } from './StepBar'
 import './quick.css'
 
-/** Your profile name as it can go on the card (24 characters, no emoji), or nothing for you to type it. */
-const cardName = (displayName: string | undefined) =>
-  (displayName && (parseMemberName(displayName) ?? parseMemberName(displayName.split(' ')[0]!))) || ''
+/**
+ * The first word of your profile name, for the card (the link shows first names only), if it is a name the card takes
+ * (24 characters, no emoji); otherwise nothing, for you to type one. You can change it either way.
+ */
+const cardName = (displayName: string | undefined) => parseMemberName(displayName?.trim().split(/\s+/)[0] ?? '') ?? ''
 
 /**
  * The Bill → People → Assign flow, for a new split or an edit. The draft lives in this page's state only: leaving

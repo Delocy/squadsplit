@@ -68,8 +68,8 @@ function chargesSentence(s: SplitView): string | null {
 /** "Team lunch, Tanjong Pagar". */
 export const titleWithPlace = (s: Pick<SplitView, 'title' | 'place'>) => (s.place ? `${s.title}, ${s.place}` : s.title)
 
-/** The share card as plain text for a chat (mockup 5b), ending with the link. */
-export function shareCardText(s: SplitView, link: string): string {
+/** The share card as plain text for a chat (mockup 5b), ending with the link (none once sharing has stopped). */
+export function shareCardText(s: SplitView, link: string | null): string {
   const payer = payerOf(s)
   const people = s.people.flatMap((p) => {
     const head = `${p.name}: ${money(s, p.totalCents)}${p.id === s.payerId ? ' (paid)' : ''}`
@@ -84,7 +84,7 @@ export function shareCardText(s: SplitView, link: string): string {
     '',
     ...(charges ? [charges] : []),
     `Pay ${payer.name}: ${guestsOf(s).map((p) => `${p.name} ${money(s, p.totalCents)}`).join(', ')}`,
-    `Tick when you've paid: ${link}`,
+    ...(link ? [`Tick when you've paid: ${link}`] : []),
   ].join('\n')
 }
 

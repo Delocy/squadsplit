@@ -38,7 +38,7 @@ export function QuickSplitPage() {
 
   const card = (
     <div ref={cardRef} className="qs-page" key="card">
-      <ShareCardWithActions split={split.data} link={shareUrl(split.data.share.token)} />
+      <ShareCardWithActions split={split.data} link={split.data.share.state === 'on' ? shareUrl(split.data.share.token) : null} />
     </div>
   )
   const history = <QuickHistory key="history" split={split.data} onShareCard={() => cardRef.current?.scrollIntoView({ behavior: 'smooth' })} />

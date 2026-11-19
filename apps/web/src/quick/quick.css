@@ -141,7 +141,7 @@ pre.qs-text { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; backgro
 ul.pub-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .pub-row { border: 2px solid var(--line-c); border-radius: 16px; background: #fff; padding: 8px 10px; display: grid; gap: 6px; }
 .pub-row.is-paid { background: #effaf4; }
-.pub-row.picked { background: #ffe3ef; border-color: var(--ink-c); box-shadow: 3px 3px 0 var(--ink-c); }
+.pub-row.picked { --muted-c: #6a5770; background: #ffe3ef; border-color: var(--ink-c); box-shadow: 3px 3px 0 var(--ink-c); }
 .pub-main { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; color: var(--ink-c); }
 button.pub-main { cursor: pointer; border-radius: 12px; }
 button.pub-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -154,7 +154,7 @@ button.pub-main:focus-visible { outline: 2px solid var(--accent); outline-offset
 .pub-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted-c); }
 .pub-status.ok { color: #1f7a57; font-weight: 800; }
 .pub-tick { width: 20px; height: 20px; flex: none; }
-.pub-undo { border: 0; background: none; color: #e0457f; font: 800 12.5px Nunito, sans-serif; text-decoration: underline; cursor: pointer; padding: 0; }
+.pub-undo { border: 0; background: none; color: #b8235f; font: 800 12.5px Nunito, sans-serif; text-decoration: underline; cursor: pointer; padding: 0; }
 .pub-undo.not-me { justify-self: end; color: var(--muted-c); }
 .pub-paid { justify-content: center; width: 100%; padding: 12px 14px; font-size: 16px; }
 .note-box.honour { margin-top: 0; }

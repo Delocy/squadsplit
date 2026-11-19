@@ -88,12 +88,13 @@ function ProblemCard({ error }: { error: unknown }) {
   )
 }
 
+/** The link is off (410) or gone (404): nothing here is current any more. */
+const linkGone = (err: unknown) => err instanceof ApiError && (err.status === 410 || err.status === 404)
+
 const tickError = (err: unknown) =>
   err instanceof ApiError && err.status === 429
     ? 'Lots of ticks on this link just now. Wait a little and try again.'
-    : err instanceof ApiError && err.status === 410
-      ? err.message
-      : "Couldn't save that. Check your connection and try again."
+    : "Couldn't save that. Check your connection and try again."
 
 type Person = PublicQuickSplitDTO['people'][number]
 
@@ -117,6 +118,10 @@ export function SharedSplitPage() {
       queryClient.setQueryData(queryKeys.sharedSplit(token), data)
       setThanked(paid ? personId : null)
     },
+    // The link went off meanwhile: read it again, so the page shows that instead of the old breakdown.
+    onError: (err) => {
+      if (linkGone(err)) void queryClient.invalidateQueries({ queryKey: queryKeys.sharedSplit(token) })
+    },
   })
 
   function choose(personId: string | null) {
@@ -126,7 +131,9 @@ export function SharedSplitPage() {
     writePick(token, personId)
   }
 
-  const s = split.data
+  // Once the link is off, a refetch's 410 replaces whatever was shown before.
+  const gone = linkGone(split.error)
+  const s = gone ? undefined : split.data
   // A pick that is no longer a guest in the split (removed, or now the payer) is forgotten.
   const me = s?.people.find((p) => p.id === pick && p.id !== s.payerId) ?? null
   const paidCount = s ? s.people.filter((p) => p.id === s.payerId || p.paidAt !== null).length : 0
@@ -180,7 +187,7 @@ export function SharedSplitPage() {
                   />
                 ))}
               </ul>
-              {tick.isError && (
+              {tick.isError && !linkGone(tick.error) && (
                 <p className="err" role="alert">
                   {tickError(tick.error)}
                 </p>

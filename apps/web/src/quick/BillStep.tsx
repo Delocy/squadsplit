@@ -19,7 +19,7 @@ function ChargeSwitch({ label, hint, charge, onChange }: { label: string; hint: 
         </span>
         <span className="s"> {hint}</span>
       </span>
-      <input type="checkbox" className="qs-switch" checked={charge.on} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" className="qs-switch" checked={charge.on} onChange={(e) => onChange(e.target.checked)} />
     </label>
   )
 }

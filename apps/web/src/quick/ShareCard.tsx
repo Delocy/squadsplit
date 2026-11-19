@@ -1,11 +1,11 @@
-import { forwardRef, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState, type RefObject } from 'react'
 import { LogoPup } from '../components/Logo'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { Check } from './art'
 import { chargesMath, dayLabel, dishLabel, guestsOf, money, multiplierNote, payerOf, shareCardText, shortLink, type SplitView } from './format'
-import { saveCardImage } from './saveImage'
+import { deliverCardImage, renderCardImage } from './saveImage'
 import './quick.css'
 
 /** "Satay ÷3 $6.68 · Chilli crab ÷3 $16.00". */
@@ -32,8 +32,9 @@ export function CardHeader({ split }: { split: SplitView }) {
 /**
  * The share card: everyone's dishes and total, how the charges were added, and who pays the payer what. A fixed light
  * card (about 520px tall at 375px wide for a lunch for three), so one screenshot holds it, even in dark mode.
+ * `link` is null once sharing has stopped or expired: the card then offers no link.
  */
-export const ShareCard = forwardRef<HTMLElement, { split: SplitView; link: string }>(function ShareCard({ split, link }, ref) {
+export const ShareCard = forwardRef<HTMLElement, { split: SplitView; link: string | null }>(function ShareCard({ split, link }, ref) {
   const payer = payerOf(split)
   const note = multiplierNote(split)
   return (
@@ -65,7 +66,7 @@ export const ShareCard = forwardRef<HTMLElement, { split: SplitView; link: strin
         <span className="qs-mark">
           <LogoPup />
         </span>
-        Tick yours: {shortLink(link)}
+        {link ? `Tick yours: ${shortLink(link)}` : 'Split with SquadSplit'}
       </div>
     </section>
   )
@@ -82,13 +83,41 @@ async function copy(text: string): Promise<boolean> {
 
 type Note = { kind: 'ok' | 'err'; text: string } | null
 
-/** The card with Copy text, Copy link and Save image. Copy text also shows the text and how it looks in a chat (5b). */
-export function ShareCardWithActions({ split, link }: { split: SplitView; link: string }) {
+const CANT_DRAW = "Couldn't make the image. Take a screenshot of the card instead."
+
+/**
+ * The card's PNG, drawn whenever the card shows or what it shows changes (`key`), so Save image never has to wait.
+ * Null until it is ready; a failure leaves it null, and the tap tries again.
+ */
+function useCardImage(card: RefObject<HTMLElement | null>, title: string, key: string): { key: string; file: File } | null {
+  const [image, setImage] = useState<{ key: string; file: File } | null>(null)
+  useEffect(() => {
+    let stale = false
+    const draw = async () => {
+      await document.fonts?.ready // so the PNG has the card's own fonts
+      if (stale || !card.current) return
+      const file = await renderCardImage(card.current, title)
+      if (!stale) setImage({ key, file })
+    }
+    draw().catch(() => {})
+    return () => {
+      stale = true
+    }
+  }, [card, title, key])
+  return image?.key === key ? image : null
+}
+
+/**
+ * The card with Copy text, Copy link and Save image. Copy text also shows the text and how it looks in a chat (5b).
+ * `link` is null once sharing has stopped: then there's no Copy link, and the text ends without one.
+ */
+export function ShareCardWithActions({ split, link }: { split: SplitView; link: string | null }) {
   const card = useRef<HTMLElement>(null)
   const [showText, setShowText] = useState(false)
   const [note, setNote] = useState<Note>(null)
   const [saving, setSaving] = useState(false)
   const text = shareCardText(split, link)
+  const image = useCardImage(card, split.title, `${text}\n${JSON.stringify(split.people.map((p) => p.avatar))}`)
 
   async function copyText() {
     setShowText(true)
@@ -96,20 +125,25 @@ export function ShareCardWithActions({ split, link }: { split: SplitView; link: 
   }
 
   async function copyLink() {
+    if (!link) return
     setNote((await copy(link)) ? { kind: 'ok', text: 'Link copied. Paste it into your chat.' } : { kind: 'err', text: `Couldn't copy. The link is ${link}` })
   }
 
-  async function saveImage() {
+  // Called straight from the tap, so with a ready image the share sheet opens inside it.
+  async function deliver(file: File) {
+    if ((await deliverCardImage(file, split.title)) === 'downloaded') setNote({ kind: 'ok', text: 'Saved the card as an image.' })
+  }
+
+  function saveImage() {
+    if (image) return void deliver(image.file)
+    // Not drawn yet (or the early try failed): draw it now. The tap's moment is gone by then, so a refused share
+    // sheet falls back to a download.
     if (!card.current) return
     setSaving(true)
-    try {
-      const how = await saveCardImage(card.current, split.title)
-      if (how === 'downloaded') setNote({ kind: 'ok', text: 'Saved the card as an image.' })
-    } catch (err) {
-      setNote({ kind: 'err', text: err instanceof Error ? err.message : "Couldn't save the image." })
-    } finally {
-      setSaving(false)
-    }
+    renderCardImage(card.current, split.title)
+      .then(deliver)
+      .catch(() => setNote({ kind: 'err', text: CANT_DRAW }))
+      .finally(() => setSaving(false))
   }
 
   return (
@@ -120,10 +154,12 @@ export function ShareCardWithActions({ split, link }: { split: SplitView; link: 
           <UiIcon name="receipt" />
           Copy text
         </button>
-        <button type="button" className="btn" onClick={copyLink}>
-          <UiIcon name="heart" />
-          Copy link
-        </button>
+        {link && (
+          <button type="button" className="btn" onClick={copyLink}>
+            <UiIcon name="heart" />
+            Copy link
+          </button>
+        )}
         <button type="button" className="btn primary" onClick={saveImage} disabled={saving}>
           <BusyLabel busy={saving} label="Saving…">
             <UiIcon name="star" />
@@ -163,8 +199,8 @@ export function ShareCardWithActions({ split, link }: { split: SplitView; link: 
             <span className="lbl">How it looks in a chat</span>
             <div className="bubble">
               <pre>
-                {`${text.split('\n').slice(0, 6).join('\n')}…\n`}
-                <u>{shortLink(link)}</u>
+                {`${text.split('\n').slice(0, 6).join('\n')}…${link ? '\n' : ''}`}
+                {link && <u>{shortLink(link)}</u>}
               </pre>
             </div>
           </section>

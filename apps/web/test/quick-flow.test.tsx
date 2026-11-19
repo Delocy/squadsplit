@@ -136,8 +136,8 @@ describe('Quick split: making one', () => {
     const { calls } = start()
     await screen.findByRole('heading', { name: 'Quick split' })
     await fillBill()
-    const service = screen.getByRole('checkbox', { name: /Service charge 10%/ }) as HTMLInputElement
-    const gst = screen.getByRole('checkbox', { name: /GST 9%/ }) as HTMLInputElement
+    const service = screen.getByRole('switch', { name: /Service charge 10%/ }) as HTMLInputElement
+    const gst = screen.getByRole('switch', { name: /GST 9%/ }) as HTMLInputElement
     expect(service.checked && gst.checked).toBe(true)
     fireEvent.click(service)
     const bill = within(screen.getByRole('region', { name: 'The bill' }))
@@ -168,8 +168,8 @@ describe('Quick split: making one', () => {
     await vi.waitFor(() => expect((screen.getByLabelText('Dish name') as HTMLInputElement).value).toBe('Nasi lemak'))
     expect(calls.map((c) => c.key)).toContain('POST /receipts/scan')
 
-    const service = screen.getByRole('checkbox', { name: /Service charge 10%/ }) as HTMLInputElement
-    const gst = screen.getByRole('checkbox', { name: /GST 8%/ }) as HTMLInputElement
+    const service = screen.getByRole('switch', { name: /Service charge 10%/ }) as HTMLInputElement
+    const gst = screen.getByRole('switch', { name: /GST 8%/ }) as HTMLInputElement
     expect(service.checked).toBe(false)
     expect(gst.checked).toBe(true)
     expect(within(screen.getByRole('region', { name: 'The bill' })).getByText('$10.80')).toBeTruthy()
@@ -187,6 +187,17 @@ describe('Quick split: making one', () => {
     expect(suggestions.getAllByRole('button').map((b) => b.textContent)).toEqual(['+ Priya', '+ Marcus'])
     fireEvent.click(suggestions.getByRole('button', { name: '+ Priya' }))
     expect(screen.getByRole('list', { name: "Who's splitting" }).textContent).toContain('Priya')
+  })
+
+  it('puts only the first word of your profile name on the card, for you to change', async () => {
+    start({ 'GET /me': () => ({ status: 200, body: { id: ME, displayName: 'Dan Tan Wei Ming', avatarUrl: null, profileAvatar: defaultAvatar(ME) } }) })
+    await screen.findByRole('heading', { name: 'Quick split' })
+    await fillBill()
+    fireEvent.click(screen.getByRole('button', { name: /Next: who.s in/ }))
+    const mine = screen.getByLabelText('Your name on the card') as HTMLInputElement
+    expect(mine.value).toBe('Dan')
+    fireEvent.change(mine, { target: { value: 'Danny' } })
+    expect(mine.value).toBe('Danny')
   })
 
   it("won't move on until each step is ready", async () => {

@@ -110,6 +110,39 @@ describe('the share link page', () => {
     expect(card.querySelector('svg.mascot-dog')).toBeTruthy()
   })
 
+  it('swaps to the friendly card on its next refetch once the link is turned off, instead of showing stale data', async () => {
+    let off = false
+    linkApi({
+      [`GET /s/${TOKEN}`]: () =>
+        off
+          ? { status: 410, body: { error: { code: 'link_off', message: 'This link has been turned off. Ask Dan for the breakdown.' } } }
+          : { status: 200, body: readmePublic() },
+    })
+    renderApp(`/s/${TOKEN}`)
+    await screen.findByText('Which one are you?')
+    off = true
+    window.dispatchEvent(new Event('visibilitychange'))
+    expect((await screen.findByRole('alert')).textContent).toContain('This link has been turned off. Ask Dan for the breakdown.')
+    expect(screen.queryByText('Which one are you?')).toBeNull()
+  })
+
+  it('swaps to the friendly card when a tick finds the link turned off', async () => {
+    localStorage.setItem(PICK_KEY, 'arjun')
+    let off = false
+    const gone = { status: 410, body: { error: { code: 'link_off', message: 'This link has been turned off. Ask Dan for the breakdown.' } } }
+    linkApi({
+      [`GET /s/${TOKEN}`]: () => (off ? gone : { status: 200, body: readmePublic() }),
+      [`POST /s/${TOKEN}/people/arjun/paid`]: () => {
+        off = true
+        return gone
+      },
+    })
+    renderApp(`/s/${TOKEN}`)
+    fireEvent.click(await screen.findByRole('button', { name: 'I’ve paid Dan $40.72' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('This link has been turned off. Ask Dan for the breakdown.')
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'I’ve paid Dan $40.72' })).toBeNull())
+  })
+
   it("shows a friendly card for a link that doesn't exist (404)", async () => {
     fakeApi({ [`GET /s/${TOKEN}`]: () => ({ status: 404, body: { error: { code: 'not_found', message: 'This link does not exist.' } } }) })
     renderApp(`/s/${TOKEN}`)

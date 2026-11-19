@@ -75,11 +75,15 @@ export const QuickSplitInput = z
     if (total > MAX_CENTS) {
       return fail(['items'], 'Keep the bill to $1,000,000.00 or less.')
     }
+    const tooSmall = "That's too small to split between that many people."
+    // A dish of fewer cents than the people sharing it would show someone a 0¢ part of it.
+    const crumb = v.items.findIndex((it) => it.amountCents < it.personIndexes.length)
+    if (crumb !== -1) return fail(['items', crumb, 'amountCents'], tooSmall)
     try {
       quickSplitBreakdown(bill)
     } catch (err) {
       if (!(err instanceof SplitError)) throw err
-      fail(['items'], "That's too small to split between that many people.")
+      fail(['items'], tooSmall)
     }
   })
 export type QuickSplitInput = z.infer<typeof QuickSplitInput>
@@ -131,19 +135,25 @@ function billOfInput(v: Pick<QuickSplitInput, 'people' | 'items' | 'serviceCharg
  * is too small to give everyone who shared it a cent.
  */
 export function quickSplitBreakdown(bill: QuickSplitBill): QuickSplitBreakdown {
-  const payerId = bill.people.find((p) => p.isPayer)?.id ?? ''
-  const items = bill.items.map((it) => ({ name: it.name, amountCents: it.amountCents, userIds: it.personIds }))
+  // The shared maths breaks ties by id: a shared dish's spare cent and the largest remainder go to the id that sorts
+  // first. People are relabelled by their place in the list ("00", "01", …), so ties go by entry order instead, the
+  // same for the web's draft keys and the server's UUIDs, and the preview matches the saved split to the cent.
+  const label = new Map(bill.people.map((p, i) => [p.id, String(i).padStart(2, '0')]))
+  const as = (id: string) => label.get(id) ?? id
+  const payer = as(bill.people.find((p) => p.isPayer)?.id ?? '')
+  const items = bill.items.map((it) => ({ name: it.name, amountCents: it.amountCents, userIds: it.personIds.map(as) }))
   const charges = { serviceChargeBps: bill.serviceChargeBps, gstBps: bill.gstBps }
-  const totals = splitItemized({ items, ...charges }, payerId)
+  const totals = splitItemized({ items, ...charges }, payer)
   const subtotalCents = items.reduce((sum, it) => sum + it.amountCents, 0)
   const totalCents = itemizedTotal({ items, ...charges })
   const serviceChargeCents = itemizedTotal({ items, serviceChargeBps: charges.serviceChargeBps, gstBps: 0 }) - subtotalCents
 
   const people: QuickSplitBreakdown['people'] = {}
-  for (const p of bill.people) people[p.id] = { totalCents: totals[p.id] ?? 0, dishes: [] }
+  for (const p of bill.people) people[p.id] = { totalCents: totals[as(p.id)] ?? 0, dishes: [] }
+  const byLabel = new Map(bill.people.map((p) => [as(p.id), people[p.id]!]))
   for (const it of items) {
-    for (const [id, shareCents] of Object.entries(distributeEqual(it.amountCents, it.userIds, payerId))) {
-      people[id]?.dishes.push({ name: it.name, shareCents, sharedBy: it.userIds.length })
+    for (const [who, shareCents] of Object.entries(distributeEqual(it.amountCents, it.userIds, payer))) {
+      byLabel.get(who)?.dishes.push({ name: it.name, shareCents, sharedBy: it.userIds.length })
     }
   }
   return { subtotalCents, serviceChargeCents, gstCents: totalCents - subtotalCents - serviceChargeCents, totalCents, people }

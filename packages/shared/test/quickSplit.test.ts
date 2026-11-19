@@ -72,6 +72,32 @@ describe('quickSplitBreakdown', () => {
     expect(b).toMatchObject({ subtotalCents: 9210, serviceChargeCents: 0, gstCents: 0, totalCents: 9210 })
   })
 
+  it("gives a shared dish's spare cent by entry order, never by id, so the preview and the saved split agree", () => {
+    // Teh tarik $3.25 shared by two guests: one of them gets the odd cent. Draft keys sort one way, UUIDs the other.
+    const tehTarik = (ids: [string, string, string]): QuickSplitBill => ({
+      people: [
+        { id: ids[0], isPayer: true },
+        { id: ids[1], isPayer: false },
+        { id: ids[2], isPayer: false },
+      ],
+      items: [
+        { name: 'Laksa', amountCents: 1000, personIds: [ids[0]] },
+        { name: 'Teh tarik', amountCents: 325, personIds: [ids[1], ids[2]] },
+      ],
+      ...SG_PRESET,
+    })
+    const inOrder = (ids: [string, string, string]) => {
+      const b = quickSplitBreakdown(tehTarik(ids))
+      return ids.map((id) => [b.people[id]!.totalCents, b.people[id]!.dishes])
+    }
+    const draft = inOrder(['p1', 'p2', 'p3'])
+    const saved = inOrder(['5f0c2a4e-0000-4000-8000-000000000000', 'f3a1b2c3-0000-4000-8000-000000000000', '0b9e8d7c-0000-4000-8000-000000000000'])
+    expect(saved).toEqual(draft)
+    // The first of the two (Wei Ling) takes the spare cent: 163¢ of tea for her, 162¢ for Arjun.
+    expect(draft[1]![1]).toEqual([{ name: 'Teh tarik', shareCents: 163, sharedBy: 2 }])
+    expect(draft[2]![1]).toEqual([{ name: 'Teh tarik', shareCents: 162, sharedBy: 2 }])
+  })
+
   it('throws SplitError when a dish is too small to give everyone a cent', () => {
     expect(() =>
       quickSplitBreakdown({ ...README_BILL, items: [{ name: 'Mint', amountCents: 1, personIds: ['weiling', 'arjun'] }] }),
@@ -179,6 +205,13 @@ describe('QuickSplitInput', () => {
 
   it('needs everyone but the payer to have had something', () => {
     expect(issues({ ...valid, people: [...valid.people, person('Priya')] })).toContain('Everyone but the payer needs at least one dish.')
+  })
+
+  it('refuses a dish too small to give everyone who shared it a cent, so no one has a 0¢ dish', () => {
+    // Everyone has other dishes, so no total is 0, but the 1¢ mint would be "Mint ÷2 $0.00" for one of them.
+    const mint = { name: 'Mint', amountCents: 1, personIndexes: [1, 2] }
+    expect(issues({ ...valid, items: [...valid.items, mint] })).toContain("That's too small to split between that many people.")
+    expect(QuickSplitInput.safeParse({ ...valid, items: [...valid.items, { ...mint, amountCents: 2 }] }).success).toBe(true)
   })
 
   it('refuses a bill too small to give everyone a cent, or over $1,000,000 in all', () => {
