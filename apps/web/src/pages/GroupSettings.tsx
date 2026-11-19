@@ -100,15 +100,16 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
         You in this group
       </h3>
       <form className="you-fields" onSubmit={submit} noValidate>
-        <NicknameField id="you-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
+        <NicknameField
+          id="you-nickname"
+          value={nickname.value}
+          placeholder={profileName}
+          error={showHint && nickname.invalid ? NICKNAME_HINT : null}
+          onChange={nickname.setValue}
+        />
         <span className="f">Your animal in this group</span>
         <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
         <AvatarPicker value={avatar} taken={taken} onChange={setChoice} />
-        {showHint && nickname.invalid && (
-          <p className="err" role="alert">
-            {NICKNAME_HINT}
-          </p>
-        )}
         <div className="form-f">
           {save.isSuccess && !dirty && (
             <span className="s" role="status">

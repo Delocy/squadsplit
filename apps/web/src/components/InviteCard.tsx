@@ -130,7 +130,7 @@ function InviteBody({ group, invite }: { group: GroupDTO; invite: InviteReset })
       <p className="invite-code">
         Code: <b>{spacedCode(code)}</b>
       </p>
-      <details className="invite-qr">
+      <details className="invite-qr disclosure">
         <summary>
           <UiIcon name="qr" />
           <span>

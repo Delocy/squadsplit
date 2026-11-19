@@ -1,5 +1,5 @@
 import { Nickname } from '@squadsplit/shared'
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 
 const MAX_NICKNAME = 24
 export const NICKNAME_HINT = 'Keep it to 24 characters, with no emoji.'
@@ -22,16 +22,21 @@ export function useNicknameDraft(base: string) {
   }
 }
 
+/** The nickname field, with its error (if any) right under it. */
 export function NicknameField({
   id,
   value,
   placeholder,
   onChange,
+  error = null,
+  inputRef,
 }: {
   id: string
   value: string
   placeholder: string
   onChange: (value: string) => void
+  error?: string | null
+  inputRef?: Ref<HTMLInputElement>
 }) {
   return (
     <>
@@ -39,14 +44,22 @@ export function NicknameField({
         What should this group call you?
       </label>
       <input
+        ref={inputRef}
         id={id}
         type="text"
         maxLength={MAX_NICKNAME}
         autoComplete="nickname"
         placeholder={placeholder}
         value={value}
+        aria-invalid={error !== null}
+        aria-describedby={error !== null ? `${id}-hint` : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
+      {error !== null && (
+        <p className="err" role="alert" id={`${id}-hint`}>
+          {error}
+        </p>
+      )}
     </>
   )
 }

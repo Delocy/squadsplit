@@ -225,7 +225,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 /* group settings */
 .card > .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
 .card > .s:last-child { margin-bottom: 0; }
-/* The invite card (Group settings, an empty group, the Invite sheet): Share leads, Copy follows, the QR folds away. */
+/* The invite card (Group settings, an empty group, the Invite sheet): Share leads, Copy follows, the QR folds away.
+   A .disclosure is a <details> whose summary is a 44px row with a turning triangle. */
 .invite { display: grid; gap: 12px; min-width: 0; }
 .invite > .s { color: var(--muted); font-size: 13.5px; margin: 0; }
 .invite-share { width: 100%; min-height: 48px; font-size: 15.5px; }
@@ -238,12 +239,16 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .invite-code { margin: 0; color: var(--muted); font-size: 14px; }
 .invite-code b { font: 700 17px ui-monospace, Menlo, monospace; letter-spacing: .12em; color: var(--text); }
 .invite-fresh { margin: 0; justify-self: start; padding: 4px 12px; border-radius: 99px; border: 2px solid var(--ink); background: #dcf5ea; color: #3d2c42; font-weight: 800; }
-.invite-qr summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 800; list-style: none; }
-.invite-qr summary::-webkit-details-marker { display: none; }
-.invite-qr summary svg { width: 20px; height: 20px; flex: none; }
-.invite-qr summary .s { color: var(--muted); font-size: 12.5px; font-weight: 700; }
-.invite-qr summary::before { content: ""; flex: none; width: 0; height: 0; border-left: 6px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; }
-.invite-qr[open] summary::before { transform: rotate(90deg); }
+.disclosure summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 800; list-style: none; }
+.disclosure summary::-webkit-details-marker { display: none; }
+.disclosure summary svg { width: 20px; height: 20px; flex: none; }
+.disclosure summary .s { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.disclosure summary::before { content: ""; flex: none; width: 0; height: 0; border-left: 6px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; }
+.disclosure[open] summary::before { transform: rotate(90deg); }
+/* "I'm new": the optional nickname, folded under the name. */
+.join-extra { margin-top: 10px; }
+.join-extra summary { color: var(--muted); font-size: 13.5px; }
+.join-extra[open] summary { color: var(--text); }
 .invite-qr > .s { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 12.5px; }
 /* The QR stays dark-on-white in both themes so phones can scan it. */
 .qr-box { width: 220px; max-width: 100%; margin: 6px auto 0; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }

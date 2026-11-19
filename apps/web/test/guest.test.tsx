@@ -110,6 +110,7 @@ describe('the Join page, signed out', () => {
     fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/Names are up to 24 characters/)
     fireEvent.change(screen.getByLabelText('Your name'), { target: { value: ' Zed ' } })
+    fireEvent.click(screen.getByText('Change how the group sees you'))
     fireEvent.change(screen.getByLabelText('What should this group call you?'), { target: { value: 'Zeddy' } })
     fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
 
@@ -118,6 +119,58 @@ describe('the Join page, signed out', () => {
     const look = firstFreeAvatar(defaultAvatar('gs_g1'), preview().takenAvatars)
     expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).toEqual({ name: 'Zed', avatar: look, nickname: 'Zeddy' })
     expect(storedPass()).toEqual(passFor('gs_zed'))
+  })
+
+  it("asks someone new for their name once: the group calls them that unless they open the extra", async () => {
+    signIn.state = false
+    const calls = fakeApi(
+      groupHandlers(
+        { group: guestView() },
+        {
+          'GET /invites/ABCD2345': ok(preview({ placeholders: [] })),
+          'POST /invites/ABCD2345/guest': () => ({
+            status: 201,
+            body: { token: TOKEN, groupId: 'g1', member: member('gs_zed', 'Zed', DAVE_LOOK, { guest: true }) },
+          }),
+        },
+      ),
+    )
+    const router = renderApp('/join/ABCD2345')
+
+    const name = await screen.findByLabelText('Your name')
+    const extra = screen.getByText('Change how the group sees you').closest('details')!
+    expect(extra.open).toBe(false)
+    expect(extra.contains(screen.getByLabelText('What should this group call you?'))).toBe(true)
+    fireEvent.change(name, { target: { value: 'Zed' } })
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+    expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).not.toHaveProperty('nickname')
+  })
+
+  it('shows each error right under its field, and opens the extra to a bad nickname', async () => {
+    signIn.state = false
+    fakeApi({ 'GET /invites/ABCD2345': ok(preview({ placeholders: [] })) })
+    renderApp('/join/ABCD2345')
+
+    const name = await screen.findByLabelText('Your name')
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+    const hint = await screen.findByRole('alert')
+    expect(name.nextElementSibling).toBe(hint)
+    expect(name.getAttribute('aria-describedby')).toBe(hint.id)
+
+    fireEvent.change(name, { target: { value: 'Zed' } })
+    fireEvent.click(screen.getByText('Change how the group sees you'))
+    const nickname = screen.getByLabelText('What should this group call you?')
+    fireEvent.change(nickname, { target: { value: 'Z 🍕' } })
+    const extra = nickname.closest('details')!
+    extra.open = false
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Keep it to 24 characters, with no emoji.')
+    expect(nickname.nextElementSibling).toBe(screen.getByRole('alert'))
+    expect(extra.open).toBe(true)
+    expect(document.activeElement).toBe(nickname)
   })
 
   it('offers signing in instead, to keep the group in a list', async () => {
