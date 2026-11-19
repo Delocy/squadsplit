@@ -35,6 +35,15 @@ a { color: inherit; }
 .top > .crumb { grid-column: 1 / -1; grid-row: 2; }
 .crumb > span { flex: none; }
 @media (min-width: 600px) { .top { grid-template-columns: auto minmax(0, 1fr) auto; } .top > .crumb { grid-column: 2; grid-row: 1; } }
+/* A guest's bar: on a phone "Save with an account" shares the crumb's row, so the logo keeps its room; wider, one row. */
+.top > .save-account { grid-column: -2; grid-row: 2; justify-self: end; }
+.top > .err { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 599px) { .top.guest > .crumb { grid-column: 1; } }
+@media (min-width: 600px) {
+  .top.guest { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .top.guest > .me { grid-column: 3; }
+  .top.guest > .save-account { grid-column: 4; grid-row: 1; }
+}
 @media (max-width: 380px) { .top { column-gap: 8px; } .top .logo h1 { font-size: 19px; } .top .logo .mark { width: 34px; height: 34px; } }
 .logo { display: flex; align-items: center; gap: 9px; text-decoration: none; color: inherit; }
 .logo .mark { width: 38px; height: 38px; border-radius: 12px; background: var(--accent-soft); border: 2px solid var(--ink); padding: 3px; }
@@ -380,6 +389,12 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 
 /* names of people who haven't joined yet */
 .status.not-joined { flex: none; white-space: nowrap; }
+/* guests: in the group on their phone, with no account */
+.status.guest { flex: none; white-space: nowrap; background: var(--lav); border-color: var(--lav); color: var(--text); }
+.on-this-phone { width: 100%; max-width: 420px; text-align: left; display: grid; gap: 10px; }
+.on-this-phone h3 { margin: 0; font-size: 15px; color: var(--text); }
+.guest-note { display: grid; justify-items: center; gap: 6px; margin-top: 12px; }
+.guest-note .s { margin: 0; }
 /* settle-up transfers: each name truncates on its own, the "Not joined yet" tags get their own line under the names,
    and the amount with its button wraps below as one when even that doesn't fit (320px). */
 .row.transfer { flex-wrap: wrap; row-gap: 6px; }

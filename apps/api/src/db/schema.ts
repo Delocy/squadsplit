@@ -4,8 +4,11 @@ import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } fro
 export const ROLES = ['owner', 'member'] as const
 export const SPLIT_TYPES = ['equal', 'exact', 'itemized'] as const
 export const SETTLEMENT_STATUSES = ['pending', 'confirmed', 'rejected', 'cancelled'] as const
-/** A person signs in (their id is Clerk's); a placeholder is a name in one group for someone who hasn't joined yet. */
-export const USER_KINDS = ['person', 'placeholder'] as const
+/**
+ * A person signs in (their id is Clerk's); a placeholder is a name in one group for someone who hasn't joined yet; a
+ * guest joined one group from its invite link with no account (their phone holds a guest session).
+ */
+export const USER_KINDS = ['person', 'placeholder', 'guest'] as const
 
 /** SQL `IN (...)` list for a CHECK constraint over a fixed set of string literals. */
 const oneOf = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '))
@@ -15,7 +18,10 @@ export const users = sqliteTable('users', {
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
   createdAt: text('created_at').notNull(),
-  /** 'placeholder' rows have ids starting with `ph_`, belong to one group, and are deleted when someone claims them. */
+  /**
+   * 'placeholder' rows have ids starting with `ph_`, belong to one group, and are deleted when someone claims them.
+   * 'guest' rows belong to one group too: a new guest's id starts with `gs_`; a guest who claimed a name keeps its `ph_` id.
+   */
   kind: text('kind', { enum: USER_KINDS }).notNull().default('person'),
   /** The look the user picked for themselves (outside groups, and where a new group starts them). Null: their default. */
   profileAnimal: text('profile_animal'),
@@ -302,4 +308,38 @@ export const quickSplitTicks = sqliteTable(
     count: integer('count').notNull(),
   },
   (t) => [primaryKey({ columns: [t.splitId, t.hour] }), index('quick_split_ticks_hour_idx').on(t.hour)],
+)
+
+/**
+ * A guest's sign-in on one phone, for one group. Only the SHA-256 (hex) of the token is stored, never the token. A
+ * guest with no session (the owner reset the link, or freed up the name) is an unclaimed name again.
+ */
+export const guestSessions = sqliteTable(
+  'guest_sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id),
+    createdAt: text('created_at').notNull(),
+    /** Moved on at most once an hour, so reading a group isn't a write each time. */
+    lastSeenAt: text('last_seen_at').notNull(),
+  },
+  (t) => [index('guest_sessions_user_id_idx').on(t.userId), index('guest_sessions_group_id_idx').on(t.groupId)],
+)
+
+/** Guest joins per group per UTC hour ('YYYY-MM-DDTHH'), for the hourly limit. No IP address is stored. */
+export const guestJoins = sqliteTable(
+  'guest_joins',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id),
+    hour: text('hour').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.hour] }), index('guest_joins_hour_idx').on(t.hour)],
 )

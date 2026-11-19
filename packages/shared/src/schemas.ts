@@ -171,12 +171,16 @@ export interface MeDTO { id: string; displayName: string; avatarUrl: string | nu
 /**
  * A member as the group sees them. `displayName` is the effective name: their `nickname` in this group if they set
  * one, otherwise their profile name. `avatar` is their look in this group: what they picked, or their default.
- * `placeholder`: a name the owner added for someone who hasn't joined yet (they can claim it when they join).
+ * `placeholder`: a name nobody is using, which someone can claim when they join: one the owner added for someone who
+ * hasn't joined yet, or a guest's whose phone was signed out (by a reset link or "Free up name").
+ * `guest`: a guest who is in, on their phone, with no account.
  */
 export interface MemberDTO {
   userId: string; displayName: string; nickname: string | null; avatarUrl: string | null
-  role: 'owner' | 'member'; active: boolean; avatar: AvatarChoice; placeholder: boolean
+  role: 'owner' | 'member'; active: boolean; avatar: AvatarChoice; placeholder: boolean; guest: boolean
 }
+/** `POST /invites/:code/guest` (201): the guest's token for this one group, and who they are in it. */
+export interface GuestJoinDTO { token: string; groupId: string; member: MemberDTO }
 export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string | null; ownerId: string; members: MemberDTO[] }
 export interface GroupSummaryDTO { id: string; name: string; emoji: string; currency: Currency; role: 'owner' | 'member'; myBalanceCents: number }
 /**

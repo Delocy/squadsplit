@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/react'
 import { MAX_GROUP_MEMBERS, sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
@@ -22,13 +21,18 @@ import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberNam
 import { invalidateGroup, queryKeys } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
+import { useGroupAccess, useMyId } from '../guest/GroupAccess'
 
 const MAX_NAME = 50
 
-/** `/groups/:id/settings`: inviting friends, your name and look here, the member list, renaming (owner) and leaving (members). */
+/**
+ * `/groups/:id/settings`: inviting friends, your name and look here, the member list, renaming (owner) and leaving
+ * (members with an account).
+ */
 export function GroupSettings() {
   const id = useParams().id ?? ''
-  const me = useAuth().userId ?? ''
+  const me = useMyId()
+  const asGuest = Boolean(useGroupAccess()?.guest)
   const group = useGroup(id)
 
   if (group.isPending) return <SettingsSkeleton />
@@ -61,7 +65,8 @@ export function GroupSettings() {
         {isOwner && <RenameCard group={g} />}
         <MemberList group={g} me={me} />
         {isOwner && <AddNameCard group={g} />}
-        {!isOwner && <LeaveCard group={g} me={me} />}
+        {/* A guest's name stays in the group, for the owner to free up or remove. */}
+        {!isOwner && !asGuest && <LeaveCard group={g} me={me} />}
       </div>
     </main>
   )

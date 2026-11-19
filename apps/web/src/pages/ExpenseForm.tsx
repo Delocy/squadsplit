@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/react'
 import {
   CATEGORIES,
   formatMoney,
@@ -32,6 +31,7 @@ import {
   type SplitMode,
 } from '../expenseDraft'
 import { formerMemberIn, peopleOf, useExpenses, useGroup, useGroupMutation } from '../groupData'
+import { useMyId } from '../guest/GroupAccess'
 
 const MODES: { key: SplitMode; label: string }[] = [
   { key: 'equal', label: 'Equally' },
@@ -42,7 +42,7 @@ const MODES: { key: SplitMode; label: string }[] = [
 /** `/groups/:id/expenses/new` and `/groups/:id/expenses/:expenseId`: the add/edit dialog over the group home. */
 export function ExpenseForm() {
   const { id: groupId = '', expenseId } = useParams()
-  const me = useAuth().userId ?? ''
+  const me = useMyId()
   const navigate = useNavigate()
   const group = useGroup(groupId)
   const expenses = useExpenses(groupId)

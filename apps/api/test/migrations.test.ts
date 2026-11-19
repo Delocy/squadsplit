@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { expect, it } from 'vitest'
 
-const TABLES = ['quick_split_ticks', 'quick_split_item_people', 'quick_split_items', 'quick_split_people', 'quick_splits', 'receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
+const TABLES = ['guest_joins', 'guest_sessions', 'quick_split_ticks', 'quick_split_item_people', 'quick_split_items', 'quick_split_people', 'quick_splits', 'receipt_scans', 'expense_item_users', 'expense_items', 'expense_shares', 'spins', 'settlements', 'expenses', 'memberships', 'groups', 'users', 'd1_migrations']
 
 it('0001_itemized_currency keeps existing expenses and their shares, taking the currency from the group', async () => {
   for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
@@ -168,4 +168,32 @@ it('0006_quick_splits adds empty quick-split tables without touching existing ro
   ).rejects.toThrow(/UNIQUE constraint failed/)
   await env.DB.prepare(`DELETE FROM quick_splits WHERE id = 'q1'`).run()
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM quick_split_people').first('n')).toBe(0)
+})
+
+it('0007_guest_access adds empty guest session and join-count tables without touching existing rows', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 7))
+  const now = '2026-11-19T00:00:00.000Z'
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', NULL, ?, 'person', NULL, NULL)`).bind(now),
+    env.DB.prepare(`INSERT INTO users VALUES ('ph_1', 'Dave', NULL, ?, 'placeholder', NULL, NULL)`).bind(now),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', ?)`).bind(now),
+    env.DB.prepare(`INSERT INTO memberships VALUES ('g1', 'ph_1', 'member', ?, NULL, 'fox', 'peach', NULL)`).bind(now),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first('n')).toBe(2)
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM guest_sessions').first('n')).toBe(0)
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM guest_joins').first('n')).toBe(0)
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE users SET kind = 'guest' WHERE id = 'ph_1'`),
+    env.DB.prepare(`INSERT INTO guest_sessions VALUES ('hash1', 'ph_1', 'g1', ?, ?)`).bind(now, now),
+    env.DB.prepare(`INSERT INTO guest_joins VALUES ('g1', '2026-11-19T00', 1)`),
+  ])
+  expect(await env.DB.prepare(`SELECT kind FROM users WHERE id = 'ph_1'`).first('kind')).toBe('guest')
+  // A session is for a real user in a real group, and each token is stored once.
+  await expect(env.DB.prepare(`INSERT INTO guest_sessions VALUES ('hash1', 'ph_1', 'g1', ?, ?)`).bind(now, now).run()).rejects.toThrow(/UNIQUE constraint failed/)
+  await expect(env.DB.prepare(`INSERT INTO guest_sessions VALUES ('hash2', 'nobody', 'g1', ?, ?)`).bind(now, now).run()).rejects.toThrow(/FOREIGN KEY/)
+  await expect(env.DB.prepare(`INSERT INTO guest_joins VALUES ('g1', '2026-11-19T00', 1)`).run()).rejects.toThrow(/UNIQUE constraint failed/)
 })

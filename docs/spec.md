@@ -19,6 +19,18 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
   - A write that names someone who stops existing in the meantime (an expense or settlement naming a placeholder that is claimed before it is saved) is 409 `member_changed` ("Someone just joined as this name — refresh and try again.").
   - The owner can remove an unclaimed name only while nothing in the group's history uses it (no expense, share, item, settlement or spin); otherwise 409 `name_in_use`. Removing deletes it; placeholders are never "former" members.
   - Adding names doesn't appear in the feed as joins; claiming one does (at the time of the claim).
+- **Guests, Tricount-style** (added 2026-11-19 at the user's request: "Guest tricount style, but keep the auth flow for normal users to track their existing list"): a friend who opens the invite link can join **without an account**. Signed-in accounts work exactly as before (their group list, profile and so on).
+  - **Why:** in Tricount anyone with the link just picks their name and is in. Making every friend at the table create an account is the biggest drop-off; guests remove it while accounts stay for people who want their groups in one list on every device.
+  - **Joining:** the invite preview is public. Signed out, the Join page asks "Which one are you?" with the unclaimed names and **"I'm new"** (a name, then the usual animal and colour and nickname), and **"Join as guest"** ("No account needed. This phone remembers you."). Under it, "Sign in to keep it in your list" runs the usual signed-in join. Claiming a name turns the placeholder into the guest **in place** (`users.kind` 'placeholder' → 'guest', same `ph_` id), so no row of the group's history moves; "I'm new" creates a guest with a `gs_<uuid>` id and a membership. The 12-person cap applies (409 `group_full`); a name taken first is 409 `already_claimed`; a taken look is 409 `avatar_taken`.
+  - **What a guest can do:** everything a member can — add and edit expenses, scan receipts (the same 20 a day per user, under the app-wide 40), record and confirm paybacks, spin the wheel, set their nickname and look. Only owner things stay with the owner's account: group settings, adding or removing names, resetting the link and the currency. A guest can't leave (their name stays for the owner to free up or remove). The app tags a guest who's in **"Guest"**.
+  - **One group per guest:** a guest is a member of that one group only. Any other group's routes are 404 (as for a non-member), owner-only routes 403, and everything that belongs to an account — `/me`, `GET /groups`, creating groups, quick splits, signed-in joins — is 401.
+  - **The token:** joining hands the phone a token, 32 random bytes from `crypto.getRandomValues`, base64url (43 characters). Only its SHA-256 (hex) is stored, in `guest_sessions` with the guest and the group, so a copy of the database signs nobody in. A token is scoped to exactly one group; a phone holds one per group, in `localStorage` under `squadsplit.guest.<groupId>` (with the guest's id, the group's name and the invite code), and the web app only ever sends it in the `X-Guest-Token` header, never in a URL. `last_seen_at` moves at most once an hour.
+  - **Limits:** at most **20 guest joins per group per UTC hour** (claims and new names, refused attempts included), counted atomically in D1 like quick-split ticks, with no IP address stored; past it, 429 `slow_down`. Resetting the link starts the group's count afresh, so attempts on a leaked old link can't hold up the rejoins.
+  - **Reset link** (owner) also deletes every guest session of the group, in the same batch: every guest is signed out on every phone. They rejoin with the new link and pick their name again; their expenses stay. People who saved to an account are unaffected. **"Free up name"** (owner, guests only, with a confirm) signs one guest out on every phone, for a lost phone. A guest with no live session is an unclaimed name again, claimable exactly like a placeholder (by a guest, which signs them in again as the same id and isn't a new join, or by an account). The app shows such a name as "Not joined yet".
+  - **Signed out:** a request with a dead token (unknown, or signed out by a reset or "Free up name") is 401 `guest_signed_out`, and only that code means "forget this token": any other 401 (an account's sign-in failing while it saves the guest, an account-only route) leaves the guest signed in. The web app forgets the token and says "You've been signed out of <group>. Ask for the new link to rejoin.", linking to the Join page for the code they joined with ("Try the link again": after "Free up name" it still works). The card shows only on a phone nobody is signed in on, and any later join clears it.
+  - **Saving to an account:** "Save with an account" in a guest's top bar signs in (or up), then moves the guest to the account with the same batch as claiming a placeholder: the membership (look, join day, and the name the group knows them by, as a nickname) and every reference move to the account, and the guest's user row and sessions are deleted. 409 `already_in_group` if the account has ever been in the group.
+  - **On this phone:** the signed-out landing page lists the groups this phone is a guest in (each read with its own token; one that comes back 401 or 404 is forgotten), above the sign-in buttons.
+  - **The risk, stated plainly:** anyone with the link can join as an unclaimed name. That is the honour system, as in Tricount: the group sees who joined as whom in the feed, and the owner's **Reset link** is the safety valve (it signs every guest out at once), with "Free up name" for one guest. The hourly join limit stops a leaked link from churning names quickly.
 - **Profile look** (added 2026-11-19): every user has an animal + colour of their own (`PATCH /me`; any of the 48, nothing is "taken"). It shows outside groups (the top bar on your groups list) and is where new groups start you: creating a group gives you your profile look, and joining without a pick gives you it (or a former member's old look), moved on to the first free look if someone has it.
 - A group has at most **12 active members**, counting unclaimed names. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap. The cap is checked in the same statement that writes the membership, so simultaneous joins can't pass it.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
@@ -66,7 +78,8 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 
 ### Settle-up (the shared, two-party action)
 - Only the **debtor** starts a settlement: "I paid Bob $40".
-- **Someone who hasn't joined** (a placeholder) can't confirm anything, so a settlement with one is one-sided and counts straight away (`confirmed`, `resolved_at` now): you can record paying them, and a creditor can record that one of them paid you ("Dave paid me", `fromUserId` = the placeholder). The usual cap applies with the placeholder as debtor or creditor. Two placeholders can't settle with each other (422 `placeholder_to_placeholder`); naming any other payer is 422 `not_your_payment`.
+- **A guest** who is in is a real participant: a payment with them is `pending` and they confirm it like anyone else.
+- **Someone who hasn't joined** (a placeholder, or a guest signed out on every phone) can't confirm anything, so a settlement with one is one-sided and counts straight away (`confirmed`, `resolved_at` now): you can record paying them, and a creditor can record that one of them paid you ("Dave paid me", `fromUserId` = the placeholder). The usual cap applies with the placeholder as debtor or creditor. Two placeholders can't settle with each other (422 `placeholder_to_placeholder`); naming any other payer is 422 `not_your_payment`.
 - The amount can be anything from 1 cent up to `min(debtor's debt, creditor's credit)`, after subtracting the debtor's other pending outgoing settlements.
 - Lifecycle: `pending → confirmed | rejected | cancelled`
   - The **creditor** confirms or rejects it.
@@ -118,7 +131,7 @@ For a one-off restaurant meal with people who have no SquadSplit account. The pa
 - Only its owner sees a quick split in the app; anyone else gets 404.
 
 ### Feed
-Expenses, confirmed settlements, spins and joins, all in one list, newest first.
+Expenses, confirmed settlements, spins and joins, all in one list, newest first. Joins include guests (when a guest first claims a name or joins as someone new), but not a guest signing in again after a reset.
 
 ### Freshness
 No live connection. TanStack Query refetches when the tab regains focus and after the user's own changes. (v2: WebSockets through Durable Objects.)
@@ -128,9 +141,10 @@ No live connection. TanStack Query refetches when the tab regains focus and afte
 ## 2. Data model (D1 / SQLite with Drizzle)
 
 ```
-users          id (pk, text: Clerk user id, or ph_<uuid> for a placeholder), display_name, avatar_url, created_at,
-               kind ('person'|'placeholder', default 'person'), profile_animal (nullable), profile_color (nullable)   (0005)
-               a placeholder belongs to one group; profile_* null means the user's default look
+users          id (pk, text: Clerk user id, ph_<uuid> for a placeholder, or gs_<uuid> for a guest who joined as someone new),
+               display_name, avatar_url, created_at,
+               kind ('person'|'placeholder'|'guest', default 'person'), profile_animal (nullable), profile_color (nullable)   (0005; 'guest' 0007)
+               a placeholder or guest belongs to one group; a guest who claimed a name keeps its ph_ id; profile_* null means the user's default look
 groups         id (pk, uuid), name, emoji, currency, invite_code (unique), owner_id → users, created_at
 memberships    group_id → groups, user_id → users, role ('owner'|'member'), joined_at, left_at (nullable),
                avatar_animal (nullable), avatar_color (nullable), nickname (nullable)
@@ -159,6 +173,10 @@ quick_split_items   id (pk), split_id → quick_splits (cascade), name (1–60),
 quick_split_item_people  item_id → quick_split_items (cascade), person_id → quick_split_people (cascade)   pk(item_id, person_id)
 quick_split_ticks   split_id → quick_splits (cascade), hour ('YYYY-MM-DDTHH', UTC), count   pk(split_id, hour)
                (tick changes on the share link per hour; rows older than a day are dropped)
+guest_sessions token_hash (pk: SHA-256 hex of the token; the token itself is never stored), user_id → users, group_id → groups,
+               created_at, last_seen_at (moved at most once an hour)   (0007)
+guest_joins    group_id → groups, hour ('YYYY-MM-DDTHH', UTC), count   pk(group_id, hour)   (0007; guest joins per group per hour,
+               no IP address; rows older than a day are dropped)
 ```
 
 The rule "shares add up to the amount" is enforced in the service layer, inside a single D1 `batch` (transaction).
@@ -169,33 +187,36 @@ The rule "shares add up to the amount" is enforced in the service layer, inside 
 
 ## 3. API (Hono on Cloudflare Workers)
 
-Every route needs a valid Clerk session (`Authorization: Bearer <token>`), except `GET /health` and a quick split's share link (`/s/:token…`), which is mounted before authentication.
+Every route needs a valid Clerk session (`Authorization: Bearer <token>`) or a guest's token (`X-Guest-Token: <token>`), except `GET /health`, a quick split's share link (`/s/:token…`), an invite's preview and joining as a guest (`GET /invites/:code`, `POST /invites/:code/guest`), which are mounted before authentication. A Clerk session whose user id starts `ph_` or `gs_` is refused (401). A guest's token signs them in as a member of their one group only (other groups 404, account routes 401). A request carrying both is the guest's, except `POST /groups/:id/guest/upgrade`, which takes both. CORS allows the `X-Guest-Token` header; the origin stays `WEB_ORIGIN`.
 
 Error responses:
-- `401` not signed in
+- `401` not signed in (`guest_signed_out` for a guest token that signs nobody in any more)
 - **`404` not a member.** We don't reveal whether the group exists.
 - `403` a member without permission
 - `409` the current state blocks the action (balance not zero, expense locked, settlement no longer pending)
 - `410` a quick split's share link has been stopped or has expired (`link_off`)
 - `422` validation failed (zod)
 - `413` the request body is too large (64 KB; 2 MB for a receipt scan)
-- `429` a limit was reached (receipt scanning per day; share-link ticks per hour)
+- `429` a limit was reached (receipt scanning per day; share-link ticks per hour; guest joins per group per hour)
 - `503` a service we depend on is unavailable (receipt scanning)
 
 | Method & path | Who may call |
 |---|---|
-| `GET /me` (includes `profileAvatar`) | any user |
-| `PATCH /me` (`{ profileAvatar }`) | any user |
-| `GET /groups` | any user (returns their own groups) |
-| `POST /groups` (optional `nickname` for the owner, optional `members`: up to 11 names) | any user (they become the owner) |
+| `GET /me` (includes `profileAvatar`) | any user (not a guest) |
+| `PATCH /me` (`{ profileAvatar }`) | any user (not a guest) |
+| `GET /groups` | any user (returns their own groups; not a guest) |
+| `POST /groups` (optional `nickname` for the owner, optional `members`: up to 11 names) | any user (they become the owner; not a guest) |
 | `POST /groups/:id/placeholders` (`{ name }`; 409 `group_full`) | owner |
 | `GET /groups/:id` | member |
 | `PATCH /groups/:id` (name, emoji; currency only before the first expense) | owner |
-| `POST /groups/:id/invite/reset` | owner |
-| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, your old look if you're a former member, and the unclaimed names with their looks) | any user |
-| `POST /invites/:code/join` (optional body `{ avatar?, nickname?, claim? }`; `claim` is an unclaimed name's user id) | any user (does nothing if already a member, unless claiming) |
+| `POST /groups/:id/invite/reset` | owner (also signs every guest of the group out) |
+| `GET /invites/:code` (preview: group name, emoji, member count, the avatars already taken, your old look if you're a former member, and the unclaimed names with their looks; signed out, `alreadyMember: false` and `myFormerAvatar: null`) | anyone with the code, no sign-in |
+| `POST /invites/:code/guest` (`{ claim?, name?, avatar?, nickname? }`, exactly one of `claim` and `name`) → 201 `{ token, groupId, member }`; 409 `already_claimed`, `group_full`, `avatar_taken`; 429 `slow_down` | anyone with the code, no sign-in |
+| `POST /invites/:code/join` (optional body `{ avatar?, nickname?, claim? }`; `claim` is an unclaimed name's user id, a placeholder's or a signed-out guest's) | any user, not a guest (does nothing if already a member, unless claiming) |
+| `POST /groups/:id/members/:userId/release` ("Free up name": signs that guest out on every phone) → 204 | owner; guests only (else 404) |
+| `POST /groups/:id/guest/upgrade` (moves the guest to the account) → 200 `GroupDTO`; 409 `already_in_group` | a Clerk session and that group's guest token, together |
 | `PATCH /groups/:id/members/me` (`{ avatar?, nickname? }`, at least one; `nickname: null` or `""` clears) | member |
-| `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0. An unclaimed name: owner only, deleted while unused (else 409 `name_in_use`) |
+| `DELETE /groups/:id/members/:userId` | that user (leaving) or the owner (removing); balance must be 0. An unclaimed name or a guest: owner only, deleted (with the guest's sessions) while unused (else 409 `name_in_use`) |
 | `GET /groups/:id/balances` (nets + suggested transfers) | member |
 | `GET /groups/:id/expenses`, `POST /groups/:id/expenses` | member |
 | `PATCH /expenses/:id`, `DELETE /expenses/:id` | creator or owner, and not locked |
@@ -206,9 +227,9 @@ Error responses:
 | `POST /groups/:id/spins` | member |
 | `GET /groups/:id/feed` | member |
 | `POST /groups/:id/receipts/scan` (`{ imageBase64, mimeType: image/jpeg\|png\|webp }`, ≤ 2 MB body, ≤ 1.5 MB and 1600px image; returns items, rates, total and `totalMatches`; never creates an expense) | member |
-| `POST /receipts/scan` (the same scan outside any group, for a quick split's bill; same body, limits, errors and fallback, and the same daily quota) | any user |
-| `GET /quick-splits` (summaries, newest first: title, place, date, total, paid count / people count, link `on`\|`off`, names) | any user (their own) |
-| `POST /quick-splits` (`QuickSplitInput`; opens the share link) → 201 | any user (they become the owner) |
+| `POST /receipts/scan` (the same scan outside any group, for a quick split's bill; same body, limits, errors and fallback, and the same daily quota) | any user, not a guest |
+| `GET /quick-splits` (summaries, newest first: title, place, date, total, paid count / people count, link `on`\|`off`, names) | any user, not a guest (their own) |
+| `POST /quick-splits` (`QuickSplitInput`; opens the share link) → 201 | any user, not a guest (they become the owner) |
 | `GET /quick-splits/:id`, `PUT /quick-splits/:id` (full replace: people sent with their `id` keep their tick and look; people left out are deleted), `DELETE /quick-splits/:id` | owner (else 404) |
 | `PATCH /quick-splits/:id/people/:personId` (`{ paid }`; 422 `payer_paid` for the payer) | owner |
 | `POST /quick-splits/:id/share/stop` (turns the link off for good) | owner |
@@ -224,15 +245,16 @@ Request and response schemas are zod objects in `packages/shared`, used by both 
 - Clerk React components handle sign-in (Google, GitHub, email).
 - TanStack Query for server state; React Router for pages.
 - Screens:
-  - Landing / sign-in
+  - Landing / sign-in, with **"On this phone"** (the groups this phone is a guest in) above the sign-in buttons when it holds any
   - My groups
   - Your profile look (`/me`, from the menu on your top-bar avatar)
   - Create group (with "Who's in?" names)
-  - Join (`/join/:code`), asking "Which one are you?" when the group has unclaimed names
+  - Join (`/join/:code`), asking "Which one are you?" when the group has unclaimed names. It works signed out: "Join as guest", with "Sign in to keep it in your list" under it
+  - **Group pages as a guest:** every page inside a group opens with this phone's guest token and no account (or for a signed-in account that isn't in the group). The top bar shows the guest's look, a "Guest" tag and "Save with an account"; owner-only controls are hidden. A 401 forgets the token and explains the sign-out
   - **Group home:** my balance card, the leaderboard with badges, "needs your action" (settlements waiting for me to confirm), suggested settle-ups, and the feed
   - Add/edit expense
   - Wheel (an animated spin)
-  - Group settings (invite link and QR code, members)
+  - Group settings (invite link and QR code, members). The owner sees guests tagged "Guest" with "Free up name" (with a confirm), and the Reset link confirm says it signs out all guests
   - **Quick split** (`/quick/new`, from "Quick split" next to "New group"): Bill → People → Assign, then the share card at `/quick/:id` with Copy text, Copy link and Save image (a PNG through the phone's share sheet, or a download), and the payer's ticks, Copy link, Stop sharing, Edit and Delete. The groups page lists recent quick splits with "2 of 3 paid".
   - **Share link** (`/s/:token`): works signed out and without Clerk loading at all; "Which one are you?" (remembered on the phone), "I've paid <payer> $X" with Undo, a "2 of 3 paid" bar and a PAID stamp once everyone has paid. It refetches every 30 seconds and on focus.
 - Works on a phone first, since people use it at the dinner table.

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { FeedItem, SpinDTO } from '@squadsplit/shared'
 import type { Db } from '.'
 import { loadExpenses } from './expenses'
@@ -49,9 +49,10 @@ export async function loadFeed(d: Db, groupId: string): Promise<FeedItem[]> {
     d
       .select({ userId: memberships.userId, joinedAt: memberships.joinedAt })
       .from(memberships)
-      // A name added for someone who hasn't joined isn't a join; claiming it is (the membership's joined_at moves then).
+      // A name added for someone who hasn't joined isn't a join; claiming it is (the membership's joined_at moves then),
+      // with an account or as a guest. A guest signing in again after a reset keeps their first join.
       .innerJoin(users, eq(users.id, memberships.userId))
-      .where(and(eq(memberships.groupId, groupId), eq(users.kind, 'person')))
+      .where(and(eq(memberships.groupId, groupId), inArray(users.kind, ['person', 'guest'])))
       .orderBy(desc(memberships.joinedAt), desc(memberships.userId))
       .limit(FEED_LIMIT),
   ])

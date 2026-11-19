@@ -6,7 +6,7 @@ import { ConfirmBar, useConfirmStep } from './ConfirmBar'
 import { ErrorNote } from './ErrorNote'
 import { InviteQr } from './InviteQr'
 
-/** The owner's invite link: copy it, scan it, or reset it so the old one stops working. */
+/** The owner's invite link: copy it, scan it, or reset it so the old one stops working (and every guest is signed out). */
 export function InviteCard({ groupId, inviteCode }: { groupId: string; inviteCode: string }) {
   const api = useApi()
   const link = `${location.origin}/join/${inviteCode}`
@@ -50,7 +50,7 @@ export function InviteCard({ groupId, inviteCode }: { groupId: string; inviteCod
           {copy === 'failed' && <p className="err">Couldn't copy it. Select the link and copy it yourself.</p>}
           {confirm.showBar ? (
             <ConfirmBar
-              question="The old link will stop working."
+              question="The old link will stop working, and every guest will be signed out."
               yes="Yes, reset it"
               busyLabel="Resetting…"
               busy={reset.isPending}

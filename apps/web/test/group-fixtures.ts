@@ -8,7 +8,7 @@ export const CAROL = 'user_carol'
 
 /** A member with the given avatar; their name is their profile name (no nickname) unless `over` says otherwise. */
 export const member = (userId: string, displayName: string, avatar: MemberDTO['avatar'], over: Partial<MemberDTO> = {}): MemberDTO => ({
-  userId, displayName, nickname: null, avatarUrl: null, role: 'member', active: true, avatar, placeholder: false, ...over,
+  userId, displayName, nickname: null, avatarUrl: null, role: 'member', active: true, avatar, placeholder: false, guest: false, ...over,
 })
 
 /** Someone the owner named who hasn't joined yet (a placeholder). */

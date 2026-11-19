@@ -1,6 +1,8 @@
 import { useAuth } from '@clerk/react'
 import { useMemo } from 'react'
-import type { ApiErrorBody } from '@squadsplit/shared'
+import { useGroupAccess } from './guest/GroupAccess'
+import { guestSignedOut, readGuestPass } from './guest/guestPass'
+import { GUEST_SIGNED_OUT, GUEST_TOKEN_HEADER, type ApiErrorBody } from '@squadsplit/shared'
 
 /**
  * A failed API call. For a non-2xx response, `code` and `message` come from the API's `{ error }` body when it has one.
@@ -28,16 +30,28 @@ export interface ApiClient {
 const isErrorBody = (v: unknown): v is ApiErrorBody =>
   typeof v === 'object' && v !== null && 'error' in v && typeof (v as ApiErrorBody).error?.code === 'string'
 
+/** A guest's sign-in for one group's requests (see GroupAccess). */
+export interface GuestAuth {
+  /** The guest token to send, read on each request; null sends none. */
+  token(): string | null
+  /** The API said the token signs nobody in any more (401 guest_signed_out): the guest has been signed out. */
+  signedOut(): void
+}
+
 export function createApiClient(
   baseUrl: string,
   getToken: () => Promise<string | null>,
   // Looked up on each request, not when the client is made (publicApi is made once, at load).
   fetchFn: typeof fetch = (input, init) => fetch(input, init),
+  guest?: GuestAuth,
 ): ApiClient {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers = new Headers()
     const token = await getToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
+    // Only ever a header, so the token never lands in a URL, a log or the browser history.
+    const guestToken = guest?.token() ?? null
+    if (guestToken) headers.set(GUEST_TOKEN_HEADER, guestToken)
     if (body !== undefined) headers.set('Content-Type', 'application/json')
 
     let res: Response
@@ -62,6 +76,9 @@ export function createApiClient(
       }
     }
     if (!res.ok) {
+      // Only this code means the token is dead (a reset, "Free up name"). Any other 401, such as an account's sign-in
+      // failing while it saves the guest, leaves the guest signed in.
+      if (guestToken && isErrorBody(data) && data.error.code === GUEST_SIGNED_OUT) guest?.signedOut()
       if (isErrorBody(data)) throw new ApiError(res.status, data.error.code, data.error.message)
       throw new ApiError(res.status, 'http_error', res.statusText || `Request failed (${res.status})`)
     }
@@ -95,8 +112,25 @@ const API_URL = apiBaseUrl(import.meta.env.VITE_API_URL)
 /** The API client for pages anyone may open without signing in (a quick split's share link). It never needs Clerk. */
 export const publicApi: ApiClient = createApiClient(API_URL, async () => null)
 
-/** The API client for the signed-in user: every request carries their Clerk session token. */
+/** A guest's sign-in for the group's requests: this phone's pass for it, read on each request. */
+export const guestAuthFor = (groupId: string): GuestAuth => ({
+  token: () => readGuestPass(groupId)?.token ?? null,
+  signedOut: () => guestSignedOut(groupId),
+})
+
+/** The API client for one group's guest on this phone, with no account (see OnThisPhone). */
+export const guestApi = (groupId: string): ApiClient => createApiClient(API_URL, async () => null, undefined, guestAuthFor(groupId))
+
+/**
+ * The API client for the signed-in user: every request carries their Clerk session token. Inside a group the phone
+ * is a guest in (see GroupAccess), requests carry the guest token too.
+ */
 export function useApi(): ApiClient {
   const { getToken } = useAuth()
-  return useMemo(() => createApiClient(API_URL, () => getToken()), [getToken])
+  const access = useGroupAccess()
+  const guestGroupId = access?.guest ? access.groupId : null
+  return useMemo(
+    () => createApiClient(API_URL, () => getToken(), undefined, guestGroupId ? guestAuthFor(guestGroupId) : undefined),
+    [getToken, guestGroupId],
+  )
 }

@@ -21,13 +21,14 @@ const defaultMe: Handler = () => ({ status: 200, body: { id: ME, displayName: 'M
  * call succeeds with a default profile and is left out of `calls`, so `calls` holds only what the page itself sent.
  */
 export function fakeApi(handlers: Record<string, Handler>) {
-  const calls: { key: string; body: unknown; auth: string | null }[] = []
+  const calls: { key: string; body: unknown; auth: string | null; guest: string | null }[] = []
   const recordMe = 'GET /me' in handlers
   const all: Record<string, Handler> = { 'GET /me': defaultMe, ...handlers }
   const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
     const key = `${init?.method ?? 'GET'} ${String(input).replace(API, '')}`
     const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    if (key !== 'GET /me' || recordMe) calls.push({ key, body, auth: new Headers(init?.headers).get('Authorization') })
+    const headers = new Headers(init?.headers)
+    if (key !== 'GET /me' || recordMe) calls.push({ key, body, auth: headers.get('Authorization'), guest: headers.get('X-Guest-Token') })
     const handler = all[key]
     if (!handler) throw new Error(`No fake API handler for ${key}`)
     const res = await handler(body)

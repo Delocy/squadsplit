@@ -17,8 +17,11 @@ export const queryKeys = {
   sharedSplit: (token: string) => ['shared-split', token] as const,
 }
 
-/** After any change inside a group: refetch everything about it, and the group list (it shows your balance). */
-export function invalidateGroup(queryClient: QueryClient, id: string): Promise<void> {
+/**
+ * After any change inside a group: refetch everything about it, and the group list (it shows your balance). With
+ * `refetchType: 'none'` it is only marked stale, for the pages about to mount to refetch.
+ */
+export function invalidateGroup(queryClient: QueryClient, id: string, refetchType: 'active' | 'none' = 'active'): Promise<void> {
   const keys = [
     queryKeys.groups,
     queryKeys.group(id),
@@ -28,7 +31,7 @@ export function invalidateGroup(queryClient: QueryClient, id: string): Promise<v
     queryKeys.fun(id),
     queryKeys.feed(id),
   ]
-  return Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))).then(() => undefined)
+  return Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey, refetchType }))).then(() => undefined)
 }
 
 /** After the signed-in user's profile is refreshed: their name shows in every group they're in, so refetch them all. */

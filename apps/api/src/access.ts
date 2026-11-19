@@ -28,3 +28,13 @@ export async function requireOwner(db: Db, groupId: string, userId: string): Pro
   if (role !== 'owner') throw new HttpError(403, 'forbidden', 'Only the group owner can do that')
   return { role }
 }
+
+/** Whether the user has ever been in the group (a current or former member). */
+export async function hasMembership(db: Db, groupId: string, userId: string): Promise<boolean> {
+  const row = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, userId)))
+    .get()
+  return row !== undefined
+}

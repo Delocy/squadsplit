@@ -3,36 +3,60 @@ import { defaultAvatar, type AvatarChoice } from '@squadsplit/shared'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLocation, useParams } from 'react-router'
 import { Avatar } from '../design/Avatar'
+import { useGroupAccess } from '../guest/GroupAccess'
+import { SaveWithAccount } from '../guest/SaveWithAccount'
 import { balanceMood } from '../design/mood'
 import { Skeleton, SkText } from '../design/Skeleton'
 import { useCachedBalances, useGroup } from '../groupData'
 import { useMe } from '../useProfileRefresh'
+import { GuestTag } from './GuestTag'
 import { Logo } from './Logo'
 import { PageLink } from './PageLink'
 
 export function TopBar() {
   const { userId } = useAuth()
   const groupId = useParams().id
-  const me = useMe()
-  // Null while your profile loads, so the default look doesn't flash before yours. If it can't load, the default.
-  const profileLook = me.isPending ? null : (me.data?.profileAvatar ?? (userId ? defaultAvatar(userId) : null))
+  const guest = useGroupAccess()?.guest
   return (
-    <header className="top">
-      <Logo to="/groups" />
+    <header className={groupId && guest ? 'top guest' : 'top'}>
+      <Logo to={userId ? '/groups' : '/'} />
       {groupId && <GroupCrumb id={groupId} />}
-      {userId && (
-        <div className="me">
-          <MeMenu
-            avatar={
-              groupId ? <MyGroupAvatar groupId={groupId} userId={userId} fallback={profileLook} /> : <MyAvatar avatar={profileLook} />
-            }
-          />
-          <SignOutButton>
-            <button className="btn small ghost">Sign out</button>
-          </SignOutButton>
-        </div>
+      {groupId && guest ? (
+        <>
+          <GuestMe groupId={groupId} userId={guest.userId} />
+          <SaveWithAccount groupId={groupId} />
+        </>
+      ) : (
+        userId && <AccountMe userId={userId} groupId={groupId} />
       )}
     </header>
+  )
+}
+
+/** The signed-in user: their avatar (with its menu) and Sign out. */
+function AccountMe({ userId, groupId }: { userId: string; groupId: string | undefined }) {
+  const me = useMe()
+  // Null while your profile loads, so the default look doesn't flash before yours. If it can't load, the default.
+  const profileLook = me.isPending ? null : (me.data?.profileAvatar ?? defaultAvatar(userId))
+  return (
+    <div className="me">
+      <MeMenu
+        avatar={groupId ? <MyGroupAvatar groupId={groupId} userId={userId} fallback={profileLook} /> : <MyAvatar avatar={profileLook} />}
+      />
+      <SignOutButton>
+        <button className="btn small ghost">Sign out</button>
+      </SignOutButton>
+    </div>
+  )
+}
+
+/** A guest, in the group they're a guest in: how the group sees them, tagged Guest. "Save with an account" sits beside it. */
+function GuestMe({ groupId, userId }: { groupId: string; userId: string }) {
+  return (
+    <div className="me">
+      <MyGroupAvatar groupId={groupId} userId={userId} fallback={defaultAvatar(userId)} />
+      <GuestTag />
+    </div>
   )
 }
 

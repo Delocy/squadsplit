@@ -119,3 +119,48 @@ describe('apiBaseUrl', () => {
     expect(apiBaseUrl('https://api.example.com')).toBe('https://api.example.com')
   })
 })
+
+describe('createApiClient with a guest', () => {
+  function guestSetup(response: Response, guestToken: string | null, bearer: string | null = null) {
+    const fetchFn = vi.fn<typeof fetch>(async () => response)
+    const signedOut = vi.fn()
+    const api = createApiClient('http://api.test', async () => bearer, fetchFn, { token: () => guestToken, signedOut })
+    const headers = () => new Headers(fetchFn.mock.calls[0]![1]!.headers)
+    return { api, signedOut, headers }
+  }
+
+  it('adds the X-Guest-Token header, never in the URL', async () => {
+    const { api, headers } = guestSetup(json(200, {}), 'guest_tok')
+    await api.get('/groups/g1')
+    expect(headers().get('X-Guest-Token')).toBe('guest_tok')
+    expect(headers().has('Authorization')).toBe(false)
+  })
+
+  it('sends both when the phone is signed in too (an account that is only a guest in this group)', async () => {
+    const { api, headers } = guestSetup(json(200, {}), 'guest_tok', 'clerk_tok')
+    await api.post('/groups/g1/guest/upgrade')
+    expect(headers().get('X-Guest-Token')).toBe('guest_tok')
+    expect(headers().get('Authorization')).toBe('Bearer clerk_tok')
+  })
+
+  it('says the guest was signed out when the API answers 401 guest_signed_out', async () => {
+    const { api, signedOut } = guestSetup(json(401, { error: { code: 'guest_signed_out', message: 'Signed out' } }), 'guest_tok')
+    await expect(api.get('/groups/g1')).rejects.toMatchObject({ status: 401, code: 'guest_signed_out' })
+    expect(signedOut).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the guest signed in on any other 401 (an account sign-in that failed, an account-only route)', async () => {
+    for (const body of [{ error: { code: 'unauthenticated', message: 'Sign in required' } }, {}]) {
+      const { api, signedOut } = guestSetup(json(401, body), 'guest_tok', 'clerk_tok')
+      await expect(api.post('/groups/g1/guest/upgrade')).rejects.toMatchObject({ status: 401 })
+      expect(signedOut).not.toHaveBeenCalled()
+    }
+  })
+
+  it('sends no header and reports nothing without a token', async () => {
+    const { api, signedOut, headers } = guestSetup(json(401, {}), null)
+    await expect(api.get('/groups/g1')).rejects.toMatchObject({ status: 401 })
+    expect(headers().has('X-Guest-Token')).toBe(false)
+    expect(signedOut).not.toHaveBeenCalled()
+  })
+})

@@ -10,7 +10,14 @@ import type { AppEnv } from './env'
 /** Ids of placeholder users (names in a group for someone who hasn't joined). Never a Clerk id, which starts `user_`. */
 export const PLACEHOLDER_ID_PREFIX = 'ph_'
 
-export const isPlaceholderId = (userId: string) => userId.startsWith(PLACEHOLDER_ID_PREFIX)
+/** Ids of guests who joined as someone new. A guest who claimed a name keeps its `ph_` id. */
+export const GUEST_ID_PREFIX = 'gs_'
+
+/**
+ * Whether the id is one of ours for a name in a group (a placeholder or a guest), which is never a signed-in user's:
+ * nobody can sign in as a name.
+ */
+export const isNameId = (userId: string) => userId.startsWith(PLACEHOLDER_ID_PREFIX) || userId.startsWith(GUEST_ID_PREFIX)
 
 /** Creates the caller's `users` row the first time we see them. Never refetches an existing profile. */
 export const ensureUser =

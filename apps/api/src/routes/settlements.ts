@@ -8,6 +8,7 @@ import { settlements, users } from '../db/schema'
 import { toSettlementDTO } from '../db/settlements'
 import type { AppEnv } from '../env'
 import { HttpError, parseBody, refusingStaleMember } from '../errors'
+import { unclaimed } from '../placeholders'
 
 /** Who may move a pending settlement to which status: the creditor confirms or rejects, the debtor cancels. */
 const TRANSITIONS = {
@@ -37,12 +38,15 @@ async function transition(d: Db, settlementId: string, userId: string, action: k
   return toSettlementDTO(updated)
 }
 
-/** Which of the given users are placeholders (names in a group for someone who hasn't joined). */
+/**
+ * Which of the given users haven't joined: placeholders, and guests signed out on every phone (unclaimed names
+ * again). A signed-in guest is a real participant, who confirms like anyone else.
+ */
 async function placeholdersAmong(d: Db, userIds: string[]): Promise<Set<string>> {
   const rows = await d
     .select({ id: users.id })
     .from(users)
-    .where(and(inArray(users.id, userIds), eq(users.kind, 'placeholder')))
+    .where(and(inArray(users.id, userIds), unclaimed(users.id)))
   return new Set(rows.map((r) => r.id))
 }
 

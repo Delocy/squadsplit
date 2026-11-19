@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { SQUAD } from '../design/Avatar'
 import { Mascot } from '../design/icons'
 import { Logo } from '../components/Logo'
+import { OnThisPhone } from '../guest/OnThisPhone'
 
 export function Landing() {
   return (
@@ -19,6 +20,7 @@ export function Landing() {
       <p className="lede">
         Log what everyone paid, see who owes whom, and settle up without the awkward chat.
       </p>
+      <OnThisPhone />
       <div className="cta">
         <SignUpButton mode="modal">
           <button className="btn primary">Get started</button>
