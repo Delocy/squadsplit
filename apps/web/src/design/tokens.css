@@ -9,6 +9,8 @@
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1d1722; --card: #29212f; --ink: #0d090f; --text: #f3ecf5; --muted: #ab9bb1; --line: #3a3041;
     --soft: #231c29; --accent: #ff7aac; --accent-soft: #4a2638; --lav: #3a3150; --good: #5fd6a6; --bad: #ff8fb8; }
+  /* Dark native scrollbar (and date picker) in the expense dialog, instead of a light strip down its edge. */
+  dialog { color-scheme: dark; }
 }
 
 /* base type */
@@ -148,8 +150,39 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .badge .t { font: 700 12.5px/1.15 Fredoka, sans-serif; }
 .badge .h { font-size: 11.5px; color: var(--muted); }
 
-/* wheel teaser */
+/* wheel teaser, and the wheel page */
 .wheel-card .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+.wheel-wrap { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: center; }
+@media (max-width: 480px) { .wheel-wrap { grid-template-columns: 1fr; justify-items: center; } }
+.wheel { position: relative; width: 210px; height: 210px; }
+.wheel > svg { width: 100%; height: 100%; transition: transform 3s cubic-bezier(.12,.8,.18,1); }
+.wheel .ptr { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); width: 22px; height: 22px; z-index: 2; }
+.odds { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; font-size: 13px; }
+.odds li { display: flex; align-items: center; gap: 7px; }
+.odds b { margin-left: auto; font-family: Fredoka, sans-serif; }
+.spin-row { margin-top: 10px; }
+.winner { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-top: 8px; font: 700 17px Fredoka, sans-serif; }
+.winner .s { margin: 0; }
+.winner .pop { display: flex; align-items: center; gap: 8px; animation: pop .45s cubic-bezier(.3,1.5,.5,1); }
+
+/* group settings */
+.card > .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+.card > .s:last-child { margin-bottom: 0; }
+.invite { display: grid; grid-template-columns: 168px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 480px) { .invite { grid-template-columns: 1fr; justify-items: center; } }
+.invite-side { display: grid; gap: 10px; justify-items: start; min-width: 0; width: 100%; }
+.invite-side .s { color: var(--muted); font-size: 13.5px; margin: 0; }
+/* The QR stays dark-on-white in both themes so phones can scan it. */
+.qr-box { width: 168px; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }
+.qr { width: 100%; height: auto; }
+.invite-link { display: flex; gap: 8px; width: 100%; }
+.invite-link input { flex: 1; min-width: 0; }
+.confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 8px 10px; border-radius: 12px;
+  background: var(--soft); border: 2px solid var(--line); font-size: 13.5px; }
+.row.member { flex-wrap: wrap; }
+.row.member .confirm, .row.member .err { flex-basis: 100%; margin: 0; }
+.former { margin-top: 10px; }
+.former summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 
 /* add/edit expense dialog */
 dialog { border: 2px solid var(--ink); border-radius: 20px; box-shadow: 4px 4px 0 var(--ink); padding: 0; width: min(520px, calc(100vw - 32px));
@@ -214,6 +247,9 @@ input[type=date] { width: auto; }
 .badge:hover .art svg { transform: translateY(-3px) rotate(-8deg) scale(1.08); }
 .badge .art { animation: float 3.4s ease-in-out infinite; animation-delay: var(--d, 0s); }
 .need .av svg { animation: bob 1.6s ease-in-out infinite; }
+@keyframes tick { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(2px); } }
+.wheel .ptr { animation: tick 1.6s ease-in-out infinite; }
+.winner .av svg { animation: shiver 1.2s ease-in-out infinite; }
 .confetti { position: fixed; pointer-events: none; z-index: 60; animation: fly 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
 
 /* screens */

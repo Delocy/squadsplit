@@ -67,7 +67,8 @@ export function newDraft(me: string, activeIds: string[], today: string): Expens
     participantIds: activeIds,
     exact: {},
     items: [emptyItem()],
-    restaurantBill: false,
+    // Only used in By item mode, where it starts on (the playground default); the user can switch it off.
+    restaurantBill: true,
   }
 }
 
@@ -88,7 +89,8 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
     items: e.items?.length
       ? e.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents), userIds: it.userIds }))
       : [emptyItem()],
-    restaurantBill: (e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0,
+    // An itemized expense keeps what was saved; any other starts on, in case it is switched to By item.
+    restaurantBill: e.splitType === 'itemized' ? (e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0 : true,
   }
 }
 

@@ -5,10 +5,11 @@ import { TopBar } from './components/TopBar'
 import { CreateGroup } from './pages/CreateGroup'
 import { ExpenseForm } from './pages/ExpenseForm'
 import { GroupHome } from './pages/GroupHome'
-import { GroupPlaceholder } from './pages/GroupPlaceholder'
+import { GroupSettings } from './pages/GroupSettings'
 import { Groups } from './pages/Groups'
 import { Join } from './pages/Join'
 import { Landing } from './pages/Landing'
+import { Wheel } from './pages/Wheel'
 
 /** `/`: the landing page when signed out, your groups when signed in. */
 function Home() {
@@ -53,8 +54,8 @@ export const routes: RouteObject[] = [
           { path: 'expenses/:expenseId', element: <ExpenseForm /> },
         ],
       },
-      { path: '/groups/:id/wheel', element: <GroupPlaceholder /> },
-      { path: '/groups/:id/settings', element: <GroupPlaceholder /> },
+      { path: '/groups/:id/wheel', element: <Wheel /> },
+      { path: '/groups/:id/settings', element: <GroupSettings /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

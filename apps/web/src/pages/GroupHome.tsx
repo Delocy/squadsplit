@@ -1,14 +1,14 @@
 import { useAuth } from '@clerk/react'
 import { formatMoney } from '@squadsplit/shared'
 import { Link, Outlet, useParams } from 'react-router'
-import { ApiError } from '../api'
 import { BalanceCard } from '../components/BalanceCard'
 import { ErrorNote } from '../components/ErrorNote'
 import { Feed } from '../components/Feed'
+import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
 import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
-import { Mascot, UiIcon } from '../design/icons'
+import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 
 /** `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog opens over it. */
@@ -29,22 +29,7 @@ export function GroupHome() {
       </main>
     )
   }
-  if (group.isError) {
-    const missing = group.error instanceof ApiError && group.error.status === 404
-    return (
-      <main className="narrow page">
-        <section className="card join">
-          <div className="hero-mark shiver">
-            <Mascot kind="kitty" face="#ffe8a3" mood="nervous" />
-          </div>
-          {missing ? <p>We can't find this group. It may not exist, or you're not in it.</p> : <ErrorNote error={group.error} />}
-          <Link to="/groups" className="btn small">
-            Back to your groups
-          </Link>
-        </section>
-      </main>
-    )
-  }
+  if (group.isError) return <GroupUnavailable error={group.error} />
 
   const g = group.data
   const people = peopleOf(g, me)
@@ -90,6 +75,9 @@ export function GroupHome() {
             <Link to={wheel} className="btn">
               <UiIcon name="wheel" />
               Who pays next?
+            </Link>
+            <Link to={`/groups/${id}/settings`} className="btn ghost">
+              Group settings
             </Link>
           </div>
         </section>

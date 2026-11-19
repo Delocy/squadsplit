@@ -119,9 +119,9 @@ describe('Expense form', () => {
     })
     type(dialog.getByLabelText('Description'), 'Hawker dinner')
     fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    // On by default in By item mode, as in the playground.
     const sg = dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement
-    expect(sg.checked).toBe(false)
-    fireEvent.click(sg)
+    expect(sg.checked).toBe(true)
 
     const first = within(dialog.getByRole('group', { name: 'Item 1' }))
     type(first.getByLabelText('Item name'), 'Laksa')
@@ -154,9 +154,10 @@ describe('Expense form', () => {
     })
   })
 
-  it('by item without the SG toggle: the total is the plain subtotal', async () => {
+  it('by item with the SG toggle switched off: the total is the plain subtotal', async () => {
     const { dialog } = await openNewExpense()
     fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    fireEvent.click(dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }))
     const first = within(dialog.getByRole('group', { name: 'Item 1' }))
     type(first.getByLabelText('Price'), '12.50')
     fireEvent.click(first.getByRole('button', { name: 'Alice' }))
@@ -206,6 +207,30 @@ describe('Expense form', () => {
       description: 'Groceries',
       split: { type: 'exact', shares: [{ userId: ME, amountCents: 200 }, { userId: BOB, amountCents: 800 }] },
     })
+  })
+
+  it('turns the SG toggle on when an equal expense is switched to By item', async () => {
+    fakeApi(groupHandlers({ expenses: [expense({ id: 'e7' })] }))
+    renderApp('/groups/g1/expenses/e7')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'By item' }))
+    expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('keeps the SG toggle off for an itemized expense saved without it', async () => {
+    const existing = expense({
+      id: 'e9',
+      amountCents: 1000,
+      splitType: 'itemized',
+      serviceChargeBps: 0,
+      gstBps: 0,
+      items: [{ name: 'Laksa', amountCents: 1000, userIds: [ME] }],
+    })
+    fakeApi(groupHandlers({ expenses: [existing] }))
+    renderApp('/groups/g1/expenses/e9')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    expect((dialog.getByRole('checkbox', { name: /Restaurant bill \(SG\)/ }) as HTMLInputElement).checked).toBe(false)
+    expect(dialog.getByTestId('bill-total').textContent).toBe('$10.00')
   })
 
   it('edits an itemized expense with its items and the SG toggle filled in', async () => {

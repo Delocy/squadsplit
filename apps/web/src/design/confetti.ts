@@ -1,6 +1,5 @@
 import { confettiPiece } from './art'
-
-const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+import { prefersReducedMotion } from './motion'
 
 /** A burst of SVG hearts and stars from the middle of `from`, as in the playground. Skipped under reduced motion. */
 export function confetti(from: Element | null) {
