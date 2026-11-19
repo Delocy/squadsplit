@@ -63,6 +63,14 @@ const money = (cents: number) => formatMoney(cents, 'SGD')
 
 let nextKey = 1
 const newKey = (prefix: string) => `${prefix}${nextKey++}`
+
+/** After a draft is read back (see draftStore), new people and dishes get keys it doesn't already use. */
+export function reserveKeys(d: QuickDraft): void {
+  for (const k of [...d.people.map((p) => p.key), ...d.dishes.map((it) => it.key)]) {
+    const n = Number(/^[pd](\d+)$/.exec(k)?.[1] ?? 0)
+    if (n >= nextKey) nextKey = n + 1
+  }
+}
 export const emptyDish = (): DraftDish => ({ key: newKey('d'), name: '', price: '', had: [] })
 
 /** Adds someone by name, with a look nobody else in the split has. A dish shared by everyone is theirs too. */

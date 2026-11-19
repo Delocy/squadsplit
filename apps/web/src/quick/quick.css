@@ -193,3 +193,9 @@ ul.qs-recent { list-style: none; margin: 0; padding: 0; display: grid; }
 /* bill: the scanned receipt's total, checked against the dishes */
 .qs-receipt-total { margin-top: 4px; }
 .qs-receipt-total input { max-width: 180px; }
+
+/* "Leave this bill?": asked in a bar along the bottom, clear of the home indicator */
+.leave-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: center;
+  padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: var(--bg); border-top: 2px solid var(--line); box-shadow: 0 -4px 16px rgba(40, 25, 45, .12); }
+.leave-bar .confirm { max-width: 560px; background: var(--card); border-color: var(--ink); }

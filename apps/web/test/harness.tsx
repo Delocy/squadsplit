@@ -41,9 +41,15 @@ export function fakeApi(handlers: Record<string, Handler>) {
   return calls
 }
 
-/** Renders the real route tree at `url`. Pass `queryClient` to reach the cache from the test (to refetch, say). */
-export function renderApp(url: string, queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  const router = createMemoryRouter(routes, { initialEntries: [url] })
+/**
+ * Renders the real route tree at `url` (or at the last of several history entries, with their state, as after a
+ * reload). Pass `queryClient` to reach the cache from the test (to refetch, say).
+ */
+type Entry = string | { pathname: string; search?: string; state?: unknown }
+
+export function renderApp(url: Entry | Entry[], queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  const entries = Array.isArray(url) ? url : [url]
+  const router = createMemoryRouter(routes, { initialEntries: entries, initialIndex: entries.length - 1 })
   render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
