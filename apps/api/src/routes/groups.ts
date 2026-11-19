@@ -16,10 +16,11 @@ import { activeMemberAvatars, avatarColumns, ensureAvatarFree, storingLook } fro
 import { findActiveRole, hasMembership, requireMember, requireOwner } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
-import { expenses, groups, memberships, settlements, users } from '../db/schema'
+import { expenses, groups, guestSessions, memberships, settlements, users } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, isForeignKeyViolation, parseBody } from '../errors'
 import { groupDTO } from '../groupView'
+import { resetGuestJoins } from '../guests/joinLimit'
 import { endGroupSessions, endGuestSessions } from '../guests/sessions'
 import { alreadyInGroup, groupFull } from '../membershipErrors'
 import {
@@ -126,9 +127,14 @@ export function groupRoutes() {
       const d = db(c.env)
       const groupId = c.req.param('id')
       await requireOwner(d, groupId, c.var.userId)
-      // The new link signs every guest out on every phone: they rejoin with it and pick their name again.
+      // The new link signs every guest out on every phone: they rejoin with it and pick their name again. The hourly
+      // join count starts afresh, so attempts on the old link can't hold them up.
       const inviteCode = await withFreshInviteCode(async (code) => {
-        await d.batch([d.update(groups).set({ inviteCode: code }).where(eq(groups.id, groupId)), endGroupSessions(d, groupId)])
+        await d.batch([
+          d.update(groups).set({ inviteCode: code }).where(eq(groups.id, groupId)),
+          endGroupSessions(d, groupId),
+          resetGuestJoins(d, groupId),
+        ])
         return code
       })
       return c.json({ inviteCode })
@@ -250,7 +256,9 @@ export function groupRoutes() {
         groupId,
         from: guest.userId,
         to: me,
-        onlyIf: sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${guest.userId} AND ${users.kind} = 'guest')`,
+        // Still this request's guest: a reset in the meantime (and someone else claiming the name) stops the move.
+        onlyIf: sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${guest.userId} AND ${users.kind} = 'guest')
+          AND EXISTS (SELECT 1 FROM ${guestSessions} WHERE ${guestSessions.tokenHash} = ${guest.tokenHash})`,
         // The group keeps calling them what it did; their look and join day stay.
         membership: { nickname: member.nickname ?? member.name },
       })

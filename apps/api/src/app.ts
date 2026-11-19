@@ -1,12 +1,12 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
-import { GUEST_TOKEN_HEADER } from '@squadsplit/shared'
+import { GUEST_SIGNED_OUT, GUEST_TOKEN_HEADER } from '@squadsplit/shared'
 import { signedInUser, unauthenticated } from './clerkAuth'
 import { db } from './db'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
-import { errorBody, handleError, payloadTooLarge } from './errors'
+import { errorBody, handleError, HttpError, payloadTooLarge } from './errors'
 import { checkGuestScope, GUEST_UPGRADE_PATH } from './guests/scope'
 import { guestByToken } from './guests/sessions'
 import { expenseRoutes, groupExpenseRoutes } from './routes/expenses'
@@ -34,8 +34,11 @@ const authenticate =
   async (c, next) => {
     const guestToken = c.req.header(GUEST_TOKEN_HEADER)
     const guest = guestToken === undefined ? undefined : await guestByToken(db(c.env), guestToken)
-    // A token that signs nobody in (unknown, or signed out by a reset or "Free up name") is never ignored.
-    if (guestToken !== undefined && !guest) throw unauthenticated()
+    // A token that signs nobody in (unknown, or signed out by a reset or "Free up name") is never ignored. Its own
+    // code tells the phone to forget it; every other 401 here (an account's failed sign-in) leaves the guest alone.
+    if (guestToken !== undefined && !guest) {
+      throw new HttpError(401, GUEST_SIGNED_OUT, "You've been signed out of this group. Ask for the new link to rejoin.")
+    }
 
     if (GUEST_UPGRADE_PATH.test(c.req.path)) {
       const account = await signedInUser(deps, c)

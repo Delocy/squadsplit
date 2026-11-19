@@ -46,12 +46,7 @@ export function saveGuestPass(groupId: string, pass: GuestPass): void {
   } catch {
     // Not remembered: the guest is in for this visit only.
   }
-  try {
-    sessionStorage.removeItem(noticeKeyOf(groupId))
-  } catch {
-    // Nothing was stored.
-  }
-  changed()
+  clearSignedOutNotice(groupId)
 }
 
 export function dropGuestPass(groupId: string): void {
@@ -111,7 +106,7 @@ function rawNotice(groupId: string): string | null {
   }
 }
 
-/** A request with the group's pass came back 401: the pass is dead. Forget it, and say so on the group's pages. */
+/** The API said the group's pass is dead (401 guest_signed_out). Forget it, and say so on the group's pages. */
 export function guestSignedOut(groupId: string): void {
   const pass = readGuestPass(groupId)
   if (pass) {
@@ -135,4 +130,14 @@ export function useSignedOutNotice(groupId: string): SignedOutNotice | null {
       return null
     }
   }, [raw])
+}
+
+/** In the group again (any join, as a guest or with an account): the signed-out card has nothing left to say. */
+export function clearSignedOutNotice(groupId: string): void {
+  try {
+    sessionStorage.removeItem(noticeKeyOf(groupId))
+  } catch {
+    // Nothing was stored.
+  }
+  changed()
 }

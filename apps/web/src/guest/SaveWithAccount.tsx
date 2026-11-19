@@ -33,7 +33,7 @@ function setWish(groupId: string, wish: boolean): void {
   }
 }
 
-/** In a guest's top bar. Signed out, it signs in first; signed in, it saves straight away. */
+/** In a guest's top bar (`.top.guest`). Signed out, it signs in first; signed in, it saves straight away. */
 export function SaveWithAccount({ groupId }: { groupId: string }) {
   const { isSignedIn } = useAuth()
   const api = useApi()
@@ -64,19 +64,22 @@ export function SaveWithAccount({ groupId }: { groupId: string }) {
       Save with an account
     </BusyLabel>
   )
+  // Its own cell of the top bar, and any refusal its own full-width row under it, so neither crowds the logo.
   return (
     <>
-      {isSignedIn ? (
-        <button type="button" className="btn small" disabled={save.isPending} onClick={() => save.mutate()}>
-          {label}
-        </button>
-      ) : (
-        <SignInButton mode="modal" forceRedirectUrl={here} signUpForceRedirectUrl={here}>
-          <button type="button" className="btn small" onClick={() => setWish(groupId, true)}>
+      <div className="save-account">
+        {isSignedIn ? (
+          <button type="button" className="btn small" disabled={save.isPending} onClick={() => save.mutate()}>
             {label}
           </button>
-        </SignInButton>
-      )}
+        ) : (
+          <SignInButton mode="modal" forceRedirectUrl={here} signUpForceRedirectUrl={here}>
+            <button type="button" className="btn small" onClick={() => setWish(groupId, true)}>
+              {label}
+            </button>
+          </SignInButton>
+        )}
+      </div>
       {save.isError && <ErrorNote error={save.error} />}
     </>
   )

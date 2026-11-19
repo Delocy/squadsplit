@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GUEST_JOINS_PER_GROUP_PER_HOUR, GUEST_TOKEN_HEADER, GuestJoinInput } from '../src/guest'
+import { GUEST_JOINS_PER_GROUP_PER_HOUR, GUEST_SIGNED_OUT, GUEST_TOKEN_HEADER, GuestJoinInput } from '../src/guest'
 
 describe('GuestJoinInput', () => {
   it('takes a name to claim, with an optional look and nickname', () => {
@@ -28,5 +28,6 @@ describe('guest constants', () => {
   it('names the header and the hourly join limit', () => {
     expect(GUEST_TOKEN_HEADER).toBe('X-Guest-Token')
     expect(GUEST_JOINS_PER_GROUP_PER_HOUR).toBe(20)
+    expect(GUEST_SIGNED_OUT).toBe('guest_signed_out')
   })
 })

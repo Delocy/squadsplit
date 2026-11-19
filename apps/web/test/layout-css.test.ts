@@ -86,4 +86,10 @@ describe('narrow-screen layout rules', () => {
       '@media (min-width: 600px) { .top { grid-template-columns: auto minmax(0, 1fr) auto; } .top > .crumb { grid-column: 2; grid-row: 1; } }',
     )
   })
+
+  it('puts a guest’s "Save with an account" on the crumb row on a phone, so it never overlaps the logo', () => {
+    expect(rule('.top > .save-account')).toContain('grid-row: 2')
+    expect(css).toContain('@media (max-width: 599px) { .top.guest > .crumb { grid-column: 1; } }')
+    expect(rule('.top > .err')).toContain('grid-column: 1 / -1')
+  })
 })

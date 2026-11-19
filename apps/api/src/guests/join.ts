@@ -65,6 +65,7 @@ export async function joinAsNewGuest(
   if (input.avatar) ensureAvatarFree(input.avatar, taken)
   const avatar = input.avatar ?? firstFreeAvatar(defaultAvatar(id), taken)
 
+  // The membership insert's RETURNING: the session is only written for a membership that was, so none means full.
   const [, written] = await storingLook(
     d.batch([
       ...insertNameIfRoom(d, groupId, { id, name, avatar }, now, { kind: 'guest', nickname: input.nickname ?? null }),

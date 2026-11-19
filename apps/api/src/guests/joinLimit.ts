@@ -1,4 +1,7 @@
+import { eq } from 'drizzle-orm'
 import { GUEST_JOINS_PER_GROUP_PER_HOUR } from '@squadsplit/shared'
+import type { Db } from '../db'
+import { guestJoins } from '../db/schema'
 import { utcHour } from '../quickSplits/ticks'
 
 // The hourly limit on guest joins (claims and new names), per group: an invite link that leaks can't fill the
@@ -24,3 +27,6 @@ export async function takeGuestJoin(d1: D1Database, groupId: string, hour = utcH
   ])
   return (counted?.results.length ?? 0) > 0
 }
+
+/** Clears the group's count (the owner reset the link): the old link's attempts don't hold up joins with the new one. */
+export const resetGuestJoins = (d: Db, groupId: string) => d.delete(guestJoins).where(eq(guestJoins.groupId, groupId))

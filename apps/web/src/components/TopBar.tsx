@@ -18,10 +18,17 @@ export function TopBar() {
   const groupId = useParams().id
   const guest = useGroupAccess()?.guest
   return (
-    <header className="top">
+    <header className={groupId && guest ? 'top guest' : 'top'}>
       <Logo to={userId ? '/groups' : '/'} />
       {groupId && <GroupCrumb id={groupId} />}
-      {groupId && guest ? <GuestMe groupId={groupId} userId={guest.userId} /> : userId && <AccountMe userId={userId} groupId={groupId} />}
+      {groupId && guest ? (
+        <>
+          <GuestMe groupId={groupId} userId={guest.userId} />
+          <SaveWithAccount groupId={groupId} />
+        </>
+      ) : (
+        userId && <AccountMe userId={userId} groupId={groupId} />
+      )}
     </header>
   )
 }
@@ -43,13 +50,12 @@ function AccountMe({ userId, groupId }: { userId: string; groupId: string | unde
   )
 }
 
-/** A guest, in the group they're a guest in: how the group sees them, tagged Guest, and a way to keep it. */
+/** A guest, in the group they're a guest in: how the group sees them, tagged Guest. "Save with an account" sits beside it. */
 function GuestMe({ groupId, userId }: { groupId: string; userId: string }) {
   return (
     <div className="me">
       <MyGroupAvatar groupId={groupId} userId={userId} fallback={defaultAvatar(userId)} />
       <GuestTag />
-      <SaveWithAccount groupId={groupId} />
     </div>
   )
 }

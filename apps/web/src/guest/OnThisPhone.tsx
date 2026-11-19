@@ -10,7 +10,7 @@ import { dropGuestPass, guestPassGroupIds, readGuestPass } from './guestPass'
 
 /**
  * On the signed-out landing page: the groups this phone is a guest in, each read with its own pass. A pass that no
- * longer works (401: signed out by a reset or "Free up name"; 404: the group is gone for them) is forgotten.
+ * longer works (401 guest_signed_out: signed out by a reset or "Free up name"; 404: the group is gone for them) is forgotten.
  */
 export function OnThisPhone() {
   const [groupIds] = useState(guestPassGroupIds)
@@ -21,7 +21,7 @@ export function OnThisPhone() {
         try {
           return await guestApi(id).get<GroupDTO>(`/groups/${id}`)
         } catch (err) {
-          // A 401 has already dropped the pass (see guestAuthFor).
+          // A 401 guest_signed_out has already dropped the pass (see guestAuthFor).
           if (err instanceof ApiError && err.status === 404) dropGuestPass(id)
           throw err
         }

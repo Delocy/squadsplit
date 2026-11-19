@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/react'
 import { useMemo } from 'react'
 import { useGroupAccess } from './guest/GroupAccess'
 import { guestSignedOut, readGuestPass } from './guest/guestPass'
-import { GUEST_TOKEN_HEADER, type ApiErrorBody } from '@squadsplit/shared'
+import { GUEST_SIGNED_OUT, GUEST_TOKEN_HEADER, type ApiErrorBody } from '@squadsplit/shared'
 
 /**
  * A failed API call. For a non-2xx response, `code` and `message` come from the API's `{ error }` body when it has one.
@@ -34,7 +34,7 @@ const isErrorBody = (v: unknown): v is ApiErrorBody =>
 export interface GuestAuth {
   /** The guest token to send, read on each request; null sends none. */
   token(): string | null
-  /** A request that carried the token came back 401: the guest has been signed out. */
+  /** The API said the token signs nobody in any more (401 guest_signed_out): the guest has been signed out. */
   signedOut(): void
 }
 
@@ -76,7 +76,9 @@ export function createApiClient(
       }
     }
     if (!res.ok) {
-      if (res.status === 401 && guestToken) guest?.signedOut()
+      // Only this code means the token is dead (a reset, "Free up name"). Any other 401, such as an account's sign-in
+      // failing while it saves the guest, leaves the guest signed in.
+      if (guestToken && isErrorBody(data) && data.error.code === GUEST_SIGNED_OUT) guest?.signedOut()
       if (isErrorBody(data)) throw new ApiError(res.status, data.error.code, data.error.message)
       throw new ApiError(res.status, 'http_error', res.statusText || `Request failed (${res.status})`)
     }

@@ -143,10 +143,18 @@ describe('createApiClient with a guest', () => {
     expect(headers().get('Authorization')).toBe('Bearer clerk_tok')
   })
 
-  it('says the guest was signed out when a request with the token is 401', async () => {
-    const { api, signedOut } = guestSetup(json(401, { error: { code: 'unauthenticated', message: 'Sign in required' } }), 'guest_tok')
-    await expect(api.get('/groups/g1')).rejects.toMatchObject({ status: 401 })
+  it('says the guest was signed out when the API answers 401 guest_signed_out', async () => {
+    const { api, signedOut } = guestSetup(json(401, { error: { code: 'guest_signed_out', message: 'Signed out' } }), 'guest_tok')
+    await expect(api.get('/groups/g1')).rejects.toMatchObject({ status: 401, code: 'guest_signed_out' })
     expect(signedOut).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the guest signed in on any other 401 (an account sign-in that failed, an account-only route)', async () => {
+    for (const body of [{ error: { code: 'unauthenticated', message: 'Sign in required' } }, {}]) {
+      const { api, signedOut } = guestSetup(json(401, body), 'guest_tok', 'clerk_tok')
+      await expect(api.post('/groups/g1/guest/upgrade')).rejects.toMatchObject({ status: 401 })
+      expect(signedOut).not.toHaveBeenCalled()
+    }
   })
 
   it('sends no header and reports nothing without a token', async () => {

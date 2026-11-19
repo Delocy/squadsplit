@@ -235,6 +235,18 @@ describe('the guest join limit', () => {
   })
 })
 
+describe('the guest join limit and a reset', () => {
+  it('starts the count afresh with the new link, so a leaked link can’t block the rejoins', async () => {
+    const group = await createGroup()
+    for (let i = 0; i < GUEST_JOINS_PER_GROUP_PER_HOUR; i++) await guestJoin(group.inviteCode, { name: `G${i}` })
+    expect((await guestJoin(group.inviteCode, { name: 'Late' })).status).toBe(429)
+
+    const code = await resetLink(group.id)
+
+    expect((await guestJoin(code, { claim: (await preview(code)).placeholders[0]!.userId })).status).toBe(201)
+  })
+})
+
 describe('a guest token', () => {
   async function guestIn(names = ['Dave']) {
     const group = await createGroup(names)
@@ -260,6 +272,27 @@ describe('a guest token', () => {
     expect((await as('/groups/%E0%A4%A')).status).toBe(404)
   })
 
+  it('is 404 for another group’s expense or settlement', async () => {
+    const { as } = await guestIn()
+    const other = await createGroup()
+    await bob(`/invites/${other.inviteCode}/join`, { method: 'POST' })
+    const e = await expense(other.id, { amountCents: 1000, paidBy: 'alice', split: { type: 'equal', participantIds: ['alice', 'bob'] } })
+    const { id: expenseId } = (await e.json()) as { id: string }
+    const s = await bob(`/groups/${other.id}/settlements`, json('POST', { toUserId: 'alice', amountCents: 500 }))
+    const { id: settlementId } = (await s.json()) as SettlementDTO
+    expect((await as(`/expenses/${expenseId}`, json('PATCH', { description: 'Mine' }))).status).toBe(404)
+    expect((await as(`/expenses/${expenseId}`, { method: 'DELETE' })).status).toBe(404)
+    expect((await as(`/settlements/${settlementId}/confirm`, { method: 'POST' })).status).toBe(404)
+  })
+
+  it('acts as the guest when an account’s sign-in comes with it', async () => {
+    const { group, guestId, token } = await guestIn()
+    const res = await expense(group.id, { amountCents: 300, paidBy: guestId, split: { type: 'equal', participantIds: [guestId] } }, app.guest(token, 'bob'))
+    expect(res.status).toBe(201)
+    expect((await db().select().from(expenses))[0]).toMatchObject({ createdBy: guestId })
+    expect(await db().select().from(users).where(eq(users.id, 'bob'))).toEqual([])
+  })
+
   it('is 403 on owner-only routes', async () => {
     const { group, as } = await guestIn(['Dave', 'Erin'])
     expect((await as(`/groups/${group.id}`, json('PATCH', { name: 'Mine now' }))).status).toBe(403)
@@ -278,13 +311,23 @@ describe('a guest token', () => {
     expect((await as(`/invites/${other.inviteCode}/join`, { method: 'POST' })).status).toBe(401)
   })
 
-  it('is 401 when bad or unknown', async () => {
+  it('is 401 guest_signed_out when bad or unknown, so the phone knows to forget it', async () => {
     const { group, token } = await guestIn()
     for (const bad of ['', 'nope', `${token.slice(0, -1)}${token.endsWith('A') ? 'B' : 'A'}`, 'x'.repeat(43)]) {
       const res = await app.guest(bad)(`/groups/${group.id}`)
       expect(res.status).toBe(401)
+      expect(await errorCode(res)).toBe('guest_signed_out')
+    }
+  })
+
+  it('is a plain 401 unauthenticated, never guest_signed_out, on an account-only route with a live token', async () => {
+    const { token, as } = await guestIn()
+    for (const path of ['/me', '/groups', '/quick-splits']) {
+      const res = await as(path)
+      expect(res.status).toBe(401)
       expect(await errorCode(res)).toBe('unauthenticated')
     }
+    expect((await db().select().from(guestSessions)).map((s) => s.tokenHash)).toEqual([await sha256Hex(token)])
   })
 
   it('moves last_seen_at on at most once an hour', async () => {
@@ -342,7 +385,9 @@ describe('the owner resetting the link', () => {
     const code = await resetLink(group.id)
 
     expect(await db().select().from(guestSessions)).toEqual([])
-    expect((await app.guest(token)(`/groups/${group.id}`)).status).toBe(401)
+    const signedOut = await app.guest(token)(`/groups/${group.id}`)
+    expect(signedOut.status).toBe(401)
+    expect(await errorCode(signedOut)).toBe('guest_signed_out')
     expect((await app.guest(zed.token)(`/groups/${group.id}`)).status).toBe(401)
     const g = await getGroup(group.id)
     expect(g.members.find((m) => m.userId === dave)).toMatchObject({ placeholder: true, guest: false, active: true })
@@ -379,7 +424,9 @@ describe('POST /groups/:id/members/:userId/release', () => {
     const res = await alice(`/groups/${group.id}/members/${dave}/release`, { method: 'POST' })
 
     expect(res.status).toBe(204)
-    expect((await app.guest(token)(`/groups/${group.id}`)).status).toBe(401)
+    const released = await app.guest(token)(`/groups/${group.id}`)
+    expect(released.status).toBe(401)
+    expect(await errorCode(released)).toBe('guest_signed_out')
     expect((await app.guest(other.token)(`/groups/${group.id}`)).status).toBe(200)
     expect((await preview(group.inviteCode)).placeholders.map((p) => p.userId)).toEqual([dave])
   })
@@ -463,6 +510,12 @@ describe('POST /groups/:id/guest/upgrade', () => {
     expect((await upgrade(app.guest(zed.token))).status).toBe(401)
     expect((await upgrade(app.guest('x'.repeat(43), 'bob'))).status).toBe(401)
     expect((await upgrade(app.guest(zed.token, 'bob'), other.id)).status).toBe(404)
+    // A sign-in that fails with a live guest token is the account's problem: the guest stays signed in.
+    for (const res of [await upgrade(app.guest(zed.token)), await upgrade(app.guest(zed.token, ''))]) {
+      expect(res.status).toBe(401)
+      expect(await errorCode(res)).toBe('unauthenticated')
+    }
+    expect((await app.guest(zed.token)(`/groups/${group.id}`)).status).toBe(200)
     expect(await db().select().from(memberships).where(and(eq(memberships.groupId, group.id), eq(memberships.userId, 'bob')))).toEqual([])
   })
 })

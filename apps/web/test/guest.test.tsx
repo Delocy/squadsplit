@@ -51,6 +51,7 @@ const passFor = (userId = DAVE) => ({ token: TOKEN, userId, groupName: 'Bali Tri
 const storedPass = () => JSON.parse(localStorage.getItem('squadsplit.guest.g1') ?? 'null') as unknown
 const whoAreYou = async () => within(await screen.findByRole('group', { name: 'Which one are you?' }))
 const ok = (body: unknown) => () => ({ status: 200, body })
+const SIGNED_OUT = { error: { code: 'guest_signed_out', message: "You've been signed out of this group." } }
 
 describe('the Join page, signed out', () => {
   it('picks a name, joins as a guest and opens the group as them, with the token in a header only', async () => {
@@ -101,6 +102,12 @@ describe('the Join page, signed out', () => {
     const router = renderApp('/join/ABCD2345')
 
     fireEvent.click((await whoAreYou()).getByRole('button', { name: "I'm new" }))
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+    // A blank name asks for one, and puts you back in the field it's about.
+    expect((await screen.findByRole('alert')).textContent).toBe('Enter your name.')
+    expect(document.activeElement).toBe(screen.getByLabelText('Your name'))
+    expect(screen.getByLabelText('Your name').getAttribute('aria-invalid')).toBe('true')
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Zed 🍕' } })
     fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/Names are up to 24 characters/)
     fireEvent.change(screen.getByLabelText('Your name'), { target: { value: ' Zed ' } })
@@ -169,13 +176,35 @@ describe('a group page with a guest pass', () => {
   it('forgets the pass and says why when the guest has been signed out (401)', async () => {
     signIn.state = false
     saveGuestPass('g1', passFor())
-    fakeApi(groupHandlers({}, { 'GET /groups/g1': () => ({ status: 401, body: { error: { code: 'unauthenticated', message: 'Sign in required' } } }) }))
+    fakeApi(groupHandlers({}, { 'GET /groups/g1': () => ({ status: 401, body: SIGNED_OUT }) }))
     renderApp('/groups/g1')
 
     const card = await screen.findByRole('alert')
     expect(card.textContent).toContain("You've been signed out of Bali Trip. Ask for the new link to rejoin.")
-    expect(within(card).getByRole('link', { name: 'Go to the join page' }).getAttribute('href')).toBe('/join/ABCD2345')
+    expect(within(card).getByRole('link', { name: 'Try the link again' }).getAttribute('href')).toBe('/join/ABCD2345')
     expect(storedPass()).toBeNull()
+  })
+
+  it('shows the group, not the signed-out card, once signed in (the card is only for a signed-out phone)', async () => {
+    sessionStorage.setItem('squadsplit.guest-signed-out.g1', JSON.stringify({ groupName: 'Bali Trip', code: 'ABCD2345' }))
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1')
+    expect(await screen.findByRole('region', { name: 'Group stats' })).toBeTruthy()
+    expect(screen.queryByText(/You've been signed out/)).toBeNull()
+  })
+
+  it('forgets the signed-out card after joining again with an account', async () => {
+    sessionStorage.setItem('squadsplit.guest-signed-out.g1', JSON.stringify({ groupName: 'Bali Trip', code: 'ABCD2345' }))
+    fakeApi(
+      groupHandlers({}, {
+        'GET /invites/WXYZ6789': ok(preview({ placeholders: [] })),
+        'POST /invites/WXYZ6789/join': ok({ groupId: 'g1' }),
+      }),
+    )
+    const router = renderApp('/join/WXYZ6789')
+    fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+    expect(sessionStorage.getItem('squadsplit.guest-signed-out.g1')).toBeNull()
   })
 
   it('sends a signed-out visitor with no pass to sign in, as before', async () => {
@@ -211,7 +240,7 @@ describe('the landing page, On this phone', () => {
     saveGuestPass('g3', { ...passFor('gs_3'), token: 'I'.repeat(43), groupName: 'Gone' })
     const calls = fakeApi({
       'GET /groups/g1': ok(guestView()),
-      'GET /groups/g2': () => ({ status: 401, body: { error: { code: 'unauthenticated', message: 'Sign in required' } } }),
+      'GET /groups/g2': () => ({ status: 401, body: SIGNED_OUT }),
       'GET /groups/g3': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Group not found' } } }),
     })
     renderApp('/')
@@ -321,5 +350,23 @@ describe('Save with an account', () => {
     expect(await screen.findByText("You've been in this group before, so join as yourself.")).toBeTruthy()
     expect(calls.filter((c) => c.key === 'POST /groups/g1/guest/upgrade')).toHaveLength(1)
     expect(storedPass()).toEqual(passFor())
+  })
+
+  it('keeps the guest’s pass when the account’s sign-in is refused (a plain 401)', async () => {
+    saveGuestPass('g1', passFor())
+    fakeApi(
+      groupHandlers(
+        { group: guestView() },
+        { 'POST /groups/g1/guest/upgrade': () => ({ status: 401, body: { error: { code: 'unauthenticated', message: 'Sign in required' } } }) },
+      ),
+    )
+    renderApp('/groups/g1')
+
+    fireEvent.click(await within(await screen.findByRole('banner')).findByRole('button', { name: 'Save with an account' }))
+
+    expect(await screen.findByText('Sign in required')).toBeTruthy()
+    expect(storedPass()).toEqual(passFor())
+    expect(sessionStorage.getItem('squadsplit.guest-signed-out.g1')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Group stats' })).toBeTruthy()
   })
 })

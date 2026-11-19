@@ -1,11 +1,11 @@
 import { useAuth } from '@clerk/react'
 import type { GroupSummaryDTO } from '@squadsplit/shared'
 import { useQuery } from '@tanstack/react-query'
-import { Outlet, useParams } from 'react-router'
+import { Outlet, useLocation, useParams } from 'react-router'
 import { useApi } from '../api'
 import { PageLink } from '../components/PageLink'
 import { RequireSignIn } from '../components/RequireSignIn'
-import { GroupHomeSkeleton } from '../components/Skeletons'
+import { GroupHomeSkeleton, SettingsSkeleton, WheelPageSkeleton } from '../components/Skeletons'
 import { TopBar } from '../components/TopBar'
 import { Mascot } from '../design/icons'
 import { queryKeys } from '../queryKeys'
@@ -20,18 +20,15 @@ import { useGuestPass, useSignedOutNotice, type GuestPass } from './guestPass'
  */
 export function GroupLayout() {
   const groupId = useParams().id ?? ''
+  const { pathname } = useLocation()
+  const { isSignedIn } = useAuth()
   const guest = useGuestFor(groupId)
   const notice = useSignedOutNotice(groupId)
 
   // No top bar yet: it would read the group before we know which way to ask for it.
-  if (guest === 'checking') {
-    return (
-      <div className="wrap">
-        <GroupHomeSkeleton />
-      </div>
-    )
-  }
-  if (!guest && notice) {
+  if (guest === 'checking') return <div className="wrap">{skeletonFor(pathname)}</div>
+  // Only for a phone nobody is signed in on and that has no working pass: an account reaches the group as itself.
+  if (!guest && notice && !isSignedIn) {
     return (
       <div className="wrap">
         <TopBar />
@@ -50,6 +47,13 @@ export function GroupLayout() {
     </GroupAccessProvider>
   )
   return guest ? page : <RequireSignIn>{page}</RequireSignIn>
+}
+
+/** The page's own loading skeleton, so it doesn't flash another page's while the pass is checked. */
+function skeletonFor(pathname: string) {
+  if (pathname.endsWith('/settings')) return <SettingsSkeleton />
+  if (pathname.endsWith('/wheel')) return <WheelPageSkeleton />
+  return <GroupHomeSkeleton />
 }
 
 /**
@@ -82,8 +86,9 @@ function SignedOutCard({ groupName, code }: { groupName: string; code: string })
         <p>
           You've been signed out of {groupName}. Ask for the new link to rejoin.
         </p>
+        {/* After "Free up name" the link still works; after a reset it says so and asks for the new one. */}
         <PageLink to={`/join/${code}`} className="btn primary">
-          Go to the join page
+          Try the link again
         </PageLink>
       </section>
     </main>

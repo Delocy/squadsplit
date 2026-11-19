@@ -12,7 +12,7 @@ import {
   type PlaceholderDTO,
 } from '@squadsplit/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type CSSProperties, type FormEvent } from 'react'
+import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { useLocation, useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
@@ -24,7 +24,7 @@ import { JoinSkeleton } from '../components/Skeletons'
 import { Avatar, lookOf } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { Mascot } from '../design/icons'
-import { saveGuestPass, useGuestPass } from '../guest/guestPass'
+import { clearSignedOutNotice, saveGuestPass, useGuestPass } from '../guest/guestPass'
 import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberName'
 import { queryKeys } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
@@ -59,6 +59,7 @@ export function Join() {
       return joined
     },
     onSuccess: ({ groupId }) => {
+      clearSignedOutNotice(groupId)
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups })
       navigate(`/groups/${groupId}`, { replace: true })
     },
@@ -230,6 +231,7 @@ function JoinForm({
   const claimed = who.kind === 'claim' ? who.placeholder : null
   const newGuest = asGuest && !claimed
   const [name, setName] = useState('')
+  const nameField = useRef<HTMLInputElement>(null)
   const profileName = newGuest ? name.trim() : (profile?.displayName ?? '')
   const nickname = useNicknameDraft(claimed?.name ?? (newGuest ? '' : profileName))
   /** The look you picked; null until you pick one. */
@@ -251,6 +253,8 @@ function JoinForm({
     const newName = newGuest ? parseMemberName(name) : null
     const hint = newGuest && newName === null ? 'name' : nickname.invalid ? 'nickname' : null
     setShowHint(hint)
+    // Back to the field the hint is about.
+    if (hint === 'name') nameField.current?.focus()
     if (hint) return
     // The avatar only goes when it differs from what you're given, so the server's rule applies.
     onJoin({
@@ -269,8 +273,11 @@ function JoinForm({
             Your name
           </label>
           <input
+            ref={nameField}
             id="join-name"
             type="text"
+            aria-invalid={showHint === 'name'}
+            aria-describedby={showHint === 'name' ? 'join-hint' : undefined}
             maxLength={MEMBER_NAME_MAX}
             autoComplete="given-name"
             value={name}
@@ -286,8 +293,8 @@ function JoinForm({
       <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
       <AvatarPicker value={avatar} taken={taken} onChange={setChoice} />
       {showHint && (
-        <p className="err" role="alert">
-          {showHint === 'name' ? MEMBER_NAME_HINT : NICKNAME_HINT}
+        <p className="err" role="alert" id="join-hint">
+          {showHint === 'nickname' ? NICKNAME_HINT : name.trim() ? MEMBER_NAME_HINT : 'Enter your name.'}
         </p>
       )}
       <button className="btn primary" type="submit" disabled={busy}>

@@ -8,6 +8,13 @@ import { MemberName, Nickname } from './schemas'
 /** The request header that carries a guest's token (never a URL). */
 export const GUEST_TOKEN_HEADER = 'X-Guest-Token'
 
+/**
+ * The 401 error code for a guest token that signs nobody in any more (the owner reset the link or freed up the name,
+ * or it never existed). Only this code means "forget this phone's token": any other 401 (an account's sign-in that
+ * failed, an account-only route) leaves the guest signed in.
+ */
+export const GUEST_SIGNED_OUT = 'guest_signed_out'
+
 /** Guest joins (claims and new names) one group takes per hour, from everyone together. */
 export const GUEST_JOINS_PER_GROUP_PER_HOUR = 20
 
