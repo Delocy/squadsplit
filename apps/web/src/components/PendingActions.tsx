@@ -1,12 +1,12 @@
 import { formatMoney, type FunDTO, type SettlementDTO } from '@squadsplit/shared'
-import { useState, type MouseEvent } from 'react'
+import type { MouseEvent } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
-import { SettleMoment } from './SettleMoment'
+import { useSettleMoment } from './SettleMoment'
 
 type Action = 'confirm' | 'reject' | 'cancel'
 
@@ -37,16 +37,13 @@ export function PendingActions({
     done?.()
     return settlement
   })
-  /** The payback you just confirmed, celebrated until you close it, and who held Good Egg before it (if known). */
-  const [confirmed, setConfirmed] = useState<{ settlement: SettlementDTO; goodEggBefore: string | null | undefined } | null>(null)
-  const goodEgg = (f: FunDTO | undefined) => (f ? (f.badges.find((b) => b.key === 'good_egg')?.userId ?? null) : undefined)
+  const confirmed = useSettleMoment({ people, currency, fun })
   const act = (s: SettlementDTO, action: Action) => (e: MouseEvent<HTMLButtonElement>) => {
     const button = e.currentTarget
-    const goodEggBefore = goodEgg(fun)
     // A confirmed payback is celebrated straight away, in its row's place, so the page moves once, as you click.
     const celebrate = () => {
       confetti(button)
-      setConfirmed({ settlement: s, goodEggBefore })
+      confirmed.celebrate(s)
     }
     resolve.mutate({ id: s.id, action, done: action === 'confirm' ? celebrate : undefined })
   }
@@ -54,23 +51,10 @@ export function PendingActions({
   const busy = (id: string, action: Action) =>
     resolve.isPending && resolve.variables?.id === id && resolve.variables.action === action
 
-  const mine = pending.filter((s) => s.id !== confirmed?.settlement.id && (s.toUserId === me || s.fromUserId === me))
+  const mine = pending.filter((s) => s.id !== confirmed.celebrating && (s.toUserId === me || s.fromUserId === me))
   return (
     <>
-      {confirmed && (
-        <SettleMoment
-          settlement={confirmed.settlement}
-          me={me}
-          people={people}
-          currency={currency}
-          newSticker={
-            confirmed.goodEggBefore !== undefined &&
-            confirmed.goodEggBefore !== confirmed.settlement.fromUserId &&
-            goodEgg(fun) === confirmed.settlement.fromUserId
-          }
-          onClose={() => setConfirmed(null)}
-        />
-      )}
+      {confirmed.moment}
       {mine.map((s) =>
         s.toUserId === me ? (
           <div className="need row" key={s.id}>

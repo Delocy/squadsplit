@@ -1,4 +1,4 @@
-import { formatMoney, settlementCap, type BalancesDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
+import { formatMoney, settlementCap, type BalancesDTO, type FunDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { ApiError, useApi } from '../api'
 import { Avatar } from '../design/Avatar'
@@ -9,6 +9,7 @@ import { useGroupMutation, type People } from '../groupData'
 import { ErrorNote } from './ErrorNote'
 import { NotJoinedTag } from './NotJoinedTag'
 import { SettleForm, type SettleDirection, type SettlementInput } from './SettleForm'
+import { useSettleMoment } from './SettleMoment'
 
 /**
  * The simplified debts. On one where you are the debtor, "Mark paid" opens a small form, pre-filled with
@@ -22,6 +23,7 @@ export function SuggestedTransfers({
   me,
   people,
   currency,
+  fun,
 }: {
   groupId: string
   balances: BalancesDTO
@@ -29,9 +31,21 @@ export function SuggestedTransfers({
   me: string
   people: People
   currency: string
+  /** The group's titles, to tell when a payback earns the payer the Good Egg sticker. */
+  fun?: FunDTO
 }) {
   const api = useApi()
-  const settle = useGroupMutation(groupId, (t: SettlementInput) => api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t))
+  // A payment with someone who hasn't joined counts straight away (it comes back confirmed): it is celebrated as soon
+  // as the API says so, before the group is refetched (callbacks passed to mutate wait for that).
+  const counted = useSettleMoment({ people, currency, fun })
+  const settle = useGroupMutation(groupId, async (t: SettlementInput) => {
+    const s = await api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t)
+    if (s.status === 'confirmed') {
+      setFormFor(null)
+      counted.celebrate(s)
+    }
+    return s
+  })
   /** The other person on the transfer whose "Mark paid" opened the form, or null while it is closed. */
   const [formFor, setFormFor] = useState<{ direction: SettleDirection; other: string } | null>(null)
   // The form slides out when it closes; then the "Mark paid" button that opened it gets focus back.
@@ -109,6 +123,7 @@ export function SuggestedTransfers({
 
   return (
     <>
+      {counted.moment}
       <ul className="list">
         {balances.suggestions.length ? (
           balances.suggestions.map(row)

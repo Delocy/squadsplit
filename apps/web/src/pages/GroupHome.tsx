@@ -115,6 +115,7 @@ export function GroupHome() {
                 me={me}
                 people={people}
                 currency={g.currency}
+                fun={fun.data}
               />
             )}
           </section>
