@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 const count = (calls: { key: string }[], key: string) => calls.filter((c) => c.key === key).length
-const me = { status: 200, body: { id: ME, displayName: 'Alice Tan', avatarUrl: null } }
+const me = { status: 200, body: { id: ME, displayName: 'Alice Tan', avatarUrl: null, profileAvatar: { animal: 'fox', color: 'mint' } } }
 
 describe('profile refresh after sign-in', () => {
   it('calls GET /me once, then refetches the groups so the fresh name shows', async () => {

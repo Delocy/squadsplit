@@ -5,8 +5,12 @@ import { UiIcon } from '../design/icons'
 import { useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { ConfirmBar, useConfirmStep } from './ConfirmBar'
+import { NotJoinedTag } from './NotJoinedTag'
 
-/** Everyone in the group with their role; the owner can remove others. People who left are folded away. */
+/**
+ * Everyone in the group with their role (or a tag for a name that hasn't joined yet); the owner can remove others.
+ * People who left are folded away.
+ */
 export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
   const active = group.members.filter((m) => m.active)
   const former = group.members.filter((m) => !m.active)
@@ -54,7 +58,7 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
           {member.displayName}
           {member.userId === me && ' (you)'}
         </div>
-        <div className="s">{member.role === 'owner' ? 'Owner' : 'Member'}</div>
+        <div className="s">{member.placeholder ? <NotJoinedTag /> : member.role === 'owner' ? 'Owner' : 'Member'}</div>
       </div>
       {canRemove && !confirm.showBar && (
         <button ref={confirm.triggerRef} className="btn small ghost danger" onClick={confirm.open}>

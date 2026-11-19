@@ -70,7 +70,7 @@ describe('POST /groups', () => {
     expect(group).toMatchObject({ name: 'Bali trip', emoji: '🏝️', currency: 'SGD', ownerId: 'alice' })
     expect(group.inviteCode).toMatch(INVITE_CODE)
     expect(group.members).toEqual([
-      { userId: 'alice', displayName: 'User alice', nickname: null, avatarUrl: null, role: 'owner', active: true, avatar: defaultAvatar('alice') },
+      { userId: 'alice', displayName: 'User alice', nickname: null, avatarUrl: null, role: 'owner', active: true, avatar: defaultAvatar('alice'), placeholder: false },
     ])
 
     const list = await alice('/groups')

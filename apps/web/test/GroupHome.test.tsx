@@ -2,7 +2,7 @@ import { AVATAR_COLORS, defaultAvatar } from '@squadsplit/shared'
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
-import { BOB, BOB_AVATAR, CAROL, expense, group, groupHandlers, member, ME_AVATAR, settlement } from './group-fixtures'
+import { BOB, BOB_AVATAR, CAROL, dave, DAVE, expense, group, groupHandlers, member, ME_AVATAR, settlement } from './group-fixtures'
 import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -320,6 +320,77 @@ describe('Group home', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
       fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
       expect(await screen.findByText('You can only settle up with a current member of the group')).toBeTruthy()
+    })
+
+    describe('with someone who has not joined', () => {
+      const withDave = () => {
+        const g = group()
+        g.members.push(dave())
+        return g
+      }
+
+      it('lets you record that they paid you, which counts straight away', async () => {
+        const calls = fakeApi(
+          groupHandlers(
+            { group: withDave(), balances: { balances: { [ME]: 500, [DAVE]: -500 }, suggestions: [{ fromUserId: DAVE, toUserId: ME, amountCents: 500 }] } },
+            { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ fromUserId: DAVE, toUserId: ME, status: 'confirmed' }) }) },
+          ),
+        )
+        renderApp('/groups/g1')
+        const settle = within(await screen.findByRole('region', { name: /Settle up/ }))
+        expect(await settle.findByText('Dave → You')).toBeTruthy()
+        expect(settle.getByText('Not joined yet')).toBeTruthy()
+        fireEvent.click(settle.getByRole('button', { name: 'Mark paid' }))
+
+        const form = within(settle.getByRole('form', { name: 'Mark a payment' }))
+        const payer = form.getByLabelText('Who paid you') as HTMLSelectElement
+        expect(payer.value).toBe(DAVE)
+        expect([...payer.options].map((o) => o.textContent)).toEqual(['Dave paid me'])
+        expect((form.getByLabelText('Amount') as HTMLInputElement).value).toBe('5.00')
+        fireEvent.change(form.getByLabelText('Amount'), { target: { value: '6' } })
+        fireEvent.click(form.getByRole('button', { name: 'Submit' }))
+        expect(form.getByRole('alert').textContent).toBe('Dave owes you at most $5.00 right now.')
+        fireEvent.change(form.getByLabelText('Amount'), { target: { value: '5' } })
+        fireEvent.click(form.getByRole('button', { name: 'Submit' }))
+
+        await vi.waitFor(() => expect(count(calls, 'POST /groups/g1/settlements')).toBe(1))
+        expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')!.body).toEqual({ fromUserId: DAVE, toUserId: ME, amountCents: 500 })
+      })
+
+      it('lets you mark paid what you owe them', async () => {
+        const calls = fakeApi(
+          groupHandlers(
+            { group: withDave(), balances: { balances: { [ME]: -500, [DAVE]: 500 }, suggestions: [{ fromUserId: ME, toUserId: DAVE, amountCents: 500 }] } },
+            { 'POST /groups/g1/settlements': () => ({ status: 201, body: settlement({ fromUserId: ME, toUserId: DAVE, status: 'confirmed' }) }) },
+          ),
+        )
+        renderApp('/groups/g1')
+        fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+        expect((screen.getByLabelText('Paid to') as HTMLSelectElement).value).toBe(DAVE)
+        fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+        await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups/g1/settlements')?.body).toEqual({ toUserId: DAVE, amountCents: 500 }))
+      })
+
+      it('offers no Mark paid between two other people', async () => {
+        fakeApi(
+          groupHandlers({ group: withDave(), balances: { balances: { [BOB]: 500, [DAVE]: -500 }, suggestions: [{ fromUserId: DAVE, toUserId: BOB, amountCents: 500 }] } }),
+        )
+        renderApp('/groups/g1')
+        expect(await screen.findByText('Dave → Bob')).toBeTruthy()
+        expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull()
+      })
+
+      it('tags them on the leaderboard', async () => {
+        fakeApi(
+          groupHandlers({
+            group: withDave(),
+            fun: { leaderboard: [{ userId: ME, netCents: 100, rank: 1 }, { userId: DAVE, netCents: -100, rank: 2 }], badges: [] },
+          }),
+        )
+        renderApp('/groups/g1')
+        const board = within(await screen.findByRole('region', { name: /Leaderboard/ }))
+        await vi.waitFor(() => expect(board.getAllByText('Not joined yet')).toHaveLength(1))
+      })
     })
 
     it('offers no Mark paid to someone who has left the group', async () => {

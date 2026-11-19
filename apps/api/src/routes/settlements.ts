@@ -1,13 +1,13 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { CreateSettlementInput, ListSettlementsQuery, maxSettlementAmount } from '@squadsplit/shared'
 import { findActiveRole, requireMember } from '../access'
 import { db, type Db } from '../db'
 import { loadLedger } from '../db/ledger'
-import { settlements } from '../db/schema'
+import { settlements, users } from '../db/schema'
 import { toSettlementDTO } from '../db/settlements'
 import type { AppEnv } from '../env'
-import { HttpError, parseBody } from '../errors'
+import { HttpError, parseBody, refusingStaleMember } from '../errors'
 
 /** Who may move a pending settlement to which status: the creditor confirms or rejects, the debtor cancels. */
 const TRANSITIONS = {
@@ -37,6 +37,15 @@ async function transition(d: Db, settlementId: string, userId: string, action: k
   return toSettlementDTO(updated)
 }
 
+/** Which of the given users are placeholders (names in a group for someone who hasn't joined). */
+async function placeholdersAmong(d: Db, userIds: string[]): Promise<Set<string>> {
+  const rows = await d
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, userIds), eq(users.kind, 'placeholder')))
+  return new Set(rows.map((r) => r.id))
+}
+
 /** Routes under /groups/:id: start and list the group's settlements. */
 export function groupSettlementRoutes() {
   return new Hono<AppEnv>()
@@ -56,31 +65,44 @@ export function groupSettlementRoutes() {
     .post('/:id/settlements', async (c) => {
       const d = db(c.env)
       const groupId = c.req.param('id')
-      const fromUserId = c.var.userId
-      await requireMember(d, groupId, fromUserId)
-      const { toUserId, amountCents } = await parseBody(c, CreateSettlementInput)
+      const me = c.var.userId
+      await requireMember(d, groupId, me)
+      const { fromUserId = me, toUserId, amountCents } = await parseBody(c, CreateSettlementInput)
       if (toUserId === fromUserId) throw new HttpError(422, 'self_settlement', 'You cannot settle up with yourself')
-      if (!(await findActiveRole(d, groupId, toUserId))) {
-        throw new HttpError(422, 'not_a_member', 'You can only settle up with a current member of the group')
+      for (const party of [fromUserId, toUserId]) {
+        if (!(await findActiveRole(d, groupId, party))) {
+          throw new HttpError(422, 'not_a_member', 'You can only settle up with a current member of the group')
+        }
+      }
+      const placeholders = await placeholdersAmong(d, [fromUserId, toUserId])
+      if (placeholders.size === 2) {
+        throw new HttpError(422, 'placeholder_to_placeholder', "Two people who haven't joined yet can't settle up with each other")
+      }
+      // Usually you are the one paying. Only the person being paid can record that someone who hasn't joined paid them.
+      if (fromUserId !== me && !(placeholders.has(fromUserId) && toUserId === me)) {
+        throw new HttpError(422, 'not_your_payment', "You can only record what you paid, or what someone who hasn't joined yet paid you")
       }
       const max = maxSettlementAmount(await loadLedger(d, groupId), fromUserId, toUserId)
       if (amountCents > max) {
         throw new HttpError(409, 'exceeds_debt', `You can settle at most ${max} cents with this member right now`)
       }
 
-      const [created] = await d
-        .insert(settlements)
-        .values({
-          id: crypto.randomUUID(),
-          groupId,
-          fromUserId,
-          toUserId,
-          amountCents,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          resolvedAt: null,
-        })
-        .returning()
+      const now = new Date().toISOString()
+      const [created] = await refusingStaleMember(
+        d
+          .insert(settlements)
+          .values({
+            id: crypto.randomUUID(),
+            groupId,
+            fromUserId,
+            toUserId,
+            amountCents,
+            // Someone who hasn't joined can't confirm, so a payment with them counts straight away.
+            ...(placeholders.size > 0 ? { status: 'confirmed', resolvedAt: now } : { status: 'pending', resolvedAt: null }),
+            createdAt: now,
+          })
+          .returning(),
+      )
       return c.json(toSettlementDTO(created!), 201)
     })
 }

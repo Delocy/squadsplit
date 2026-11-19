@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../src/api'
 import { membershipErrorText } from '../src/membershipErrors'
 import { ME } from './clerk-mock'
-import { BOB, BOB_AVATAR, CAROL, CAROL_AVATAR, group, groupHandlers, ME_AVATAR, member } from './group-fixtures'
+import { BOB, BOB_AVATAR, CAROL, CAROL_AVATAR, dave, DAVE, group, groupHandlers, ME_AVATAR, member } from './group-fixtures'
 import { fakeApi, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -133,6 +133,68 @@ describe('Group settings', () => {
     })
   })
 
+  describe('names of people who have not joined', () => {
+    const withDave = () => {
+      const g = group()
+      g.members.splice(2, 0, dave())
+      return g
+    }
+
+    it('tags them in the member list', async () => {
+      fakeApi(groupHandlers({ group: withDave() }))
+      renderApp('/groups/g1/settings')
+      const members = within(await screen.findByRole('list', { name: 'Members' }))
+      expect(members.getAllByRole('listitem').map((r) => r.textContent!.trim())).toEqual([
+        'Alice (you)Owner', 'BobMemberRemove', 'DaveNot joined yetRemove',
+      ])
+    })
+
+    it('lets the owner add a name', async () => {
+      const calls = fakeApi(groupHandlers({}, { 'POST /groups/g1/placeholders': () => ({ status: 201, body: dave() }) }))
+      renderApp('/groups/g1/settings')
+      const card = within(await screen.findByRole('region', { name: 'Add a name' }))
+      fireEvent.change(card.getByLabelText('Name'), { target: { value: ' Dave ' } })
+      fireEvent.click(card.getByRole('button', { name: 'Add' }))
+      await vi.waitFor(() => expect(calls.find((c) => c.key === 'POST /groups/g1/placeholders')?.body).toEqual({ name: 'Dave' }))
+      await vi.waitFor(() => expect((card.getByLabelText('Name') as HTMLInputElement).value).toBe(''))
+    })
+
+    it('explains a name with emoji instead of sending it', async () => {
+      const calls = fakeApi(groupHandlers())
+      renderApp('/groups/g1/settings')
+      const card = within(await screen.findByRole('region', { name: 'Add a name' }))
+      fireEvent.change(card.getByLabelText('Name'), { target: { value: 'Dave 🍕' } })
+      fireEvent.click(card.getByRole('button', { name: 'Add' }))
+      expect(card.getByRole('alert').textContent).toBe('Names are up to 24 characters, with no emoji.')
+      expect(hasCall(calls, 'POST /groups/g1/placeholders')).toBe(false)
+    })
+
+    it('removes a name, and explains when it is already in the history', async () => {
+      const calls = fakeApi(groupHandlers({ group: withDave() }, { [`DELETE /groups/g1/members/${DAVE}`]: conflict('name_in_use') }))
+      renderApp('/groups/g1/settings')
+      const members = within(await screen.findByRole('list', { name: 'Members' }))
+      fireEvent.click(within(members.getAllByRole('listitem')[2]!).getByRole('button', { name: 'Remove' }))
+      fireEvent.click(members.getByRole('button', { name: 'Yes, remove Dave' }))
+      await vi.waitFor(() => expect(hasCall(calls, `DELETE /groups/g1/members/${DAVE}`)).toBe(true))
+      expect(await screen.findByText("Dave is already in the group's history, so the name stays until they join.")).toBeTruthy()
+    })
+
+    it('has no Add a name for members who are not the owner, and no room when the group is full', async () => {
+      fakeApi(groupHandlers({ group: bobsGroup() }))
+      renderApp('/groups/g1/settings')
+      await screen.findByRole('list', { name: 'Members' })
+      expect(screen.queryByRole('region', { name: 'Add a name' })).toBeNull()
+      cleanup()
+
+      const full = group({ members: [member(ME, 'Alice', ME_AVATAR, { role: 'owner' }), ...Array.from({ length: 11 }, (_, i) => dave({ userId: `ph_${i}`, displayName: `P${i}` }))] })
+      fakeApi(groupHandlers({ group: full }))
+      renderApp('/groups/g1/settings')
+      const card = within(await screen.findByRole('region', { name: 'Add a name' }))
+      expect((card.getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(card.getByText('The group is full (12 people).')).toBeTruthy()
+    })
+  })
+
   describe('as a member', () => {
     it('hides the invite code, rename and remove, and points to the owner', async () => {
       fakeApi(groupHandlers({ group: bobsGroup() }))
@@ -241,6 +303,7 @@ describe('Group settings', () => {
     expect(membershipErrorText(err('balance_not_zero'), 'Bob')).toBe('Bob needs to settle up first')
     expect(membershipErrorText(err('pending_settlement'), 'Bob')).toBe('Finish the pending payment first')
     expect(membershipErrorText(err('owner_cannot_leave'), null)).toBe("The owner can't leave the group")
+    expect(membershipErrorText(err('name_in_use'), 'Dave')).toBe("Dave is already in the group's history, so the name stays until they join.")
     expect(membershipErrorText(err('something_else'), null)).toBe('Raw API message')
   })
 

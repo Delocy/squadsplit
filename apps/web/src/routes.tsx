@@ -9,6 +9,7 @@ import { GroupSettings } from './pages/GroupSettings'
 import { Groups } from './pages/Groups'
 import { Join } from './pages/Join'
 import { Landing } from './pages/Landing'
+import { Profile } from './pages/Profile'
 import { Wheel } from './pages/Wheel'
 import { useProfileRefresh } from './useProfileRefresh'
 
@@ -60,6 +61,7 @@ const pages: RouteObject[] = [
       { path: '/groups', element: <Groups /> },
       { path: '/groups/new', element: <CreateGroup /> },
       { path: '/join/:code', element: <Join /> },
+      { path: '/me', element: <Profile /> },
       {
         path: '/groups/:id',
         element: <GroupHome />,

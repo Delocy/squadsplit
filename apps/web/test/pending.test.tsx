@@ -104,7 +104,7 @@ describe('buttons waiting on the server', () => {
         {
           'GET /invites/ABCD2345': () => ({
             status: 200,
-            body: { groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 2, alreadyMember: false, takenAvatars: [], myFormerAvatar: null },
+            body: { groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 2, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, placeholders: [] },
           }),
           'POST /invites/ABCD2345/join': post.handler,
         },

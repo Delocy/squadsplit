@@ -5,6 +5,7 @@ import { Medal, UiIcon } from '../design/icons'
 import { balanceMood } from '../design/mood'
 import type { People } from '../groupData'
 import { Money } from './Money'
+import { NotJoinedTag } from './NotJoinedTag'
 import { LeaderboardSkeleton } from './Skeletons'
 import { StickerSheet } from './StickerSheet'
 
@@ -39,6 +40,7 @@ function Board({ fun, people, currency }: { fun: FunDTO; people: People; currenc
               <span className="who">
                 <Avatar avatar={people.avatar(b.userId)} size="sm" {...balanceMood(b.netCents)} />
                 <span>{people.name(b.userId)}</span>
+                {people.isPlaceholder(b.userId) && <NotJoinedTag />}
               </span>
               <span className="bar">
                 <i style={fill} />

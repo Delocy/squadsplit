@@ -40,7 +40,7 @@ describe('GET /invites/:code', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual<InvitePreviewDTO>({
       groupId: group.id, name: 'Bali trip', emoji: '🏝️', memberCount: 2, alreadyMember: false,
-      takenAvatars: [defaultAvatar('alice'), defaultAvatar('bob')], myFormerAvatar: null,
+      takenAvatars: [defaultAvatar('alice'), defaultAvatar('bob')], myFormerAvatar: null, placeholders: [],
     })
   })
 

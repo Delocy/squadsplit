@@ -4,6 +4,8 @@ import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } fro
 export const ROLES = ['owner', 'member'] as const
 export const SPLIT_TYPES = ['equal', 'exact', 'itemized'] as const
 export const SETTLEMENT_STATUSES = ['pending', 'confirmed', 'rejected', 'cancelled'] as const
+/** A person signs in (their id is Clerk's); a placeholder is a name in one group for someone who hasn't joined yet. */
+export const USER_KINDS = ['person', 'placeholder'] as const
 
 /** SQL `IN (...)` list for a CHECK constraint over a fixed set of string literals. */
 const oneOf = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '))
@@ -13,6 +15,11 @@ export const users = sqliteTable('users', {
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
   createdAt: text('created_at').notNull(),
+  /** 'placeholder' rows have ids starting with `ph_`, belong to one group, and are deleted when someone claims them. */
+  kind: text('kind', { enum: USER_KINDS }).notNull().default('person'),
+  /** The look the user picked for themselves (outside groups, and where a new group starts them). Null: their default. */
+  profileAnimal: text('profile_animal'),
+  profileColor: text('profile_color'),
 })
 
 export const groups = sqliteTable('groups', {
