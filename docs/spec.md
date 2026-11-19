@@ -13,6 +13,7 @@ Status: agreed design (2026-11-19). Anything marked **v2** is explicitly out of 
 - Roles: **owner** (the creator) and **member**. No ownership transfer in v1.
 - People join only with the group's **invite code**, either typed in or opened as a link (`/join/:code`). The owner can reset the code, which stops the old link working.
 - Every participant has an account. There are no guest placeholders.
+- A group has at most **12 active members**. Joining a full group (including a former member rejoining) is 409 `group_full`; former members don't count towards the cap.
 - A member can **leave**, or the owner can **remove** them, only when that member's group balance is exactly 0. The owner cannot leave in v1 (that would need ownership transfer).
 - Leaving is a soft delete (`membership.left_at`), so past expenses still show their names.
 

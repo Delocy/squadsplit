@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { InvitePreviewDTO } from '@squadsplit/shared'
+import { MAX_GROUP_MEMBERS, type InvitePreviewDTO } from '@squadsplit/shared'
 import { db, type Db } from '../db'
 import { groups, memberships } from '../db/schema'
 import type { AppEnv } from '../env'
@@ -52,15 +52,18 @@ async function groupByInviteCode(d: Db, code: string) {
   return group
 }
 
+const activeMembers = (d: Db, groupId: string) =>
+  d
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.groupId, groupId), isNull(memberships.leftAt)))
+
 export function inviteRoutes() {
   return new Hono<AppEnv>()
     .get('/:code', async (c) => {
       const d = db(c.env)
       const group = await groupByInviteCode(d, c.req.param('code'))
-      const members = await d
-        .select({ userId: memberships.userId })
-        .from(memberships)
-        .where(and(eq(memberships.groupId, group.id), isNull(memberships.leftAt)))
+      const members = await activeMembers(d, group.id)
       return c.json<InvitePreviewDTO>({
         groupId: group.id,
         name: group.name,
@@ -72,6 +75,11 @@ export function inviteRoutes() {
     .post('/:code/join', async (c) => {
       const d = db(c.env)
       const group = await groupByInviteCode(d, c.req.param('code'))
+      const members = await activeMembers(d, group.id)
+      if (members.some((m) => m.userId === c.var.userId)) return c.json({ groupId: group.id })
+      if (members.length >= MAX_GROUP_MEMBERS) {
+        throw new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
+      }
       const now = new Date().toISOString()
       // New: insert as a member. Former member: reactivate (role unchanged). Current member: no-op.
       await d

@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import type { ApiErrorBody, GroupDTO, InvitePreviewDTO } from '@squadsplit/shared'
+import { MAX_GROUP_MEMBERS, type ApiErrorBody, type GroupDTO, type InvitePreviewDTO } from '@squadsplit/shared'
 import { memberships } from '../src/db/schema'
 import { newInviteCode } from '../src/routes/invites'
 import { db, json, testApp } from './helpers'
@@ -110,6 +110,64 @@ describe('POST /invites/:code/join', () => {
     const res = await join(bob, 'ZZZZZZZZ')
     expect(res.status).toBe(404)
     expect(((await res.json()) as ApiErrorBody).error.code).toBe('not_found')
+  })
+})
+
+describe('POST /invites/:code/join with a full group', () => {
+  /** Creates a group owned by alice and fills it to the cap with `filler-1` ... `filler-11`. */
+  async function fullGroup() {
+    const group = await createGroup()
+    for (let i = 1; i < MAX_GROUP_MEMBERS; i++) {
+      expect((await join(app.as(`filler-${i}`), group.inviteCode)).status).toBe(200)
+    }
+    return group
+  }
+
+  it('caps a group at 12 members', () => {
+    expect(MAX_GROUP_MEMBERS).toBe(12)
+  })
+
+  it('is 409 group_full for a newcomer when 12 members are active', async () => {
+    const group = await fullGroup()
+
+    const res = await join(bob, group.inviteCode)
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual<ApiErrorBody>({
+      error: { code: 'group_full', message: 'This group is full (12 people).' },
+    })
+    expect(await membershipRows(group.id, 'bob')).toEqual([])
+  })
+
+  it('still lets an active member re-join a full group (no-op)', async () => {
+    const group = await fullGroup()
+
+    const res = await join(app.as('filler-3'), group.inviteCode)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ groupId: group.id })
+  })
+
+  it('is 409 group_full for a former member when the group filled up after they left', async () => {
+    const group = await createGroup()
+    await join(bob, group.inviteCode)
+    expect((await bob(`/groups/${group.id}/members/bob`, { method: 'DELETE' })).status).toBe(204)
+    for (let i = 1; i < MAX_GROUP_MEMBERS; i++) await join(app.as(`filler-${i}`), group.inviteCode)
+
+    const res = await join(bob, group.inviteCode)
+
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as ApiErrorBody).error.code).toBe('group_full')
+    expect((await membershipRows(group.id, 'bob'))[0]?.leftAt).not.toBeNull()
+  })
+
+  it('does not count former members towards the cap', async () => {
+    const group = await fullGroup()
+    expect((await app.as('filler-1')(`/groups/${group.id}/members/filler-1`, { method: 'DELETE' })).status).toBe(204)
+
+    const res = await join(bob, group.inviteCode)
+
+    expect(res.status).toBe(200)
   })
 })
 
