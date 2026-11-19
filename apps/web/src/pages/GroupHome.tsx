@@ -6,6 +6,7 @@ import { PageLink } from '../components/PageLink'
 import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
+import { InviteCard } from '../components/InviteCard'
 import { Leaderboard } from '../components/Leaderboard'
 import { SquadNap } from '../components/SquadNap'
 import { PendingActions } from '../components/PendingActions'
@@ -15,7 +16,10 @@ import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 import { useMyId } from '../guest/GroupAccess'
 
-/** `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog opens over it. */
+/**
+ * `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog and
+ * the invite sheet open over it. A group with no expenses yet leads with the invite card.
+ */
 export function GroupHome() {
   const id = useParams().id ?? ''
   const me = useMyId()
@@ -46,6 +50,7 @@ export function GroupHome() {
 
   return (
     <main className="page has-fab">
+      {expenses.data?.length === 0 && <InviteCard group={g} me={me} />}
       <div className="summary">
         {balances.data ? (
           <BalanceCard
@@ -82,11 +87,16 @@ export function GroupHome() {
               <UiIcon name="plus" />
               Add expense
             </Link>
+            <Link to={`/groups/${id}/invite`} state={{ fromHome: true }} preventScrollReset className="btn invite-tile">
+              <UiIcon name="heart" />
+              Invite
+            </Link>
             <PageLink to={wheel} className="btn">
               <UiIcon name="wheel" />
               Who pays next?
             </PageLink>
-            <PageLink to={`/groups/${id}/settings`} className="btn ghost">
+            <PageLink to={`/groups/${id}/settings`} className="btn">
+              <UiIcon name="gear" />
               Group settings
             </PageLink>
           </div>

@@ -163,6 +163,13 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
 .stat .v { font: 700 19px Fredoka, sans-serif; margin-top: 2px; overflow-wrap: anywhere; }
 .quick { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+/* On a phone: a row of three tiles, icon over label (Invite, Who pays next?, Group settings). */
+@media (max-width: 480px) {
+  .quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick .btn { flex-direction: column; gap: 4px; padding: 8px 4px; min-height: 64px; font-size: 13px; line-height: 1.15; text-align: center; }
+  .quick .btn svg { width: 22px; height: 22px; }
+}
+.quick .btn.invite-tile { background: var(--accent-soft); }
 
 /* group home: main grid */
 .main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -218,15 +225,46 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 /* group settings */
 .card > .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
 .card > .s:last-child { margin-bottom: 0; }
-.invite { display: grid; grid-template-columns: 168px 1fr; gap: 18px; align-items: start; }
-@media (max-width: 480px) { .invite { grid-template-columns: 1fr; justify-items: center; } }
-.invite-side { display: grid; gap: 10px; justify-items: start; min-width: 0; width: 100%; }
-.invite-side .s { color: var(--muted); font-size: 13.5px; margin: 0; }
+/* The invite card (Group settings, an empty group, the Invite sheet): Share leads, Copy follows, the QR folds away. */
+.invite { display: grid; gap: 12px; min-width: 0; }
+.invite > .s { color: var(--muted); font-size: 13.5px; margin: 0; }
+.invite-share { width: 100%; min-height: 48px; font-size: 15.5px; }
+.invite .invite-link { flex-wrap: nowrap; align-items: center; }
+.invite .invite-link .btn { flex: none; }
+@media (max-width: 400px) { .invite .invite-link { flex-wrap: wrap; } .invite .invite-link .btn { flex: 1 1 100%; } }
+/* The link as text, at most two lines; one tap selects all of it, for copying by hand where the clipboard is refused. */
+.invite-url { flex: 1; min-width: 0; margin: 0; padding: 8px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 13.5px; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; -webkit-user-select: all; user-select: all; }
+.invite-url b { color: var(--text); white-space: nowrap; }
+.invite-code { margin: 0; color: var(--muted); font-size: 14px; }
+.invite-code b { font: 700 17px ui-monospace, Menlo, monospace; letter-spacing: .12em; color: var(--text); }
+.invite-fresh { margin: 0; justify-self: start; padding: 4px 12px; border-radius: 99px; border: 2px solid var(--ink); background: #dcf5ea; color: #3d2c42; font-weight: 800; }
+.invite-qr summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 800; list-style: none; }
+.invite-qr summary::-webkit-details-marker { display: none; }
+.invite-qr summary svg { width: 20px; height: 20px; flex: none; }
+.invite-qr summary .s { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.invite-qr summary::before { content: ""; flex: none; width: 0; height: 0; border-left: 6px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; }
+.invite-qr[open] summary::before { transform: rotate(90deg); }
+.invite-qr > .s { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 12.5px; }
 /* The QR stays dark-on-white in both themes so phones can scan it. */
-.qr-box { width: 168px; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }
+.qr-box { width: 220px; max-width: 100%; margin: 6px auto 0; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }
 .qr { width: 100%; height: auto; }
 .invite-link { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .invite-link input { flex: 1 1 240px; min-width: 0; }
+/* a "⋯" menu of rarer actions, in a card or sheet header */
+.more-menu { position: relative; }
+.more-button { width: 44px; height: 44px; margin: -10px -8px -10px 0; border: 0; border-radius: 12px; background: none; color: var(--text); display: grid; place-items: center; cursor: pointer; }
+.more-button svg { width: 22px; height: 22px; }
+.more-button:hover, .more-button[aria-expanded=true] { background: var(--soft); }
+.more-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
+.more-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; padding: 6px; min-width: 180px; border-radius: 14px; font: 800 14.5px Nunito, sans-serif; }
+.more-pop .me-pop-link { width: 100%; border: 0; background: none; color: var(--bad); font: inherit; cursor: pointer; text-align: left; }
+.dlg-h .more-menu { margin-left: auto; }
+.dlg-h .more-menu + .x { margin-left: 0; }
+/* a toast: rises at the bottom, above the Add expense bar when there is one, and fades */
+.toast-region { position: fixed; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 70; display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+@media (max-width: 860px) { body:has(.fab-bar) .toast-region { bottom: calc(var(--fab-bar) + 16px + env(safe-area-inset-bottom)); } }
+.toast { max-width: 420px; padding: 10px 18px; border-radius: 99px; border: 2px solid #3d2c42; background: #3d2c42; color: #fff; font: 800 14px Nunito, sans-serif; box-shadow: 2px 2px 0 rgba(0, 0, 0, .25); text-align: center; animation: toast 2600ms ease-out forwards; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(10px); } 8%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 /* A confirm bar: the question at full width, then the buttons in a row under it (Cancel, then the filled danger one). */
 .confirm { display: grid; gap: 10px; width: 100%; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px solid var(--line); font-size: 14px; }
 .confirm-q { margin: 0; overflow-wrap: anywhere; }
@@ -254,7 +292,20 @@ dialog.out { animation: dlg-out 160ms ease-in forwards; pointer-events: none; }
 dialog.out::backdrop { animation: fade-out 160ms ease-in forwards; }
 .settle-form, .confirm { animation: sheet-in 160ms ease-out; }
 .settle-form.out, .confirm.out { animation: sheet-out 160ms ease-in forwards; pointer-events: none; }
-.dlg-h { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+.dlg-h { position: relative; display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+/* On a phone a dialog is a bottom sheet: full width, rounded on top, with a grab handle; drag its header down to close. */
+.dlg-grab { display: none; }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes sheet-down { to { transform: translateY(100%); } }
+@media (max-width: 480px) {
+  dialog.sheet { width: 100%; max-width: 100%; margin: 0; top: auto; bottom: var(--kb, 0px); max-height: calc(100dvh - 24px - var(--kb, 0px));
+    border-width: 2px 0 0; border-radius: 22px 22px 0 0; box-shadow: 0 -3px 0 rgba(40, 25, 45, .12); }
+  dialog.sheet[open] { animation: sheet-up 240ms cubic-bezier(.2, .8, .3, 1); }
+  dialog.sheet.out { animation: sheet-down 180ms ease-in forwards; }
+  dialog.sheet .dlg-h { padding-top: 22px; touch-action: none; }
+  dialog.sheet .dlg-b { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .dlg-grab { display: block; position: absolute; top: 8px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 99px; background: var(--line); }
+}
 .dlg-h h3 { font-size: 18px; }
 .dlg-h > .ic > svg { width: 20px; height: 20px; color: var(--accent); }
 .dlg-b { padding: 4px 18px 18px; min-width: 0; overflow-x: hidden; }

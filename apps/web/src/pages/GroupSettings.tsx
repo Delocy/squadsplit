@@ -15,7 +15,7 @@ import { usePageNavigate } from '../components/PageLink'
 import { SettingsSkeleton } from '../components/Skeletons'
 import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
-import { peopleOf, useGroup, useGroupMutation } from '../groupData'
+import { useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberName'
 import { invalidateGroup, queryKeys } from '../queryKeys'
@@ -26,8 +26,8 @@ import { useGroupAccess, useMyId } from '../guest/GroupAccess'
 const MAX_NAME = 50
 
 /**
- * `/groups/:id/settings`: inviting friends, your name and look here, the member list, renaming (owner) and leaving
- * (members with an account).
+ * `/groups/:id/settings`: inviting friends (everyone), your name and look here, the member list, renaming (owner) and
+ * leaving (members with an account).
  */
 export function GroupSettings() {
   const id = useParams().id ?? ''
@@ -50,17 +50,7 @@ export function GroupSettings() {
         </GroupLink>
       </div>
       <div className="col">
-        {isOwner && g.inviteCode ? (
-          <InviteCard groupId={id} inviteCode={g.inviteCode} />
-        ) : (
-          <section className="card" aria-labelledby="invite-h">
-            <h3 id="invite-h">
-              <UiIcon name="heart" />
-              Invite friends
-            </h3>
-            <p className="s">Ask {peopleOf(g, me).name(g.ownerId)} for the invite link</p>
-          </section>
-        )}
+        <InviteCard group={g} me={me} />
         {mine && <YouCard group={g} mine={mine} />}
         {isOwner && <RenameCard group={g} />}
         <MemberList group={g} me={me} />

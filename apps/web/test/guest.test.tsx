@@ -149,8 +149,9 @@ describe('a group page with a guest pass', () => {
 
     expect(await screen.findByRole('heading', { name: 'Group settings' })).toBeTruthy()
     expect(screen.getByText('Dave (you)')).toBeTruthy()
-    expect(screen.queryByRole('textbox', { name: 'Invite link' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Reset invite link/ })).toBeNull()
+    // A guest shares the invite link like anyone in the group, but only the owner can reset it.
+    expect(within(screen.getByRole('region', { name: 'Invite friends' })).getByText('ABCD2345')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Invite link options' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Add a name' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()

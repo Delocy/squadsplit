@@ -7,6 +7,7 @@ import { CreateGroup } from './pages/CreateGroup'
 import { ExpenseForm } from './pages/ExpenseForm'
 import { GroupHome } from './pages/GroupHome'
 import { GroupSettings } from './pages/GroupSettings'
+import { InviteSheet } from './pages/InviteSheet'
 import { Groups } from './pages/Groups'
 import { Join } from './pages/Join'
 import { Landing } from './pages/Landing'
@@ -94,9 +95,10 @@ const pages: RouteObject[] = [
         children: [
           {
             element: <GroupHome />,
-            // The add/edit expense dialog opens over the group home.
+            // The add/edit expense dialog and the invite sheet open over the group home.
             children: [
               { index: true, element: null },
+              { path: 'invite', element: <InviteSheet /> },
               { path: 'expenses/new', element: <ExpenseForm /> },
               { path: 'expenses/:expenseId', element: <ExpenseForm /> },
             ],

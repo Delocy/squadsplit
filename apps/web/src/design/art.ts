@@ -192,6 +192,12 @@ const UI: Record<string, string> = {
   plus: `<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6"/>`,
   lock: `<rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="#fff1a8"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none"/>`,
   star: `<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" fill="#fff1a8"/>`,
+  // Drawn in the text colour, so they sit on a filled button too.
+  share: `<path d="M12 14.5V3.5M8 7.5l4-4 4 4M8 10H6.5A2.5 2.5 0 0 0 4 12.5v6A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-6a2.5 2.5 0 0 0-2.5-2.5H16" fill="none" stroke="currentColor" stroke-width="2.2"/>`,
+  more: `<circle cx="5.5" cy="12" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor" stroke="none"/>`,
+  copy: `<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 8.5V6.5A2.5 2.5 0 0 0 13 4H6.5A2.5 2.5 0 0 0 4 6.5V13a2.5 2.5 0 0 0 2.5 2.5h2" fill="none" stroke="currentColor" stroke-width="2"/>`,
+  qr: `<rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill="#fff"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill="#fff"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill="#fff"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18.5 14h2M14 20.5h2" fill="none"/>`,
+  gear: `<circle cx="12" cy="12" r="6.5" fill="#cdeffd"/><circle cx="12" cy="12" r="2.6" fill="#fff"/><path d="M12 2.8v2.7M12 18.5v2.7M2.8 12h2.7M18.5 12h2.7M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M5.5 18.5l1.9-1.9M16.6 7.4l1.9-1.9" fill="none"/>`,
 }
 export const uiIcon = (name: string, cls = '') =>
   svg('0 0 24 24', UI[name] ?? '', cls).replace('<svg', '<svg stroke-width="1.8"')

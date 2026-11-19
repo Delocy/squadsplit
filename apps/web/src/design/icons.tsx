@@ -22,7 +22,8 @@ export const categoryLabel = (category: string) => CATEGORY_ART[category]?.label
 
 export const BadgeArt = ({ badgeKey }: { badgeKey: string }) => <Art html={badgeArt(badgeKey)} />
 
-export type UiIconName = 'sparkle' | 'trophy' | 'heart' | 'wheel' | 'receipt' | 'clock' | 'arrow' | 'plus' | 'lock' | 'star'
+export type UiIconName =
+  | 'sparkle' | 'trophy' | 'heart' | 'wheel' | 'receipt' | 'clock' | 'arrow' | 'plus' | 'lock' | 'star' | 'share' | 'more' | 'copy' | 'qr' | 'gear'
 
 export const UiIcon = ({ name }: { name: UiIconName }) => <Art html={uiIcon(name)} />
 
