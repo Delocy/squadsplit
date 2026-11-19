@@ -137,7 +137,6 @@ pre.qs-text { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; backgro
 .pbar { flex: 1; height: 12px; border-radius: 99px; border: 2px solid var(--ink-c, var(--ink)); background: #f1ecff; overflow: hidden; }
 .pbar i { display: block; height: 100%; background: #b8f2d8; border-right: 2px solid var(--ink-c, var(--ink)); }
 .pbar.slim { height: 8px; margin: 10px 0 4px; }
-.paid-stamp { width: 74px; height: auto; flex: none; }
 .pub-ask { text-align: center; font: 700 19px Fredoka, sans-serif; }
 ul.pub-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .pub-row { border: 2px solid var(--line-c); border-radius: 16px; background: #fff; padding: 8px 10px; display: grid; gap: 6px; }

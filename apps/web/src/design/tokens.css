@@ -74,7 +74,7 @@ button.av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
 /* lists */
-ul.list { list-style: none; padding: 0; margin: 0; display: grid; }
+ul.list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-top: 2px solid var(--line); }
 .row:first-child { border-top: 0; }
 .row .grow { flex: 1; min-width: 0; }
@@ -191,8 +191,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .wheel-wrap { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: center; }
 @media (max-width: 480px) { .wheel-wrap { grid-template-columns: 1fr; justify-items: center; } }
 .wheel { position: relative; width: 210px; height: 210px; }
-.wheel > svg { width: 100%; height: 100%; transition: transform 3s cubic-bezier(.12,.8,.18,1); }
-.wheel .ptr { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); width: 22px; height: 22px; z-index: 2; }
+.wheel > svg { width: 100%; height: 100%; }
+/* The pointer flicks about its tip's base as pegs pass (see WheelDisc), so it is centred with a margin, not a transform. */
+.wheel .ptr { position: absolute; left: 50%; top: -11px; margin-left: -11px; width: 22px; height: 22px; z-index: 2; transform-origin: 50% 25%; }
 /* The inline wheel in the group home's side column: the playground's 170px wheel. */
 .wheel-card.compact .wheel-wrap { grid-template-columns: 170px 1fr; gap: 16px; }
 .wheel-card.compact .wheel { width: 170px; height: 170px; }
@@ -202,9 +203,6 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .odds li { display: flex; align-items: center; gap: 7px; }
 .odds b { margin-left: auto; font-family: Fredoka, sans-serif; }
 .spin-row { margin-top: 10px; }
-.winner { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-top: 8px; font: 700 17px Fredoka, sans-serif; }
-.winner .s { margin: 0; }
-.winner .pop { display: flex; align-items: center; gap: 8px; animation: pop .45s cubic-bezier(.3,1.5,.5,1); }
 
 /* group settings */
 .card > .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
@@ -304,7 +302,6 @@ input[type=date] { width: auto; }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
 @keyframes shiver { 0%, 100% { transform: translateX(0); } 10%, 30% { transform: translateX(-1.5px) rotate(-2deg); } 20%, 40% { transform: translateX(1.5px) rotate(2deg); } 50% { transform: none; } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
-@keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes fly { to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(.6); opacity: 0; } }
 
 .logo .mark svg { animation: bob 3.2s ease-in-out infinite; transform-origin: 50% 80%; }
@@ -320,9 +317,8 @@ input[type=date] { width: auto; }
 .badge:hover .art svg { transform: translateY(-3px) rotate(-8deg) scale(1.08); }
 .badge .art { animation: float 3.4s ease-in-out infinite; animation-delay: var(--d, 0s); }
 .need .av svg { animation: bob 1.6s ease-in-out infinite; }
-@keyframes tick { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(2px); } }
+@keyframes tick { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
 .wheel .ptr { animation: tick 1.6s ease-in-out infinite; }
-.winner .av svg { animation: shiver 1.2s ease-in-out infinite; }
 .confetti { position: fixed; pointer-events: none; z-index: 60; animation: fly 1.2s cubic-bezier(.2,.7,.3,1) forwards; }
 
 /* screens */
@@ -384,6 +380,18 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 
 /* names of people who haven't joined yet */
 .status.not-joined { flex: none; white-space: nowrap; }
+/* settle-up transfers: each name truncates on its own, the "Not joined yet" tags get their own line under the names,
+   and the amount with its button wraps below as one when even that doesn't fit (320px). */
+.row.transfer { flex-wrap: wrap; row-gap: 6px; }
+.row.transfer .grow { flex: 1 1 100px; }
+.row.transfer .t { flex-wrap: nowrap; gap: 0; white-space: nowrap; min-width: 0; }
+.row.transfer .t .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row.transfer .t .nm.short { flex: none; }
+.row.transfer .t .to { flex: none; white-space: pre; }
+.row.transfer .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.row.transfer .tags .status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.row-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+@media (max-width: 480px) { .row-end { flex-direction: column; align-items: flex-end; gap: 4px; } }
 .lb-row .who { flex-wrap: wrap; row-gap: 2px; }
 .lb-row .who > span:not(.av) { min-width: 0; overflow-wrap: anywhere; }
 .names-help { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }

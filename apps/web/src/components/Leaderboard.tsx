@@ -1,13 +1,15 @@
 import type { FunDTO } from '@squadsplit/shared'
 import type { CSSProperties } from 'react'
 import { Avatar } from '../design/Avatar'
-import { BadgeArt, Medal, UiIcon } from '../design/icons'
+import { Medal, UiIcon } from '../design/icons'
+import { balanceMood } from '../design/mood'
 import type { People } from '../groupData'
 import { Money } from './Money'
 import { NotJoinedTag } from './NotJoinedTag'
 import { LeaderboardSkeleton } from './Skeletons'
+import { StickerSheet } from './StickerSheet'
 
-/** Members ranked by net balance (most owed first) with a centred bar, then the badge grid. */
+/** Members ranked by net balance (most owed first) with a centred bar, then the titles as a sticker sheet. */
 export function Leaderboard({ fun, people, currency }: { fun: FunDTO | undefined; people: People; currency: string }) {
   return (
     <section className="card" aria-labelledby="leaderboard-h">
@@ -36,7 +38,7 @@ function Board({ fun, people, currency }: { fun: FunDTO; people: People; currenc
             <div className="lb-row" key={b.userId}>
               <Medal rank={b.rank} />
               <span className="who">
-                <Avatar avatar={people.avatar(b.userId)} size="sm" />
+                <Avatar avatar={people.avatar(b.userId)} size="sm" {...balanceMood(b.netCents)} />
                 <span>{people.name(b.userId)}</span>
                 {people.isPlaceholder(b.userId) && <NotJoinedTag />}
               </span>
@@ -50,23 +52,7 @@ function Board({ fun, people, currency }: { fun: FunDTO; people: People; currenc
           )
         })}
       </div>
-      <div className="badges">
-        {fun.badges.length ? (
-          fun.badges.map((b, i) => (
-            <div className="badge" key={`${b.key}:${b.userId}`}>
-              <div className="art" style={{ '--d': `${(i * 0.45).toFixed(2)}s` } as CSSProperties}>
-                <BadgeArt badgeKey={b.key} />
-              </div>
-              <div className="badge-text">
-                <div className="t">{b.title}</div>
-                <div className="h">{people.name(b.userId)}</div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="empty">No titles handed out yet.</div>
-        )}
-      </div>
+      <StickerSheet badges={fun.badges} people={people} />
     </>
   )
 }

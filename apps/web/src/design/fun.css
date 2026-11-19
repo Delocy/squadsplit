@@ -1,0 +1,180 @@
+/* "Your mix": Squad Reacts, Sticker Book bits and the ticket wheel, ported from docs/design/explorations (?dir=mix).
+   Loaded after tokens.css, whose reduced-motion block (animation: none !important) switches all of this off too.
+   Rule for every animation here: its last keyframe is the element's normal style, so with motion off the still
+   state is the final one. Money is never animated, moved or covered. */
+
+/* ---------- A. moods on avatars ---------- */
+.av.xl { width: 68px; height: 68px; padding: 6px; }
+/* An avatar with sweat or a sparkle: the overlays sit around it, outside the round clip. */
+.avw { position: relative; display: inline-grid; flex: none; }
+.sweat { position: absolute; width: 9px; height: 12px; pointer-events: none; }
+.sweat svg { width: 100%; height: 100%; }
+.avw .sweat.s0 { right: -4px; top: -3px; }
+.avw .sweat.s1 { right: -7px; top: 40%; }
+.avw .sweat.s2 { left: -5px; top: 0; }
+/* Room for the drops beside a name. */
+.who .avw, .slip-row .avw, .odds .avw { margin-right: 4px; }
+.glint { position: absolute; right: -5px; top: -5px; width: 12px; height: 12px; pointer-events: none; }
+.glint svg { width: 100%; height: 100%; }
+@keyframes drip { 0%, 15% { transform: translateY(-3px) scale(.6); opacity: 0; } 30% { transform: none; opacity: 1; } 80% { transform: translateY(5px); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes glint { 0%, 100% { transform: scale(.8) rotate(0); } 50% { transform: scale(1.1) rotate(45deg); } }
+/* Only a few places move all the time (the balance card, rows that need you); elsewhere moods move on hover. */
+.watching .sweat svg, .buddy-w .sweat svg, .row:hover .sweat svg, .lb-row:hover .sweat svg { animation: drip 2.2s ease-in infinite; }
+.sweat.s1 svg { animation-delay: .7s; } .sweat.s2 svg { animation-delay: 1.4s; }
+.watching .glint svg, .row:hover .glint svg, .lb-row:hover .glint svg { animation: glint 2.4s ease-in-out infinite; }
+
+/* your balance mascot sweats, and the squad watches */
+.buddy-w { position: relative; }
+.buddy-w .sweat { width: 13px; height: 17px; }
+.buddy-w .sweat.s0 { right: -3px; top: 0; } .buddy-w .sweat.s1 { right: -9px; top: 42%; } .buddy-w .sweat.s2 { left: -6px; top: 4px; }
+.watching { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-top: 10px; border-top: 2px dashed rgba(61, 44, 66, .2); }
+.watching > span:first-child { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; opacity: .7; margin-right: auto; }
+.watching .av[data-mood="nervous"] svg { animation: shiver 1.6s ease-in-out infinite; }
+.watching .av[data-mood="happy"] svg { animation: bob 2.4s ease-in-out infinite; }
+.watching .avw:nth-of-type(2n) svg, .watching .av:nth-of-type(2n) svg { animation-delay: -.8s; }
+
+/* ---------- A. the settle-up moment (plays once) ---------- */
+.moment { display: grid; justify-items: center; gap: 10px; text-align: center; margin-bottom: 10px; padding: 14px 12px 12px;
+  border: 2px solid var(--ink); border-radius: 14px; background: var(--soft); overflow: hidden; }
+.duo { position: relative; display: flex; align-items: center; justify-content: center; gap: 44px; width: 100%; }
+.swap { position: relative; display: inline-grid; }
+.swap-from { position: absolute; inset: 0; display: inline-grid; animation: unfrown .9s steps(1) both; }
+@keyframes unfrown { 0% { opacity: 1; } 100% { opacity: 0; } }
+/* At rest (and with motion off) the heart sits between the two, as if it just landed. */
+.heart-hop { position: absolute; z-index: 2; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; animation: heartHop .9s ease-in-out both; }
+.heart-hop svg { width: 100%; height: 100%; }
+@keyframes heartHop {
+  0% { opacity: 0; transform: translate(-56px, 0) scale(.5); }
+  15% { opacity: 1; }
+  50% { transform: translate(0, -28px) scale(1.15); }
+  85% { transform: translate(56px, 0) scale(.8); }
+  100% { opacity: 1; transform: none; }
+}
+.hop-r { animation: hop .45s ease-out .85s both; }
+.hop-l { animation: hop .45s ease-out .7s both; }
+@keyframes hop { 0%, 100% { transform: none; } 45% { transform: translateY(-12px); } }
+.cheer { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.cheer .wave { animation: wave .5s ease-in-out both; animation-delay: calc(1s + var(--i) * 90ms); }
+@keyframes wave { 0%, 100% { transform: none; } 50% { transform: translateY(-14px) rotate(-6deg); } }
+.caption { margin: 0; font: 700 15px Fredoka, sans-serif; }
+
+/* ---------- A. empty group: the squad naps ---------- */
+.nap-card { display: grid; justify-items: center; text-align: center; gap: 4px; padding: 16px 14px 18px; }
+.nap { position: relative; display: flex; align-items: flex-end; justify-content: center; padding: 34px 22px 0; max-width: 100%; }
+.nap .cushion svg { position: absolute; left: 0; bottom: -14px; width: 100%; height: auto; z-index: 0; }
+.sleeper { position: relative; z-index: 1; margin: 0 -3px; animation: breathe 3.2s ease-in-out infinite; animation-delay: calc(var(--i) * -.6s); transform-origin: 50% 100%; }
+.sleeper.more { align-self: center; margin-left: 8px; font: 700 13px Fredoka, sans-serif; color: var(--muted); animation: none; }
+@keyframes breathe { 0%, 100% { transform: none; } 50% { transform: scaleY(.94) translateY(1px); } }
+.zz { position: absolute; width: 14px; height: 14px; animation: zz 3s ease-in infinite; }
+.zz svg { width: 100%; height: 100%; stroke: var(--muted); }
+.zz.z1 { left: 30%; top: 4px; } .zz.z2 { left: 54%; top: 0; animation-delay: 1s; width: 18px; height: 18px; } .zz.z3 { left: 72%; top: 10px; animation-delay: 2s; }
+@keyframes zz { 0% { opacity: 0; transform: translate(0, 10px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.nap-card .es-t { display: block; font: 700 18px Fredoka, sans-serif; margin: 18px 0 0; }
+.nap-card .es-s { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+
+/* ---------- C. Sticker Book ---------- */
+/* Die-cut stickers are white in light mode and a soft off-white in dark mode, so they don't glare. */
+:root { --sticker: #fff; }
+@media (prefers-color-scheme: dark) { :root { --sticker: #eee6f1; } }
+.tape { position: absolute; width: 56px; height: 16px; pointer-events: none; z-index: 2; }
+.tape svg { width: 100%; height: 100%; }
+
+/* your balance mascot in a taped polaroid */
+.balance { position: relative; }
+.balance > div.polaroid { position: relative; flex: none; min-width: max-content; background: #fff; border: 2px solid var(--ink);
+  padding: 5px 5px 14px; border-radius: 4px; transform: rotate(-4deg); box-shadow: 2px 2px 0 var(--ink); }
+.polaroid .buddy { border: 0; border-radius: 3px; background: #ffe3ef; width: clamp(54px, 15vw, 66px); height: clamp(54px, 15vw, 66px); }
+.polaroid .tape.t1 { top: -9px; left: 8px; transform: rotate(-8deg); }
+.balance > .tape.t2 { top: -8px; right: 18px; transform: rotate(10deg); }
+
+/* titles as a sticker sheet */
+.sheet { margin-top: 14px; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px dashed var(--line); }
+.sheet-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 700 13px Fredoka, sans-serif; color: var(--muted); margin-bottom: 10px; }
+.sheet-h b { color: var(--text); }
+.stickers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 6px; }
+.sticker { display: grid; justify-items: center; align-content: start; gap: 5px; text-align: center; min-width: 0; transform: rotate(var(--r, 0deg)); }
+.sticker .die { position: relative; width: 52px; height: 52px; display: grid; place-items: center; padding: 6px; background: var(--sticker); border-radius: 50%;
+  box-shadow: 0 0 0 1.5px rgba(61, 44, 66, .18); filter: drop-shadow(1px 2px 0 rgba(61, 44, 66, .35));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transition: clip-path .35s cubic-bezier(.3,1.4,.5,1); }
+.sticker .die svg { width: 100%; height: 100%; }
+/* hover peels a corner up, showing the sticker's paper back */
+.sticker .die::after { content: ''; position: absolute; right: 0; bottom: 0; width: 0; height: 0; border-radius: 0 0 50% 0;
+  background: linear-gradient(135deg, #f2edf4 0 48%, rgba(61, 44, 66, .2) 50%, transparent 52%); transition: width .35s, height .35s; }
+.sticker:not(.locked):hover .die { clip-path: polygon(0 0, 100% 0, 100% 66%, 66% 100%, 0 100%); }
+.sticker:not(.locked):hover .die::after { width: 34%; height: 34%; }
+.sticker .cap { display: grid; min-height: 42px; align-content: start; max-width: 100%; }
+.sticker .cap b { font: 700 11.5px/14px Fredoka, sans-serif; overflow-wrap: anywhere; }
+.sticker .cap em { font: 700 10.5px/14px Nunito, sans-serif; color: var(--muted); font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sticker.locked { transform: none; }
+.sticker.locked .die { background: none; box-shadow: none; filter: none; padding: 0; }
+.sticker.locked .die svg, .slot-s svg { stroke: var(--muted); }
+.sticker.locked text, .slot-s text { fill: var(--muted); }
+.sticker.locked .cap b { color: var(--muted); }
+.sticker .die.sk { background: var(--line); box-shadow: none; filter: none; }
+/* earned while you watch: slapped on */
+.sticker.slap { animation: slapIn .5s cubic-bezier(.3,1.5,.5,1) both; }
+@keyframes slapIn { 0% { transform: rotate(calc(var(--r) - 20deg)) scale(1.7); opacity: 0; } 60% { transform: rotate(var(--r)) scale(.92); opacity: 1; } 100% { transform: rotate(var(--r)); opacity: 1; } }
+
+/* the PAID stamp: beside a confirmed payback's amount, never on it */
+.paid-stamp { width: 40px; height: 40px; flex: none; margin: -6px 0; transform: rotate(-14deg); opacity: .9; }
+.paid-stamp svg { width: 100%; height: 100%; }
+.paid-stamp.thunk { animation: thunk .35s cubic-bezier(.5,0,.75,0) both; }
+@keyframes thunk { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
+
+/* the settle-up moment's payback slip: the stamp lands after the cheer wave, then a new sticker slaps on */
+.slip { position: relative; width: 100%; text-align: left; background: var(--card); border: 2px dashed var(--line); border-radius: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 14px; animation: slipShake .2s ease-out 2.3s both; }
+.slip-h { display: flex; align-items: center; gap: 6px; font: 700 13px Fredoka, sans-serif; color: var(--muted); }
+.slip-h svg { width: 18px; height: 18px; }
+.slip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; font-size: 13.5px; }
+.slip-amt { font: 700 28px Fredoka, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Beside the amount while both fit, else below it: it never covers the amount. */
+.big-stamp { flex: none; margin-left: auto; width: 84px; height: 84px; transform: rotate(-14deg); opacity: .9; animation: stampDown .35s cubic-bezier(.5,0,.75,0) 2s both; }
+.big-stamp svg { width: 100%; height: 100%; }
+@keyframes stampDown { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 85% { transform: rotate(-14deg) scale(.96); opacity: .9; } 100% { transform: rotate(-14deg); opacity: .9; } }
+@keyframes slipShake { 0%, 100% { transform: none; } 30% { transform: translateY(2px); } }
+.moment { position: relative; }
+.earned { position: absolute; top: 6px; right: 6px; z-index: 3; display: grid; justify-items: center; gap: 2px; pointer-events: none; }
+.earned .sticker.slap { animation-delay: 2.6s; }
+.earned .sticker .die { width: 44px; height: 44px; padding: 5px; }
+.earned b { font: 700 11px/1.1 Fredoka, sans-serif; animation: phew .3s ease-out 2.8s both; }
+.slip-main { flex: 1 1 auto; min-width: min-content; }
+/* Focus lands here after Confirm and on the Settle-up heading after Close: a ring for keyboard users only. */
+.moment:focus, #settle-h:focus { outline: none; }
+.moment:focus-visible, #settle-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+/* On a phone the duo draws a little smaller and leaves the corner to the Good Egg sticker. */
+@media (max-width: 400px) { .moment .duo { gap: 24px; padding: 0 42px; } .moment .duo .av.xl { width: 56px; height: 56px; padding: 5px; } .earned { right: 2px; } .earned .sticker .die { width: 38px; height: 38px; } }
+
+/* the empty group's album page */
+.album { position: relative; padding-top: 24px; }
+.album .tape.t1 { top: -8px; left: 22px; transform: rotate(-6deg); }
+.album .tape.t2 { top: -8px; right: 22px; transform: rotate(7deg); }
+.nap-card .es-s.small { margin: -6px 0 6px; font-size: 12.5px; }
+.slots { display: grid; grid-template-columns: repeat(6, 34px); gap: 8px; margin: 0 0 12px; }
+.slot-s { width: 34px; height: 34px; }
+.slot-s svg { width: 100%; height: 100%; }
+
+/* ---------- B's wheel: pegs, a flicking pointer (WheelDisc animates both), and the ticket ---------- */
+.wheel .peg { filter: none; }
+/* The slot the ticket comes out of, its space held from the start so nothing moves when it does. */
+.slot { margin-top: 14px; min-height: 108px; border-top: 4px solid var(--ink); border-radius: 4px; overflow: hidden; display: grid; align-content: start; }
+.slot > .s { margin: 10px 0 0; text-align: center; font: 700 14px Fredoka, sans-serif; color: var(--muted); }
+.ticket { display: flex; align-items: stretch; margin: 0 10px; background: #fff8d6; color: #3d2c42; border: 2px solid var(--ink); border-top: 0;
+  border-radius: 0 0 14px 14px; animation: ticketOut .45s cubic-bezier(.3,1.3,.5,1) both; }
+@keyframes ticketOut { 0% { transform: translateY(-105%); } 100% { transform: none; } }
+.tk-l { position: relative; padding: 10px 14px; border-right: 2px dashed rgba(61, 44, 66, .35); display: grid; place-items: center; }
+.tk-l .avw .sweat.s0 { right: -6px; } .tk-l .avw .sweat svg { animation: drip 1.6s ease-in infinite; }
+.tk-r { padding: 8px 12px; display: grid; align-content: center; min-width: 0; }
+.tk-r .lbl { font-size: 10.5px; color: #7b6a80; }
+/* A long name takes two lines at most (with the full line on hover), which the slot already holds. */
+.tk-r b { font: 700 20px/1.15 Fredoka, sans-serif; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tk-r .s { font-size: 12.5px; color: #7b6a80; margin: 0; }
+/* The squad by the slot: they sigh "phew" after the ticket is out. */
+.relief { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin-top: 10px; min-height: 44px; }
+.sigh { display: grid; justify-items: center; gap: 1px; }
+.sigh em { font: 600 11.5px Fredoka, sans-serif; font-style: normal; color: var(--muted); visibility: hidden; }
+.relief.on .sigh em { visibility: visible; }
+.relief.on .sigh { animation: sigh .6s ease-in-out both; animation-delay: calc(.55s + var(--i) * 80ms); }
+.sigh.picked, .relief.on .sigh.picked em { visibility: hidden; }
+@keyframes sigh { 0%, 100% { transform: none; } 30% { transform: translateY(3px) scaleY(.92); } 65% { transform: translateY(-5px); } }
+.relief.on .sigh em { animation: phew .3s ease-out both; animation-delay: calc(.55s + var(--i) * 80ms); }
+@keyframes phew { 0% { opacity: 0; } 100% { opacity: 1; } }

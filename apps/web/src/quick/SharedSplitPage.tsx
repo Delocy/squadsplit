@@ -7,9 +7,9 @@ import { LogoPup } from '../components/Logo'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { Skeleton } from '../design/Skeleton'
-import { UiIcon } from '../design/icons'
+import { StampArt, UiIcon } from '../design/icons'
 import { queryKeys } from '../queryKeys'
-import { Check, PaidStamp, PaidTick } from './art'
+import { Check, PaidTick } from './art'
 import { chargesMath, clockTime, money } from './format'
 import { CardHeader, dishesLine } from './ShareCard'
 import './quick.css'
@@ -157,7 +157,12 @@ export function SharedSplitPage() {
                 <div className="pbar" aria-hidden="true">
                   <i style={{ width: `${(paidCount / s.people.length) * 100}%` }} />
                 </div>
-                {allPaid && <PaidStamp />}
+                {allPaid && (
+                  // The text beside it already says so: the stamp is decoration.
+                  <span className="paid-stamp" aria-hidden="true">
+                    <StampArt text="PAID" />
+                  </span>
+                )}
               </div>
               {!me && <div className="pub-ask">Which one are you?</div>}
               <ul className="pub-rows">

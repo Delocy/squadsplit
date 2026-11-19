@@ -40,9 +40,8 @@ export function fakeApi(handlers: Record<string, Handler>) {
   return calls
 }
 
-/** Renders the real route tree at `url`. */
-export function renderApp(url: string) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+/** Renders the real route tree at `url`. Pass `queryClient` to reach the cache from the test (to refetch, say). */
+export function renderApp(url: string, queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   const router = createMemoryRouter(routes, { initialEntries: [url] })
   render(
     <QueryClientProvider client={queryClient}>
@@ -62,3 +61,9 @@ export function held(reply: Awaited<ReturnType<Handler>>) {
   }
   return { handler, release }
 }
+
+/**
+ * Finds a settle-up transfer by its line, "Dave → You": each name is its own (truncating) element, so the line is
+ * matched on the whole `.t` rather than one text node.
+ */
+export const transferLine = (text: string) => (_: string, el: Element | null) => el?.matches('.row .t') === true && el.textContent === text

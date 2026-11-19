@@ -61,7 +61,7 @@ describe('the share link page', () => {
 
     expect(await screen.findByText('Thanks, Arjun. Dan can see you’ve paid.')).toBeTruthy()
     expect(await screen.findByText("Everyone's paid")).toBeTruthy()
-    expect(screen.getByRole('img', { name: "Everyone's paid" })).toBeTruthy()
+    expect(document.querySelector('.pub-progress .paid-stamp[aria-hidden="true"] svg')).toBeTruthy()
     expect(row('Arjun').getByText(/^Paid · \d{1,2}:14(am|pm)$/)).toBeTruthy()
     expect(screen.getByRole('listitem', { name: 'Arjun' }).querySelector('svg.pub-tick')).toBeTruthy()
 

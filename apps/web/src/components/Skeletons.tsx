@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Skeleton, SkText } from '../design/Skeleton'
 import { UiIcon, type UiIconName } from '../design/icons'
+import { STICKER_COUNT } from './StickerSheet'
 
 // Loading states shaped like the pages and cards they stand in for (same classes, same sizes), so nothing jumps
 // when the data arrives. Each page skeleton is announced once, by its status line, and hidden from screen readers.
@@ -68,7 +69,7 @@ function BalanceSkeleton() {
   )
 }
 
-/** Leaderboard rows (medal, avatar and name, bar, amount) and a row of badges. */
+/** Leaderboard rows (medal, avatar and name, bar, amount) and the sticker sheet of titles. */
 export function LeaderboardSkeleton({ rows }: { rows: number }) {
   return (
     <>
@@ -87,15 +88,28 @@ export function LeaderboardSkeleton({ rows }: { rows: number }) {
           </div>
         ))}
       </div>
-      <div className="badges" aria-hidden="true">
-        {range(2).map((i) => (
-          <div className="badge" key={i}>
-            <Skeleton w={30} h={30} r={8} />
-            <div className="badge-text" style={{ flex: 1 }}>
-              <SkText w="80%" />
+      <div className="sheet" aria-hidden="true">
+        <div className="sheet-h">
+          <SkText w={90} />
+          <b>
+            <SkText w={36} />
+          </b>
+        </div>
+        <div className="stickers">
+          {range(STICKER_COUNT).map((i) => (
+            <div className="sticker" key={i}>
+              <Skeleton className="die" circle />
+              <span className="cap">
+                <b>
+                  <SkText w={64} />
+                </b>
+                <em>
+                  <SkText w={40} />
+                </em>
+              </span>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </>
   )
@@ -126,9 +140,10 @@ function WheelCardSkeleton({ compact }: { compact: boolean }) {
           <div className="spin-row">
             <Skeleton w={78} h={37} r={12} />
           </div>
-          <div className="winner" />
         </div>
       </div>
+      <div className="slot" />
+      <div className="relief" />
       {compact && <Skeleton w={128} h={27} r={10} className="recent-spins" />}
     </div>
   )

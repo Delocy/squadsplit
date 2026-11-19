@@ -8,6 +8,7 @@ import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { Leaderboard } from '../components/Leaderboard'
+import { SquadNap } from '../components/SquadNap'
 import { PendingActions } from '../components/PendingActions'
 import { SuggestedTransfers } from '../components/SuggestedTransfers'
 import { WheelCard } from '../components/WheelCard'
@@ -47,7 +48,15 @@ export function GroupHome() {
     <main className="page">
       <div className="summary">
         {balances.data ? (
-          <BalanceCard cents={balances.data.balances[me] ?? 0} currency={g.currency} avatar={people.avatar(me)} seed={feed.data?.length ?? 0} />
+          <BalanceCard
+            cents={balances.data.balances[me] ?? 0}
+            currency={g.currency}
+            avatar={people.avatar(me)}
+            seed={feed.data?.length ?? 0}
+            squad={people.active
+              .filter((m) => m.userId !== me)
+              .map((m) => ({ userId: m.userId, name: m.displayName, avatar: m.avatar, cents: balances.data.balances[m.userId] ?? 0 }))}
+          />
         ) : (
           <section className="card balance even" aria-label="Your balance">
             <ErrorNote error={balances.error} />
@@ -86,8 +95,9 @@ export function GroupHome() {
 
       <div className="main">
         <div className="col">
+          {expenses.data?.length === 0 && <SquadNap people={people} addExpense={addExpense} />}
           <section className="card" aria-labelledby="settle-h">
-            <h3 id="settle-h">
+            <h3 id="settle-h" tabIndex={-1}>
               <UiIcon name="heart" />
               Settle up
               {needMe > 0 && (
@@ -96,7 +106,15 @@ export function GroupHome() {
                 </span>
               )}
             </h3>
-            <PendingActions groupId={id} pending={pending.data ?? []} me={me} people={people} currency={g.currency} />
+            <PendingActions
+              groupId={id}
+              pending={pending.data ?? []}
+              me={me}
+              people={people}
+              currency={g.currency}
+              fun={fun.data}
+              feed={feed.data}
+            />
             {balances.data && (
               <SuggestedTransfers
                 groupId={id}
@@ -105,6 +123,7 @@ export function GroupHome() {
                 me={me}
                 people={people}
                 currency={g.currency}
+                fun={fun.data}
               />
             )}
           </section>

@@ -1,21 +1,24 @@
 import { spinWeightsFromBalances, type SpinDTO } from '@squadsplit/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { Spinner } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { UiIcon } from '../design/icons'
+import { balanceMood, moodOf } from '../design/mood'
 import { prefersReducedMotion } from '../design/motion'
 import type { People } from '../groupData'
 import { invalidateGroup } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
-import { landingRotation, wheelSlices } from '../wheel'
+import { landingRotation, SPIN_DURATION_MS, wheelSlices } from '../wheel'
 import { ErrorNote } from './ErrorNote'
 import { WheelDisc } from './WheelDisc'
 
-/** How long the wheel turns (the .wheel transition in tokens.css), plus a beat before the winner shows. */
-const SPIN_MS = 3050
+/** How long the wheel spins (see WheelDisc), plus a beat before the ticket slides out. */
+const REVEAL_MS = SPIN_DURATION_MS + 150
+/** How many of the squad wait by the slot; more would wrap at 375px. */
+const WAITING = 8
 
 /**
  * A spin of the group's wheel. The server picks the winner (weighted towards whoever owes most); the wheel
@@ -41,7 +44,7 @@ function useWheelSpin(groupId: string) {
 
   useEffect(() => {
     if (!result || revealed) return
-    const timer = setTimeout(() => setRevealed(true), prefersReducedMotion() ? 0 : SPIN_MS)
+    const timer = setTimeout(() => setRevealed(true), prefersReducedMotion() ? 0 : REVEAL_MS)
     return () => clearTimeout(timer)
   }, [result, revealed])
 
@@ -51,11 +54,12 @@ function useWheelSpin(groupId: string) {
     void invalidateGroup(queryClient, groupId)
   }, [revealed, queryClient, groupId])
 
-  return { spin, result, rotation, winnerRef, spinning: spin.isPending || (result !== null && !revealed) }
+  return { spin, result, rotation, winnerRef, revealed, spinning: spin.isPending || (result !== null && !revealed) }
 }
 
 /**
- * "Who pays next?": the wheel with everyone's animal on their slice, their odds, and a Spin button.
+ * "Who pays next?": the wheel with everyone's animal on their slice, their odds, and a Spin button. When it stops, a
+ * ticket slides out of the slot with the winner on it, shivering, and then the rest of the squad sighs "phew".
  * Before a spin the odds come from the current balances; afterwards, from the weights the server used.
  * `children` goes at the bottom of the card (the group home links to the wheel page from there).
  */
@@ -76,9 +80,12 @@ export function WheelCard({
   compact?: boolean
   children?: ReactNode
 }) {
-  const { spin, result, rotation, winnerRef, spinning } = useWheelSpin(groupId)
+  const { spin, result, rotation, winnerRef, revealed, spinning } = useWheelSpin(groupId)
   const weights = result?.weights ?? spinWeightsFromBalances(balances ?? {}, people.active.map((m) => m.userId))
   const slices = wheelSlices(weights)
+  // The squad waits by the slot; once the ticket is out, everyone but the winner sighs "phew". The winner keeps their
+  // place in the row (hidden), so nothing moves.
+  const waiting = people.active.slice(0, WAITING)
 
   return (
     <section className={compact ? 'card wheel-card compact' : 'card wheel-card'} aria-labelledby="wheel-h">
@@ -93,7 +100,7 @@ export function WheelCard({
           <ul className="odds" aria-label="Odds">
             {slices.map((s) => (
               <li key={s.userId}>
-                <Avatar avatar={people.avatar(s.userId)} size="sm" />
+                <Avatar avatar={people.avatar(s.userId)} size="sm" {...balanceMood(balances?.[s.userId] ?? 0)} />
                 {people.name(s.userId)}
                 <b>{s.percent}%</b>
               </li>
@@ -105,20 +112,39 @@ export function WheelCard({
               Spin
             </button>
           </div>
-          <div className="winner" role="status">
-            {spinning ? (
-              <span className="s">Spinning…</span>
-            ) : !result ? (
-              <span className="s">Spin to find out</span>
-            ) : (
-              <div className="pop" key={result.id} ref={winnerRef}>
-                <Avatar avatar={people.avatar(result.winnerId)} mood="nervous" />
-                <span>{result.winnerId === me ? 'You pay next' : `${people.name(result.winnerId)} pays next`}</span>
-              </div>
-            )}
-          </div>
           {spin.isError && <ErrorNote error={spin.error} />}
         </div>
+      </div>
+      <div className="slot" role="status">
+        {result && revealed ? (
+          <div className="ticket" key={result.id} ref={winnerRef}>
+            <div className="tk-l">
+              <span className="shiver">
+                <Avatar avatar={people.avatar(result.winnerId)} size="lg" mood="nervous" sweat={2} />
+              </span>
+            </div>
+            <div className="tk-r">
+              <span className="lbl">Next round</span>
+              <b title={result.winnerId === me ? undefined : people.name(result.winnerId)}>
+                {result.winnerId === me ? 'You pay next' : `${people.name(result.winnerId)} pays next`}
+              </b>
+              <span className="s">{slices.find((s) => s.userId === result.winnerId)?.percent ?? 0}% odds</span>
+            </div>
+          </div>
+        ) : (
+          <span className="s">{spinning ? 'Spinning…' : 'Spin to find out'}</span>
+        )}
+      </div>
+      <div className={result && revealed ? 'relief on' : 'relief'} aria-hidden="true">
+        {waiting.map((m, i) => {
+          const picked = result !== null && revealed && m.userId === result.winnerId
+          return (
+            <span className={picked ? 'sigh picked' : 'sigh'} key={m.userId} style={{ '--i': i } as CSSProperties}>
+              <Avatar avatar={m.avatar} size="sm" title={m.displayName} mood={result && revealed ? 'happy' : moodOf(balances?.[m.userId] ?? 0)} />
+              <em>phew</em>
+            </span>
+          )
+        })}
       </div>
       {children}
     </section>

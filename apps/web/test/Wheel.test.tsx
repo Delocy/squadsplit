@@ -7,7 +7,7 @@ import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 beforeEach(() => {
-  // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the 3s spin.
+  // Fake timers that still follow the real clock, so findBy/waitFor keep working while we jump the spin.
   vi.useFakeTimers({ shouldAdvanceTime: true })
 })
 afterEach(() => {
@@ -54,7 +54,7 @@ describe('Wheel', () => {
     expect(await odds().findAllByText('50%')).toHaveLength(2)
   })
 
-  it("spins to the server's winner and announces them when the 3s animation ends", async () => {
+  it("spins to the server's winner and announces them when the spin and its wobble end", async () => {
     const calls = fakeApi(groupHandlers({}, { 'POST /groups/g1/spins': () => ({ status: 201, body: spin() }) }))
     renderApp('/groups/g1/wheel')
     fireEvent.click(await screen.findByRole('button', { name: 'Spin' }))
@@ -70,7 +70,7 @@ describe('Wheel', () => {
     expect((screen.getByRole('button', { name: 'Spin' }) as HTMLButtonElement).disabled).toBe(true)
 
     const feedReads = count(calls, 'GET /groups/g1/feed')
-    act(() => vi.advanceTimersByTime(2900))
+    act(() => vi.advanceTimersByTime(3400))
     expect(screen.queryByText('Bob pays next')).toBeNull()
     // No spoilers: the feed (which lists the spin) is only refetched once the wheel stops.
     expect(count(calls, 'GET /groups/g1/feed')).toBe(feedReads)
@@ -88,13 +88,13 @@ describe('Wheel', () => {
     renderApp('/groups/g1/wheel')
     fireEvent.click(await screen.findByRole('button', { name: 'Spin' }))
     await screen.findByText('Spinning…')
-    act(() => vi.advanceTimersByTime(3100))
+    act(() => vi.advanceTimersByTime(3700))
 
     fireEvent.click(screen.getByRole('button', { name: 'Spin' }))
     await screen.findByText('Spinning…')
     // Your slice is 270°–360°, centred on 315°: 2025 + 1800 + 360 − (2025 + 315) mod 360 = 4005.
     expect(screen.getByRole('img', { name: 'The wheel' }).style.transform).toBe('rotate(4005deg)')
-    act(() => vi.advanceTimersByTime(3100))
+    act(() => vi.advanceTimersByTime(3700))
     expect(within(screen.getByRole('status')).getByText('You pay next')).toBeTruthy()
   })
 
