@@ -277,7 +277,7 @@ squadsplit/                  (npm workspaces)
 - Tests:
   - **Vitest** unit tests for all the pure money logic in `packages/shared`
   - **API tests** using `@cloudflare/vitest-pool-workers` against a local D1, covering the permission matrix above with Clerk mocked
-  - No browser end-to-end tests in v1
+  - One browser check, outside `npm test`: `npm run e2e:tap-targets -w @squadsplit/web` (Playwright, `apps/web/e2e/`) measures that every control takes a 44×44px tap at 375px and 320px, against the real API on a throwaway local D1 with a fake sign-in injected through `createApp(deps)`. No other browser end-to-end tests in v1
 - URLs: the free `*.pages.dev` and `*.workers.dev` addresses. The API allows requests (CORS) only from the web app's origin.
 - Secrets:
   - **GitHub:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`

@@ -64,6 +64,15 @@ npm run typecheck
 npm test
 ```
 
+Tap targets (every control at least 44×44px) are measured in a real browser at 375px and 320px. The check starts the real API on a throwaway local D1 with a fake sign-in, the web app with a fake Clerk, and made-up people, so it needs no keys and touches no other database. It isn't part of `npm test`. Install Chromium for Playwright once:
+
+```bash
+npx playwright install chromium
+npm run e2e:tap-targets -w @squadsplit/web
+```
+
+It uses ports 5296 to 5298 (set `E2E_WEB_PORT` and `E2E_API_PORT` to move them) and exits 1, listing each control that's too small.
+
 ## Docs
 
 - [Design spec](docs/spec.md)
