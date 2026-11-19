@@ -271,8 +271,10 @@ input[type=date] { width: auto; }
 .landing { text-align: center; display: grid; justify-items: center; gap: 18px; padding-top: 40px; }
 .landing .logo .mark { width: 48px; height: 48px; }
 .landing .logo h1 { font-size: 28px; }
-.squad { display: flex; gap: 10px; margin-top: 8px; }
+/* Eight animals: two neat rows of four on a phone, one row once there's room. */
+.squad { display: grid; grid-template-columns: repeat(4, 58px); gap: 10px; justify-content: center; margin-top: 8px; }
 .squad .av { width: 58px; height: 58px; padding: 5px; }
+@media (min-width: 600px) { .squad { grid-template-columns: repeat(8, 54px); } .squad .av { width: 54px; height: 54px; } }
 .hero { font-size: 30px; line-height: 1.15; max-width: 14ch; }
 .lede { color: var(--muted); max-width: 34ch; margin: 0; }
 .cta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }

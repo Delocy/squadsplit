@@ -3,17 +3,22 @@
 const INK = '#5a3d5c'
 const BLUSH = '#ff9ec4'
 
-export type Kind = 'bunny' | 'bear' | 'panda' | 'kitty' | 'dog'
+export type Kind = 'bunny' | 'bear' | 'panda' | 'kitty' | 'fox' | 'hamster' | 'penguin' | 'koala' | 'dog'
 export type Mood = 'happy' | 'calm' | 'nervous'
 
 const svg = (vb: string, body: string, cls = '') =>
   `<svg class="${cls}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" stroke="${INK}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
 
-function face(cy: number, mood: Mood, darkPatches = false): string {
+function face(cy: number, mood: Mood, darkPatches = false, bigEyes = false): string {
   const eyeFill = darkPatches ? '#fff' : INK
   let eyes = ''
   if (mood === 'happy') {
     eyes = `<path d="M21 ${cy - 1} q3 -4.5 6 0 M37 ${cy - 1} q3 -4.5 6 0" fill="none" stroke="${darkPatches ? '#fff' : INK}" stroke-width="2.6"/>`
+  } else if (bigEyes) {
+    // Big, round, shiny eyes: a larger pupil with two highlights.
+    eyes = [24, 40]
+      .map((x) => `<circle cx="${x}" cy="${cy - 2}" r="3.7" fill="${INK}" stroke="none"/><circle cx="${x + 1.2}" cy="${cy - 3.3}" r="1.35" fill="#fff" stroke="none"/><circle cx="${x - 1.2}" cy="${cy - 0.6}" r=".6" fill="#fff" stroke="none"/>`)
+      .join('')
   } else {
     eyes = `<circle cx="24" cy="${cy - 2}" r="2.7" fill="${eyeFill}" stroke="none"/><circle cx="40" cy="${cy - 2}" r="2.7" fill="${eyeFill}" stroke="none"/>
       <circle cx="25" cy="${cy - 3}" r=".9" fill="${darkPatches ? INK : '#fff'}" stroke="none"/><circle cx="41" cy="${cy - 3}" r=".9" fill="${darkPatches ? INK : '#fff'}" stroke="none"/>`
@@ -26,6 +31,18 @@ function face(cy: number, mood: Mood, darkPatches = false): string {
   const sweat = mood === 'nervous'
     ? `<path d="M50 ${cy - 16} q4.5 6.5 0 9 q-4.5 -2.5 0 -9z" fill="#a8d8ff" stroke-width="1.6"/>` : ''
   return eyes + blush + mouth + sweat
+}
+
+/** face() without its mouth, for animals that draw their own under a nose or beak. */
+const noMouth = (f: string) => f.replace(/<path d="M2[789][^"]*"[^>]*\/>/, '')
+
+/** A mouth hanging from the bottom of a nose at (32, y), joined by a short line. */
+function snoutMouth(mood: Mood, y: number): string {
+  const mouth =
+    mood === 'happy' ? `<path d="M28.5 ${y + 2.1} q3.5 6 7 0 z" fill="#ff7aa8" stroke-width="2"/>`
+    : mood === 'nervous' ? `<path d="M28 ${y + 4.5} q2 -1.8 4 0 q2 1.8 4 0" fill="none" stroke-width="2.2"/>`
+    : `<path d="M28.5 ${y + 2} q1.75 2.2 3.5 0 q1.75 2.2 3.5 0" fill="none" stroke-width="2.2"/>`
+  return `<path d="M32 ${y} v2" fill="none" stroke-width="2"/>` + mouth
 }
 
 export function mascot(kind: Kind, faceColor: string, mood: Mood = 'calm', cls = ''): string {
@@ -48,20 +65,54 @@ export function mascot(kind: Kind, faceColor: string, mood: Mood = 'calm', cls =
       <ellipse cx="40.5" cy="35" rx="5.5" ry="7" fill="${INK}" stroke="none" transform="rotate(-25 40.5 35)"/>
       <ellipse cx="32" cy="42" rx="2.4" ry="1.7" fill="${INK}" stroke="none"/>` + face(37, mood, true)
   } else if (kind === 'dog') {
-    // The SquadSplit logo pup: tan face, floppy brown ears, a cream muzzle with a button nose.
-    const ear = '#b07a52'
+    // The SquadSplit logo: an apricot cavapoo pup. Curly scalloped crown, long wavy ears, cream muzzle, button nose.
+    const ear = '#e39a62'
+    const curl = '#c9773f'
+    body = `<path d="M12.7 43.5 A6.2 6.2 0 0 1 11.9 33.2 A6.3 6.3 0 0 1 17 24.1 A6.5 6.5 0 0 1 26.4 18.7 A6.7 6.7 0 0 1 37.6 18.7 A6.5 6.5 0 0 1 47 24.1 A6.3 6.3 0 0 1 52.1 33.2 A6.2 6.2 0 0 1 51.3 43.5 C49 52.5 41 56 32 56 C23 56 15 52.5 12.7 43.5 Z" fill="${faceColor}" ${s}/>
+      <path d="M27 25.5 q2 -2.6 4 0 M33 25.5 q2 -2.6 4 0 M30 21.5 q2 -2.6 4 0" fill="none" stroke="${curl}" stroke-width="1.6"/>
+      <path d="M19 23 A4.6 4.6 0 0 0 11.5 24.5 A4.9 4.9 0 0 0 6.5 31 A4.9 4.9 0 0 0 5 39 A4.9 4.9 0 0 0 6.5 47 A4.7 4.7 0 0 0 11.5 53 A3.4 3.4 0 0 0 16.8 51.5 C17.5 44 15.5 33 19.5 26.5 Z" fill="${ear}" ${s}/>
+      <path d="M45 23 A4.6 4.6 0 0 1 52.5 24.5 A4.9 4.9 0 0 1 57.5 31 A4.9 4.9 0 0 1 59 39 A4.9 4.9 0 0 1 57.5 47 A4.7 4.7 0 0 1 52.5 53 A3.4 3.4 0 0 1 47.2 51.5 C46.5 44 48.5 33 44.5 26.5 Z" fill="${ear}" ${s}/>
+      <path d="M9.5 33 q2 1.5 1 3.5 M8.5 42 q2 1.5 1 3.5 M54.5 33 q-2 1.5 -1 3.5 M55.5 42 q-2 1.5 -1 3.5" fill="none" stroke="${curl}" stroke-width="1.5"/>
+      <ellipse cx="32" cy="43" rx="9" ry="6.8" fill="#fff4e2" stroke-width="2"/>` +
+      noMouth(face(36, mood, false, true)) +
+      snoutMouth(mood, 41.5) +
+      `<ellipse cx="32" cy="39.2" rx="3.6" ry="2.6" fill="${INK}" stroke-width="1.2"/><ellipse cx="30.9" cy="38.4" rx="1.1" ry=".7" fill="#fff" stroke="none" opacity=".8"/>`
+  } else if (kind === 'fox') {
+    body = `<path d="M13 29 L12 6 L28 20 Z" fill="${faceColor}" ${s}/><path d="M51 29 L52 6 L36 20 Z" fill="${faceColor}" ${s}/>
+      <path d="M15.5 23 L15 12.5 L22.5 19 Z" fill="#fff4e2" stroke="none"/><path d="M48.5 23 L49 12.5 L41.5 19 Z" fill="#fff4e2" stroke="none"/>
+      <path d="M12 6 L12.3 11.5 L16.3 9.6 Z M52 6 L51.7 11.5 L47.7 9.6 Z" fill="#7a4e3a" stroke-width="2"/>
+      <path d="M8.5 35 Q11.5 21 32 20 Q52.5 21 55.5 35 L50.5 44 Q45.5 55.5 32 56 Q18.5 55.5 13.5 44 Z" fill="${faceColor}" ${s}/>
+      <path d="M11.5 37.5 Q21 35.5 28.5 40.5 Q32 42.5 35.5 40.5 Q43 35.5 52.5 37.5 L49 44.5 Q44.5 54 32 54.5 Q19.5 54 15 44.5 Z" fill="#fff8ef" stroke="none"/>` +
+      noMouth(face(35, mood)) +
+      snoutMouth(mood, 41.3) +
+      `<ellipse cx="32" cy="39.5" rx="2.9" ry="2" fill="${INK}" stroke="none"/>`
+  } else if (kind === 'hamster') {
+    body = `<circle cx="16" cy="21" r="6" fill="${faceColor}" ${s}/><circle cx="48" cy="21" r="6" fill="${faceColor}" ${s}/>
+      <circle cx="16" cy="21" r="2.8" fill="${BLUSH}" stroke="none"/><circle cx="48" cy="21" r="2.8" fill="${BLUSH}" stroke="none"/>
+      <ellipse cx="32" cy="38" rx="24" ry="19.5" fill="${faceColor}" ${s}/>
+      <path d="M9.6 41 Q20 33 32 38.5 Q44 33 54.4 41 Q51 56 32 56.5 Q13 56 9.6 41 Z" fill="#fff4e2" stroke="none"/>
+      <path d="M31 21 q1 4 0 7 M33 21 q-1 4 0 7" fill="none" stroke="#e0a868" stroke-width="1.6"/>` +
+      noMouth(face(37, mood)) +
+      snoutMouth(mood, 41.2) +
+      `<ellipse cx="32" cy="40" rx="2.2" ry="1.5" fill="#ff7aa8" stroke-width="1.2"/>`
+  } else if (kind === 'penguin') {
+    // Just a round penguin face: no bow tie, no hat.
+    const beak = '#ffb347'
     const mouth =
-      mood === 'happy' ? `<path d="M28.5 42.6 q3.5 6 7 0 z" fill="#ff7aa8" stroke-width="2"/>`
-      : mood === 'nervous' ? `<path d="M28 45 q2 -1.8 4 0 q2 1.8 4 0" fill="none" stroke-width="2.2"/>`
-      : `<path d="M28.5 42.5 q1.75 2.2 3.5 0 q1.75 2.2 3.5 0" fill="none" stroke-width="2.2"/>`
-    body = `<ellipse cx="32" cy="36" rx="21" ry="20" fill="${faceColor}" ${s}/>
-      <path d="M22.5 19 C15 14 6.5 17.5 5.5 29 C5 37 6.5 45.5 11.5 45.5 C16 45.5 16 39.5 17 34.5 C18 29.5 19.5 24.5 22.5 19 Z" fill="${ear}" ${s}/>
-      <path d="M41.5 19 C49 14 57.5 17.5 58.5 29 C59 37 57.5 45.5 52.5 45.5 C48 45.5 48 39.5 47 34.5 C46 29.5 44.5 24.5 41.5 19 Z" fill="${ear}" ${s}/>
-      <ellipse cx="32" cy="42" rx="9" ry="6.5" fill="#fff4e2" stroke-width="2"/>` +
-      // The pup draws its own mouth under the nose, so drop the shared one (the paths starting at x 27-29).
-      face(35, mood).replace(/<path d="M2[789][^"]*"[^>]*\/>/, '') +
-      mouth +
-      `<path d="M32 40.5 v2" fill="none" stroke-width="2"/><path d="M28.8 37 h6.4 q0 3.2 -3.2 3.9 q-3.2 -.7 -3.2 -3.9 z" fill="${INK}" stroke-width="1.2"/>`
+      mood === 'happy' ? `<path d="M28 38.5 h8 l-4 3.6 z" fill="${beak}" stroke-width="2"/><path d="M29.3 43.3 q2.7 3.6 5.4 0 z" fill="#ff7aa8" stroke-width="1.8"/>`
+      : mood === 'nervous' ? `<path d="M28.5 39.5 h7 l-3.5 4.5 z" fill="${beak}" stroke-width="2" transform="rotate(-8 32 41)"/>`
+      : `<path d="M28.5 39 h7 l-3.5 4.5 z" fill="${beak}" stroke-width="2"/>`
+    body = `<ellipse cx="32" cy="36" rx="22" ry="21" fill="#4b5878" ${s}/>
+      <path d="M32 25 C27 18 13 21 13.5 35 C14 47 23 53.5 32 53.5 C41 53.5 50 47 50.5 35 C51 21 37 18 32 25 Z" fill="${faceColor}" stroke-width="2"/>` +
+      noMouth(face(36, mood)) + mouth
+  } else if (kind === 'koala') {
+    body = `<circle cx="12.5" cy="24" r="10.5" fill="${faceColor}" ${s}/><circle cx="51.5" cy="24" r="10.5" fill="${faceColor}" ${s}/>
+      <circle cx="13.5" cy="25" r="6" fill="#f6eef4" stroke="none"/><circle cx="50.5" cy="25" r="6" fill="#f6eef4" stroke="none"/>
+      <ellipse cx="32" cy="37" rx="21" ry="19" fill="${faceColor}" ${s}/>` +
+      noMouth(face(35, mood)) +
+      `<path d="M27.6 37 Q27.6 33.6 32 33.6 Q36.4 33.6 36.4 37 L35.8 43.5 Q35 47.5 32 47.5 Q29 47.5 28.2 43.5 Z" fill="${INK}" stroke-width="1.2"/>
+      <ellipse cx="30.2" cy="37" rx="1" ry="1.9" fill="#fff" stroke="none" opacity=".55"/>` +
+      snoutMouth(mood, 47.5)
   } else {
     body = `<path d="M11 30 L13 7 L28 19 Z" fill="${faceColor}" ${s}/><path d="M53 30 L51 7 L36 19 Z" fill="${faceColor}" ${s}/>
       <path d="M15 24 L16 13 L23 19 Z" fill="${BLUSH}" stroke="none"/><path d="M49 24 L48 13 L41 19 Z" fill="${BLUSH}" stroke="none"/>

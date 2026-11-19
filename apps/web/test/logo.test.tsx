@@ -20,13 +20,16 @@ describe('the logo', () => {
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
   })
 
-  it('is the pup on the landing page, above the four avatar animals', async () => {
+  it('is the pup on the landing page, above all eight avatar animals', async () => {
     signIn.state = false
     renderApp('/')
     await screen.findByRole('heading', { name: 'Split bills, not friendships.' })
     expect(document.querySelector('.landing .logo .mark svg.mascot-dog')).toBeTruthy()
     const squad = [...document.querySelectorAll('.landing .squad svg')].map((svg) => svg.getAttribute('class'))
-    expect(squad).toEqual(['mascot-bunny', 'mascot-bear', 'mascot-panda', 'mascot-kitty'])
+    expect(squad).toEqual([
+      'mascot-bunny', 'mascot-bear', 'mascot-panda', 'mascot-kitty',
+      'mascot-fox', 'mascot-hamster', 'mascot-penguin', 'mascot-koala',
+    ])
     expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
   })
 })

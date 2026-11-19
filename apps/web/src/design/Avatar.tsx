@@ -6,8 +6,13 @@ const ANIMALS: { kind: Kind; face: string }[] = [
   { kind: 'bear', face: '#f3d2b3' },
   { kind: 'panda', face: '#ffffff' },
   { kind: 'kitty', face: '#ffe8a3' },
+  { kind: 'fox', face: '#f8a86a' },
+  { kind: 'hamster', face: '#f5c590' },
+  { kind: 'penguin', face: '#ffffff' },
+  { kind: 'koala', face: '#c3c7d1' },
 ]
-const BACKGROUNDS = ['#ffc8dd', '#bde0fe', '#cdb4ff', '#b8f2d8']
+// Each animal's signature background, in the same order. The logo pup is not an avatar.
+const BACKGROUNDS = ['#ffc8dd', '#bde0fe', '#cdb4ff', '#b8f2d8', '#ffd8b5', '#fff1a8', '#c5f0f5', '#e6d6ff']
 
 /** FNV-1a: a small, stable string hash, so a user keeps the same animal on every device. */
 function hash(s: string): number {
@@ -25,7 +30,7 @@ export interface AvatarLook {
   bg: string
 }
 
-/** The four animals on their signature colours, as in the playground. */
+/** The eight avatar animals on their signature colours. */
 export const SQUAD: AvatarLook[] = ANIMALS.map((a, i) => ({ ...a, bg: BACKGROUNDS[i]! }))
 
 /** The animal and background colour for a user. Same id, same look. */

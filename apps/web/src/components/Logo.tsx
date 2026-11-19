@@ -1,8 +1,8 @@
 import { Link } from 'react-router'
 import { Mascot, type Mood } from '../design/icons'
 
-/** The SquadSplit pup, the logo mark. Avatars stay the four other animals. */
-export const LogoPup = ({ mood = 'happy' }: { mood?: Mood }) => <Mascot kind="dog" face="#f6e0bf" mood={mood} />
+/** The SquadSplit pup (an apricot cavapoo), the logo mark. It is never an avatar. */
+export const LogoPup = ({ mood = 'happy' }: { mood?: Mood }) => <Mascot kind="dog" face="#f5b98a" mood={mood} />
 
 export function Logo({ to = '/' }: { to?: string }) {
   return (
