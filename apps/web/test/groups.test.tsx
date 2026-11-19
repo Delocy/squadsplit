@@ -53,7 +53,7 @@ describe('Groups page', () => {
   })
 
   describe('join with a code', () => {
-    const invite: InvitePreviewDTO = { groupId: 'g9', name: 'Ski club', emoji: '🧡', memberCount: 4, alreadyMember: false, takenAvatars: [], myFormerAvatar: null }
+    const invite: InvitePreviewDTO = { groupId: 'g9', name: 'Ski club', emoji: '🧡', memberCount: 4, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, placeholders: [] }
     const joinForm = async () => within(await screen.findByRole('form', { name: 'Join with a code' }))
 
     it('opens the invite for a typed code, tidied up', async () => {

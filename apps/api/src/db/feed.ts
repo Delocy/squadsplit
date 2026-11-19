@@ -2,7 +2,7 @@ import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import type { FeedItem, SpinDTO } from '@squadsplit/shared'
 import type { Db } from '.'
 import { loadExpenses } from './expenses'
-import { expenses, memberships, settlements, spins } from './schema'
+import { expenses, memberships, settlements, spins, users } from './schema'
 import { toSettlementDTO } from './settlements'
 
 export const FEED_LIMIT = 50
@@ -49,7 +49,9 @@ export async function loadFeed(d: Db, groupId: string): Promise<FeedItem[]> {
     d
       .select({ userId: memberships.userId, joinedAt: memberships.joinedAt })
       .from(memberships)
-      .where(eq(memberships.groupId, groupId))
+      // A name added for someone who hasn't joined isn't a join; claiming it is (the membership's joined_at moves then).
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(and(eq(memberships.groupId, groupId), eq(users.kind, 'person')))
       .orderBy(desc(memberships.joinedAt), desc(memberships.userId))
       .limit(FEED_LIMIT),
   ])

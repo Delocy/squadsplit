@@ -1,9 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
-import { db } from './db'
-import { users } from './db/schema'
 import type { AuthDeps } from './deps'
 import type { AppEnv } from './env'
 import { HttpError, errorBody, handleError, payloadTooLarge } from './errors'
@@ -14,6 +11,7 @@ import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
 import { RECEIPT_SCAN_PATH, receiptRoutes } from './routes/receipts'
 import { groupSettlementRoutes, settlementRoutes } from './routes/settlements'
+import { ensureUser, isPlaceholderId } from './users'
 
 /** The largest request body on every route except a receipt scan. */
 const BODY_LIMIT = 64 * 1024
@@ -25,24 +23,9 @@ const authenticate =
     const header = c.req.header('Authorization') ?? ''
     const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
     const userId = token ? await deps.verifyToken(token) : null
-    if (!userId) throw new HttpError(401, 'unauthenticated', 'Sign in required')
+    // A placeholder's id is never a signed-in user's, so nobody can act as a name that hasn't been claimed.
+    if (!userId || isPlaceholderId(userId)) throw new HttpError(401, 'unauthenticated', 'Sign in required')
     c.set('userId', userId)
-    await next()
-  }
-
-/** Creates the caller's `users` row the first time we see them. Never refetches an existing profile. */
-const ensureUser =
-  (deps: AuthDeps): MiddlewareHandler<AppEnv> =>
-  async (c, next) => {
-    const id = c.var.userId
-    const existing = await db(c.env).select({ id: users.id }).from(users).where(eq(users.id, id)).get()
-    if (!existing) {
-      const profile = await deps.fetchProfile(id)
-      await db(c.env)
-        .insert(users)
-        .values({ id, ...profile, createdAt: new Date().toISOString() })
-        .onConflictDoNothing()
-    }
     await next()
   }
 

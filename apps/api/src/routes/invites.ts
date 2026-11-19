@@ -3,11 +3,11 @@ import { Hono } from 'hono'
 import {
   INVITE_CODE_ALPHABET as ALPHABET,
   INVITE_CODE_LENGTH as CODE_LENGTH,
-  defaultAvatar,
   effectiveAvatar,
   firstFreeAvatar,
   JoinGroupInput,
   MAX_GROUP_MEMBERS,
+  type AvatarChoice,
   type InvitePreviewDTO,
 } from '@squadsplit/shared'
 import { activeMemberAvatars, avatarColumns, ensureAvatarFree, storingLook } from '../avatars'
@@ -15,6 +15,8 @@ import { db, type Db } from '../db'
 import { groups, memberships } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, isUniqueViolation, parseOptionalBody } from '../errors'
+import { claimPlaceholder, groupPlaceholders } from '../placeholders'
+import { profileAvatarOf } from '../users'
 
 // Bytes at or above the largest multiple of the alphabet size are skipped, so every character is equally likely.
 const UNBIASED_BYTE_LIMIT = 256 - (256 % ALPHABET.length)
@@ -64,6 +66,59 @@ async function formerAvatar(d: Db, groupId: string, userId: string) {
   return row ? effectiveAvatar(userId, row) : null
 }
 
+/** Whether the user has ever been in the group (a current or former member). */
+async function hasMembership(d: Db, groupId: string, userId: string): Promise<boolean> {
+  const row = await d
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.groupId, groupId), eq(memberships.userId, userId)))
+    .get()
+  return row !== undefined
+}
+
+const isMembershipCollision = (err: unknown) => isUniqueViolation(err, 'memberships.group_id, memberships.user_id')
+const alreadyInGroup = () =>
+  new HttpError(409, 'already_in_group', "You've already been in this group, so you can't take one of its names.")
+const alreadyClaimed = () => new HttpError(409, 'already_claimed', 'Someone has already claimed that name.')
+
+/**
+ * Joining as one of the group's names (a placeholder): you take its place, history and look (unless you picked
+ * another), and its name becomes your nickname (unless you sent one). 409 for someone who has been in the group
+ * before, or for a name that isn't one of this group's unclaimed names.
+ */
+async function claim(
+  d: Db,
+  groupId: string,
+  me: string,
+  placeholderId: string,
+  input: { avatar?: AvatarChoice; nickname?: string | null },
+) {
+  if (await hasMembership(d, groupId, me)) throw alreadyInGroup()
+  const placeholder = (await groupPlaceholders(d, groupId)).find((p) => p.userId === placeholderId)
+  if (!placeholder) throw alreadyClaimed()
+  const members = await activeMemberAvatars(d, groupId)
+  const avatar = input.avatar ?? members.find((m) => m.userId === placeholderId)!.avatar
+  if (input.avatar) ensureAvatarFree(input.avatar, members.filter((m) => m.userId !== placeholderId).map((m) => m.avatar))
+
+  const statements = claimPlaceholder(d, {
+    groupId,
+    placeholderId,
+    userId: me,
+    avatar,
+    nickname: input.nickname !== undefined ? input.nickname : placeholder.name,
+    now: new Date().toISOString(),
+  })
+  let moved: { userId: string }[]
+  try {
+    ;[moved] = await storingLook(d.batch(statements))
+  } catch (err) {
+    // You joined the group some other way at the same moment.
+    if (isMembershipCollision(err)) throw alreadyInGroup()
+    throw err
+  }
+  if (moved.length === 0) throw alreadyClaimed()
+}
+
 const groupFull = () => new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
 
 export function inviteRoutes() {
@@ -81,13 +136,21 @@ export function inviteRoutes() {
         alreadyMember: members.some((m) => m.userId === me),
         takenAvatars: members.map((m) => m.avatar),
         myFormerAvatar: await formerAvatar(d, group.id, me),
+        placeholders: (await groupPlaceholders(d, group.id)).map((p) => ({
+          ...p,
+          avatar: members.find((m) => m.userId === p.userId)!.avatar,
+        })),
       })
     })
     .post('/:code/join', async (c) => {
       const d = db(c.env)
       const me = c.var.userId
       const group = await groupByInviteCode(d, c.req.param('code'))
-      const input = await parseOptionalBody(c, JoinGroupInput)
+      const { claim: placeholderId, ...input } = await parseOptionalBody(c, JoinGroupInput)
+      if (placeholderId !== undefined) {
+        await claim(d, group.id, me, placeholderId, input)
+        return c.json({ groupId: group.id })
+      }
       const members = await activeMemberAvatars(d, group.id)
       // Already in: nothing changes, not even the avatar.
       if (members.some((m) => m.userId === me)) return c.json({ groupId: group.id })
@@ -95,8 +158,8 @@ export function inviteRoutes() {
       const taken = members.map((m) => m.avatar)
       let avatar = input.avatar
       if (avatar) ensureAvatarFree(avatar, taken)
-      // No choice: a former member's old look, else their default, moved on to a free one if it's taken.
-      else avatar = firstFreeAvatar((await formerAvatar(d, group.id, me)) ?? defaultAvatar(me), taken)
+      // No choice: a former member's old look, else their profile look, moved on to a free one if it's taken.
+      else avatar = firstFreeAvatar((await formerAvatar(d, group.id, me)) ?? (await profileAvatarOf(d, me)), taken)
 
       const now = new Date().toISOString()
       // New: insert as a member. Former member: reactivate (role unchanged). Current member: no-op.

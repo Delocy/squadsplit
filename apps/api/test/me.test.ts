@@ -1,10 +1,10 @@
 import { env } from 'cloudflare:test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import type { ApiErrorBody, MeDTO } from '@squadsplit/shared'
+import { defaultAvatar, firstFreeAvatar, type ApiErrorBody, type GroupDTO, type InvitePreviewDTO, type MeDTO } from '@squadsplit/shared'
 import { createApp } from '../src/app'
 import { users } from '../src/db/schema'
-import { db, fakeDeps, testApp } from './helpers'
+import { db, fakeDeps, json, testApp } from './helpers'
 
 const app = testApp()
 
@@ -32,7 +32,7 @@ describe('GET /me', () => {
   it('returns the caller and creates their users row', async () => {
     const res = await app.as('alice')('/me')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'User alice', avatarUrl: null })
+    expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'User alice', avatarUrl: null, profileAvatar: defaultAvatar('alice') })
 
     const rows = await db().select().from(users).where(eq(users.id, 'alice'))
     expect(rows).toHaveLength(1)
@@ -63,7 +63,7 @@ describe('GET /me', () => {
       const res = await asAlice()
 
       expect(res.status).toBe(200)
-      expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'Alice', avatarUrl: 'https://img/a' })
+      expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'Alice', avatarUrl: 'https://img/a', profileAvatar: defaultAvatar('alice') })
       expect(error).toHaveBeenCalledWith(expect.stringContaining('fetchProfile failed'), expect.any(Error))
     })
 
@@ -77,6 +77,49 @@ describe('GET /me', () => {
 
   it('starts each test with an empty database', async () => {
     expect(await db().select().from(users)).toEqual([])
+  })
+})
+
+describe('profile look', () => {
+  const alice = app.as('alice')
+  const look = { animal: 'penguin', color: 'mint' } as const
+  const setLook = (body: unknown, as = alice) => as('/me', json('PATCH', body))
+
+  it('PATCH /me stores your look, and GET /me returns it (a Clerk refresh keeps it)', async () => {
+    const res = await setLook({ profileAvatar: look })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual<MeDTO>({ id: 'alice', displayName: 'User alice', avatarUrl: null, profileAvatar: look })
+
+    expect(await (await alice('/me')).json()).toMatchObject({ profileAvatar: look })
+    expect(await (await alice('/me')).json()).toMatchObject({ profileAvatar: look })
+  })
+
+  it('rejects a look outside the palette, or a missing one (422)', async () => {
+    expect((await setLook({ profileAvatar: { animal: 'dog', color: 'mint' } })).status).toBe(422)
+    expect((await setLook({})).status).toBe(422)
+  })
+
+  it('starts you on your profile look in a group you create', async () => {
+    await setLook({ profileAvatar: look })
+    const group = (await (await alice('/groups', json('POST', { name: 'Trip', emoji: '🏝️' }))).json()) as GroupDTO
+    expect(group.members[0]!.avatar).toEqual(look)
+  })
+
+  it('starts you on your profile look when you join without picking, or the first free look after it', async () => {
+    const bob = app.as('bob')
+    const carol = app.as('carol')
+    await setLook({ profileAvatar: look }, bob)
+    await setLook({ profileAvatar: look }, carol)
+    const group = (await (await alice('/groups', json('POST', { name: 'Trip', emoji: '🏝️' }))).json()) as GroupDTO & { inviteCode: string }
+
+    await bob(`/invites/${group.inviteCode}/join`, { method: 'POST' })
+    await carol(`/invites/${group.inviteCode}/join`, { method: 'POST' })
+
+    const members = ((await (await alice(`/groups/${group.id}`)).json()) as GroupDTO).members
+    expect(members.find((m) => m.userId === 'bob')!.avatar).toEqual(look)
+    expect(members.find((m) => m.userId === 'carol')!.avatar).toEqual(firstFreeAvatar(look, [defaultAvatar('alice'), look]))
+    const preview = (await (await app.as('dave')(`/invites/${group.inviteCode}`)).json()) as InvitePreviewDTO
+    expect(preview.takenAvatars).toContainEqual(look)
   })
 })
 

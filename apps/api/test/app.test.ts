@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import type { ApiErrorBody } from '@squadsplit/shared'
+import { defaultAvatar, type ApiErrorBody } from '@squadsplit/shared'
 import { createApp } from '../src/app'
 import { users } from '../src/db/schema'
 import type { AuthDeps } from '../src/deps'
@@ -78,7 +78,7 @@ describe('auth', () => {
 
     const res = await app.request('/me', { headers: { Authorization: 'Bearer alice' } }, env)
 
-    expect(await res.json()).toEqual({ id: 'alice', displayName: 'New name', avatarUrl: null })
+    expect(await res.json()).toEqual({ id: 'alice', displayName: 'New name', avatarUrl: null, profileAvatar: defaultAvatar('alice') })
     expect(deps.fetchProfile).toHaveBeenCalledTimes(1)
     const row = await db().select().from(users).where(eq(users.id, 'alice')).get()
     expect(row).toMatchObject({ displayName: 'New name', createdAt: '2026-01-01T00:00:00.000Z' })

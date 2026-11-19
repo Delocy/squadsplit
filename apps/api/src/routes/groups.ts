@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import {
+  AddPlaceholderInput,
   computeBalances,
   CreateGroupInput,
-  defaultAvatar,
   effectiveAvatar,
+  MAX_GROUP_MEMBERS,
   UpdateGroupInput,
   UpdateMemberInput,
   type Currency,
@@ -19,6 +20,14 @@ import { loadLedger } from '../db/ledger'
 import { expenses, groups, memberships, settlements, users } from '../db/schema'
 import type { AppEnv } from '../env'
 import { HttpError, parseBody } from '../errors'
+import {
+  deletePlaceholder,
+  insertPlaceholder,
+  insertPlaceholderIfRoom,
+  newPlaceholders,
+  placeholderInUse,
+} from '../placeholders'
+import { profileAvatarOf } from '../users'
 import { withFreshInviteCode } from './invites'
 
 async function balanceOf(d: Db, groupId: string, userId: string): Promise<number> {
@@ -42,6 +51,13 @@ async function hasPendingSettlement(d: Db, groupId: string, userId: string): Pro
   return pending !== undefined
 }
 
+const groupFull = () => new HttpError(409, 'group_full', `This group is full (${MAX_GROUP_MEMBERS} people).`)
+
+async function isPlaceholder(d: Db, userId: string): Promise<boolean> {
+  const row = await d.select({ kind: users.kind }).from(users).where(eq(users.id, userId)).get()
+  return row?.kind === 'placeholder'
+}
+
 const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 /** The group as `viewerId` sees it: the invite code is for the owner's eyes only. */
@@ -59,6 +75,7 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
         leftAt: memberships.leftAt,
         avatarAnimal: memberships.avatarAnimal,
         avatarColor: memberships.avatarColor,
+        kind: users.kind,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
@@ -81,11 +98,12 @@ async function groupDTO(d: Db, groupId: string, viewerId: string): Promise<Group
     currency: group.currency as Currency,
     inviteCode: viewerId === group.ownerId ? group.inviteCode : null,
     ownerId: group.ownerId,
-    members: members.map(({ profileName, joinedAt: _joinedAt, leftAt, avatarAnimal, avatarColor, ...m }) => ({
+    members: members.map(({ profileName, joinedAt: _joinedAt, leftAt, avatarAnimal, avatarColor, kind, ...m }) => ({
       ...m,
       displayName: m.nickname ?? profileName,
       active: leftAt === null,
       avatar: shown.get(m.userId) ?? effectiveAvatar(m.userId, { animal: avatarAnimal, color: avatarColor }),
+      placeholder: kind === 'placeholder',
     })),
   }
 }
@@ -114,13 +132,19 @@ export function groupRoutes() {
     .post('/', async (c) => {
       const d = db(c.env)
       const me = c.var.userId
-      const { nickname, ...input } = await parseBody(c, CreateGroupInput)
+      const { nickname, members: names = [], ...input } = await parseBody(c, CreateGroupInput)
       const id = crypto.randomUUID()
-      const now = new Date().toISOString()
+      const created = Date.now()
+      const now = new Date(created).toISOString()
+      // You start on your profile look; everyone you name gets a free look of their own.
+      const ownerAvatar = await profileAvatarOf(d, me)
+      const placeholders = newPlaceholders(names, [ownerAvatar])
       await withFreshInviteCode((inviteCode) =>
         d.batch([
           d.insert(groups).values({ id, ...input, inviteCode, ownerId: me, createdAt: now }),
-          d.insert(memberships).values({ groupId: id, userId: me, role: 'owner', joinedAt: now, nickname, ...avatarColumns(defaultAvatar(me)) }),
+          d.insert(memberships).values({ groupId: id, userId: me, role: 'owner', joinedAt: now, nickname, ...avatarColumns(ownerAvatar) }),
+          // A millisecond apart, so the group lists them in the order they were typed.
+          ...placeholders.flatMap((p, i) => insertPlaceholder(d, id, p, new Date(created + i + 1).toISOString())),
         ]),
       )
       return c.json(await groupDTO(d, id, me), 201)
@@ -162,6 +186,22 @@ export function groupRoutes() {
       return c.json({ inviteCode })
     })
 
+    // The owner adds someone who hasn't joined yet, by name. They count towards the cap like anyone else.
+    .post('/:id/placeholders', async (c) => {
+      const d = db(c.env)
+      const groupId = c.req.param('id')
+      const me = c.var.userId
+      await requireOwner(d, groupId, me)
+      const { name } = await parseBody(c, AddPlaceholderInput)
+      const taken = (await activeMemberAvatars(d, groupId)).map((m) => m.avatar)
+      if (taken.length >= MAX_GROUP_MEMBERS) throw groupFull()
+      const [placeholder] = newPlaceholders([name], taken)
+      const [, written] = await storingLook(d.batch(insertPlaceholderIfRoom(d, groupId, placeholder!, new Date().toISOString())))
+      if (written.length === 0) throw groupFull()
+      const group = await groupDTO(d, groupId, me)
+      return c.json<MemberDTO>(group.members.find((m) => m.userId === placeholder!.id)!, 201)
+    })
+
     // The caller's nickname and look in this group. The avatar must differ from every other active member's.
     .patch('/:id/members/me', async (c) => {
       const d = db(c.env)
@@ -194,6 +234,14 @@ export function groupRoutes() {
 
       const targetRole = await findActiveRole(d, groupId, targetId)
       if (!targetRole) throw new HttpError(404, 'not_found', 'Member not found')
+      // A name nobody has claimed is deleted outright, but only while nothing in the group's history uses it.
+      if (await isPlaceholder(d, targetId)) {
+        if (await placeholderInUse(d, targetId)) {
+          throw new HttpError(409, 'name_in_use', "This name is already in the group's expenses or history, so it stays until they join and claim it.")
+        }
+        await d.batch(deletePlaceholder(d, groupId, targetId))
+        return c.body(null, 204)
+      }
       if (targetRole === 'owner') throw new HttpError(409, 'owner_cannot_leave', "The owner can't leave the group")
       if ((await balanceOf(d, groupId, targetId)) !== 0) {
         throw new HttpError(409, 'balance_not_zero', 'Only a member whose balance is exactly 0 can leave the group')
