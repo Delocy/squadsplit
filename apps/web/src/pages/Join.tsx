@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
-import { AvatarPicker, avatarErrorOf, YouPreview } from '../components/AvatarPicker'
+import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { lookOf } from '../design/Avatar'
@@ -29,6 +29,7 @@ export function Join() {
   const me = useAuth().userId ?? ''
   const profileName = useMe().data?.displayName ?? ''
   const nickname = useNicknameDraft(profileName)
+  /** The look you picked; null until you pick one. */
   const [choice, setChoice] = useState<AvatarChoice | null>(null)
   const [showHint, setShowHint] = useState(false)
 
@@ -78,15 +79,21 @@ export function Join() {
 
   const g = invite.data
   const look = lookOf(defaultAvatar(g.groupId))
-  // Your pick while it's free; otherwise (and to start with) the first free look from your pick or your default.
-  const avatar =
-    choice && !g.takenAvatars.some((t) => sameAvatar(t, choice)) ? choice : firstFreeAvatar(choice ?? defaultAvatar(me), g.takenAvatars)
+  // What the server gives you if you don't pick: the look you left with (if you're rejoining), else your default,
+  // moved on to the first free look if someone has it.
+  const given = firstFreeAvatar(g.myFormerAvatar ?? defaultAvatar(me), g.takenAvatars)
+  // Your pick while it's free; if someone took it, the first free look from it; with no pick, what you're given.
+  const avatar = choice ? firstFreeAvatar(choice, g.takenAvatars) : given
 
   function submit(e: FormEvent) {
     e.preventDefault()
     setShowHint(nickname.invalid)
     if (nickname.invalid) return
-    join.mutate({ avatar, ...(nickname.change !== undefined && { nickname: nickname.change }) })
+    // The avatar only goes when it differs from what you're given, so the server's rule (old look first) applies.
+    join.mutate({
+      ...(!sameAvatar(avatar, given) && { avatar }),
+      ...(nickname.change !== undefined && { nickname: nickname.change }),
+    })
   }
 
   // Full from the preview, or it filled up between the preview and pressing Join.
@@ -129,7 +136,7 @@ export function Join() {
             <button className="btn primary" type="submit" disabled={join.isPending}>
               {join.isPending ? 'Joining…' : 'Join group'}
             </button>
-            <ErrorNote error={avatarErrorOf(join.error)} />
+            <ErrorNote error={join.error} />
           </form>
         )}
       </section>

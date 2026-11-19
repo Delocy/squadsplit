@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
-import { AvatarPicker, avatarErrorOf, YouPreview } from '../components/AvatarPicker'
+import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ConfirmBar } from '../components/ConfirmBar'
 import { ErrorNote } from '../components/ErrorNote'
 import { GroupUnavailable } from '../components/GroupUnavailable'
@@ -124,7 +124,7 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
           </button>
         </div>
       </form>
-      {save.isError && <ErrorNote error={avatarErrorOf(save.error)} />}
+      {save.isError && <ErrorNote error={save.error} />}
     </section>
   )
 }

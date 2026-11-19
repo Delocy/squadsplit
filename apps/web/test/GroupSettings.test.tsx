@@ -223,13 +223,14 @@ describe('Group settings', () => {
     })
 
     it('explains a look someone else just took', async () => {
-      fakeApi(groupHandlers({}, { 'PATCH /groups/g1/members/me': conflict('avatar_taken', 'Conflict') }))
+      fakeApi(groupHandlers({}, { 'PATCH /groups/g1/members/me': conflict('avatar_taken', 'That look was just taken.') }))
       renderApp('/groups/g1/settings')
 
       fireEvent.click(await screen.findByRole('button', { name: 'Bear' }))
       fireEvent.click(you().getByRole('button', { name: 'Save' }))
 
-      expect(await you().findByText('Someone in this group already looks like that — pick another.')).toBeTruthy()
+      // The API's own words.
+      expect(await you().findByText('That look was just taken.')).toBeTruthy()
     })
   })
 
