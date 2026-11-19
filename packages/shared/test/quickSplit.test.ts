@@ -98,6 +98,12 @@ describe('quickSplitBreakdown', () => {
     expect(draft[2]![1]).toEqual([{ name: 'Teh tarik', shareCents: 162, sharedBy: 2 }])
   })
 
+  it('throws SplitError for a dish with fewer cents than the people sharing it, even when everyone has other dishes', () => {
+    const mint = { name: 'Mint', amountCents: 1, personIds: ['weiling', 'arjun'] }
+    expect(() => quickSplitBreakdown({ ...README_BILL, items: [...README_BILL.items, mint] })).toThrow(SplitError)
+    expect(quickSplitBreakdown({ ...README_BILL, items: [...README_BILL.items, { ...mint, amountCents: 2 }] }).totalCents).toBe(11045)
+  })
+
   it('throws SplitError when a dish is too small to give everyone a cent', () => {
     expect(() =>
       quickSplitBreakdown({ ...README_BILL, items: [{ name: 'Mint', amountCents: 1, personIds: ['weiling', 'arjun'] }] }),

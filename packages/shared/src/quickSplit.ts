@@ -132,12 +132,14 @@ function billOfInput(v: Pick<QuickSplitInput, 'people' | 'items' | 'serviceCharg
  * Each person's total and dishes, and the bill's charges, with the shared itemized maths: a shared dish is split
  * evenly (any spare cent to the payer if they shared it), and each total is that person's dishes plus the service
  * charge and GST, by the largest remainder, so the totals add up to the bill exactly. Throws SplitError when a dish
- * is too small to give everyone who shared it a cent.
+ * has fewer cents than the people who shared it, or a total would come to 0.
  */
 export function quickSplitBreakdown(bill: QuickSplitBill): QuickSplitBreakdown {
   // The shared maths breaks ties by id: a shared dish's spare cent and the largest remainder go to the id that sorts
   // first. People are relabelled by their place in the list ("00", "01", …), so ties go by entry order instead, the
   // same for the web's draft keys and the server's UUIDs, and the preview matches the saved split to the cent.
+  // A dish of fewer cents than the people sharing it would give someone a 0¢ part of it.
+  if (bill.items.some((it) => it.amountCents < it.personIds.length)) throw new SplitError()
   const label = new Map(bill.people.map((p, i) => [p.id, String(i).padStart(2, '0')]))
   const as = (id: string) => label.get(id) ?? id
   const payer = as(bill.people.find((p) => p.isPayer)?.id ?? '')

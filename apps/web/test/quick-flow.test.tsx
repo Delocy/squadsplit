@@ -189,6 +189,30 @@ describe('Quick split: making one', () => {
     expect(screen.getByRole('list', { name: "Who's splitting" }).textContent).toContain('Priya')
   })
 
+  it('says at once when a dish is too small to split that many ways, and saves nothing', async () => {
+    const { calls } = start()
+    await screen.findByRole('heading', { name: 'Quick split' })
+    type("What's it for?", 'Mints')
+    type('Dish name', 'Laksa', within(screen.getByRole('group', { name: 'Dish 1' })))
+    type('Price', '10', within(screen.getByRole('group', { name: 'Dish 1' })))
+    fireEvent.click(screen.getByRole('button', { name: 'Add a dish' }))
+    type('Dish name', 'Mint', within(screen.getByRole('group', { name: 'Dish 2' })))
+    type('Price', '0.01', within(screen.getByRole('group', { name: 'Dish 2' })))
+    fireEvent.click(screen.getByRole('button', { name: /Next: who.s in/ }))
+    await addPeople('Wei Ling')
+    fireEvent.click(screen.getByRole('button', { name: /Next: who had what/ }))
+    tap('Laksa', 'You', 'Wei Ling')
+    tap('Mint', 'You', 'Wei Ling')
+
+    const totals = totalsCard()
+    expect(totals.getByText('A dish is too small to split that many ways.')).toBeTruthy()
+    expect(totals.queryByText(/Adds up to the bill/)).toBeNull()
+    expect(totals.queryByText(/\$/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Make the share card' }))
+    expect(screen.getByRole('alert').textContent).toMatch(/too small to split/)
+    expect(calls.some((c) => c.key === 'POST /quick-splits')).toBe(false)
+  })
+
   it('puts only the first word of your profile name on the card, for you to change', async () => {
     start({ 'GET /me': () => ({ status: 200, body: { id: ME, displayName: 'Dan Tan Wei Ming', avatarUrl: null, profileAvatar: defaultAvatar(ME) } }) })
     await screen.findByRole('heading', { name: 'Quick split' })
