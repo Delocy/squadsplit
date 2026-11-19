@@ -209,6 +209,8 @@ function ExpenseFields({
     confirmDiscard.open()
     return false
   }
+  // Gone (saved, or the sheet shows something else): nothing left to ask about.
+  useEffect(() => () => void (guard.current = null), [guard])
 
   const update = (patch: Partial<ExpenseDraft>) => {
     setProblem(null)
