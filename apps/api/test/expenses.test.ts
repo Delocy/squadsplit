@@ -367,6 +367,50 @@ describe('lock rule', () => {
   })
 })
 
+describe('former members', () => {
+  /**
+   * Carol pays one expense and shares an itemized one, then a top-up expense brings her balance to exactly 0
+   * so she can leave. No settlement is confirmed, so none of the expenses is locked.
+   */
+  async function carolLeaves() {
+    const group = await squad()
+    const paidByCarol = await logExpense(group.id, dinner({ amountCents: 600, paidBy: 'carol', split: { type: 'equal', participantIds: ['alice', 'carol'] } }))
+    const sharedByCarol = await logExpense(group.id, itemizedDinner([{ name: 'Satay', amountCents: 600, userIds: ['alice', 'carol'] }]))
+    const net = ((await (await alice(`/groups/${group.id}/balances`)).json()) as BalancesDTO).balances.carol ?? 0
+    const [payer, debtor] = net < 0 ? ['carol', 'alice'] : ['alice', 'carol']
+    await logExpense(group.id, dinner({ amountCents: Math.abs(net), paidBy: payer, split: { type: 'exact', shares: [{ userId: debtor, amountCents: Math.abs(net) }] } }))
+    expect((await carol(`/groups/${group.id}/members/carol`, { method: 'DELETE' })).status).toBe(204)
+    return { group, paidByCarol, sharedByCarol }
+  }
+
+  it('PATCH answers 409 expense_has_former_member when the payer or a share belongs to someone who left', async () => {
+    const { group, paidByCarol, sharedByCarol } = await carolLeaves()
+    for (const e of [paidByCarol, sharedByCarol]) {
+      const res = await alice(`/expenses/${e.id}`, json('PATCH', dinner({ description: 'Renamed', paidBy: 'alice', split: { type: 'equal', participantIds: ['alice', 'bob'] } })))
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        error: { code: 'expense_has_former_member', message: "Someone in this expense has left the group, so it can't be changed." },
+      })
+    }
+    expect((await listExpenses(group.id)).find((e) => e.id === paidByCarol.id)).toEqual(paidByCarol)
+  })
+
+  it('DELETE answers 409 expense_has_former_member, and the expense stays', async () => {
+    const { group, sharedByCarol } = await carolLeaves()
+    const res = await alice(`/expenses/${sharedByCarol.id}`, { method: 'DELETE' })
+    expect(res.status).toBe(409)
+    expect(await errorCode(res)).toBe('expense_has_former_member')
+    expect((await listExpenses(group.id)).map((e) => e.id)).toContain(sharedByCarol.id)
+  })
+
+  it('checks permission first, and leaves expenses without the former member editable', async () => {
+    const { group, sharedByCarol } = await carolLeaves()
+    expect((await bob(`/expenses/${sharedByCarol.id}`, { method: 'DELETE' })).status).toBe(403)
+    const unrelated = await logExpense(group.id, dinner({ paidBy: 'alice', split: { type: 'equal', participantIds: ['alice', 'bob'] } }))
+    expect((await alice(`/expenses/${unrelated.id}`, { method: 'DELETE' })).status).toBe(204)
+  })
+})
+
 describe('GET /groups/:id/balances', () => {
   it('returns the nets and the simplified debts', async () => {
     const group = await squad()

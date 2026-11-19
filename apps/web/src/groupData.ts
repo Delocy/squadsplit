@@ -67,3 +67,12 @@ export function peopleOf(group: GroupDTO, me: string): People {
     isFormer: (userId) => byId.get(userId)?.active !== true,
   }
 }
+
+/**
+ * Someone in the expense (payer, a share or an item) who has left the group, if any. Like a lock, this
+ * stops edit and delete: re-splitting would move a balance nobody can settle any more. The API enforces it too.
+ */
+export function formerMemberIn(e: ExpenseDTO, people: People): string | null {
+  const ids = [e.paidBy, ...e.shares.map((s) => s.userId), ...(e.items ?? []).flatMap((i) => i.userIds)]
+  return ids.find((id) => people.isFormer(id)) ?? null
+}

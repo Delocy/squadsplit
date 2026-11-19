@@ -102,7 +102,18 @@ async function loadExpense(d: Db, expenseId: string): Promise<ExpenseDTO> {
   return expense
 }
 
-/** The expense, if the caller may change it now: 404 for non-members, 403 unless creator or owner, 409 when locked. */
+async function activeMemberIds(d: Db, groupId: string): Promise<Set<string>> {
+  const rows = await d
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.groupId, groupId), isNull(memberships.leftAt)))
+  return new Set(rows.map((r) => r.userId))
+}
+
+/**
+ * The expense, if the caller may change it now: 404 for non-members, 403 unless creator or owner,
+ * 409 when locked or when someone in it has left (changing it would move a balance nobody can settle).
+ */
 async function changeableExpense(d: Db, expenseId: string, userId: string): Promise<ExpenseDTO> {
   const expense = await loadExpense(d, expenseId)
   const { role } = await requireMember(d, expense.groupId, userId)
@@ -111,6 +122,11 @@ async function changeableExpense(d: Db, expenseId: string, userId: string): Prom
   }
   if (expense.locked) {
     throw new HttpError(409, 'expense_locked', 'A settlement has been confirmed since this expense was logged, so it is locked')
+  }
+  const active = await activeMemberIds(d, expense.groupId)
+  const people = [expense.paidBy, ...expense.shares.map((s) => s.userId), ...(expense.items ?? []).flatMap((i) => i.userIds)]
+  if (!people.every((id) => active.has(id))) {
+    throw new HttpError(409, 'expense_has_former_member', "Someone in this expense has left the group, so it can't be changed.")
   }
   return expense
 }

@@ -150,7 +150,36 @@ describe('Group home', () => {
       )
       renderApp('/groups/g1')
       fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
-      expect(await screen.findByText('You can settle at most 1500 cents with this member right now')).toBeTruthy()
+      expect(await screen.findByText('You can mark at most $30.00 as paid right now.')).toBeTruthy()
+      expect(screen.queryByText(/cents/)).toBeNull()
+    })
+
+    it('keeps the API message for other settlement errors', async () => {
+      fakeApi(
+        groupHandlers(
+          { balances: { balances: { [ME]: -3000, [BOB]: 3000 }, suggestions: [{ fromUserId: ME, toUserId: BOB, amountCents: 3000 }] } },
+          {
+            'POST /groups/g1/settlements': () => ({
+              status: 422,
+              body: { error: { code: 'not_a_member', message: 'You can only settle up with a current member of the group' } },
+            }),
+          },
+        ),
+      )
+      renderApp('/groups/g1')
+      fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }))
+      expect(await screen.findByText('You can only settle up with a current member of the group')).toBeTruthy()
+    })
+
+    it('offers no Mark paid to someone who has left the group', async () => {
+      fakeApi(
+        groupHandlers({
+          balances: { balances: { [ME]: -500, [CAROL]: 500 }, suggestions: [{ fromUserId: ME, toUserId: CAROL, amountCents: 500 }] },
+        }),
+      )
+      renderApp('/groups/g1')
+      expect(await screen.findByText('You → Carol')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull()
     })
 
     it("shows other people's transfers without a button, and says when everyone is settled", async () => {
@@ -208,6 +237,33 @@ describe('Group home', () => {
       const activity = await screen.findByRole('region', { name: /Activity/ })
       const rows = await within(activity).findAllByRole('listitem')
       expect(within(rows[2]!).getByRole('link', { name: /Edit/ })).toBeTruthy()
+    })
+
+    it('treats an expense with a former member like a locked one: a "member left" pill, no edit', async () => {
+      const withCarol = expense({
+        id: 'e9',
+        description: 'Beach club',
+        shares: [
+          { userId: ME, amountCents: 500 },
+          { userId: CAROL, amountCents: 500 },
+        ],
+      })
+      const paidByCarol = expense({ id: 'e10', description: 'Carol paid', paidBy: CAROL, shares: [{ userId: ME, amountCents: 1000 }] })
+      fakeApi(
+        groupHandlers({
+          feed: [
+            { type: 'expense', at: '2026-11-19T12:00:00.000Z', expense: withCarol },
+            { type: 'expense', at: '2026-11-19T11:00:00.000Z', expense: paidByCarol },
+          ],
+        }),
+      )
+      renderApp('/groups/g1')
+      const activity = await screen.findByRole('region', { name: /Activity/ })
+      const rows = await within(activity).findAllByRole('listitem')
+      for (const row of rows) {
+        expect(row.querySelector('.lock')!.textContent).toBe('member left')
+        expect(within(row).queryByRole('link', { name: /Edit/ })).toBeNull()
+      }
     })
 
     it('filters by tab', async () => {

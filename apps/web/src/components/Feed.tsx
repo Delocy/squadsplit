@@ -3,7 +3,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Avatar } from '../design/Avatar'
 import { CATEGORY_ART, CategoryIcon, categoryLabel, UiIcon } from '../design/icons'
-import type { People } from '../groupData'
+import { formerMemberIn, type People } from '../groupData'
 
 type Tab = 'all' | 'expenses' | 'paybacks'
 const TABS: { key: Tab; label: string }[] = [
@@ -42,8 +42,10 @@ export function Feed({
 
   function expenseRow(e: ExpenseDTO): ReactNode {
     const share = e.shares.find((s) => s.userId === me)?.amountCents ?? 0
-    // Mirrors the API rule: the creator or the owner may change it, and only while it is unlocked.
-    const canEdit = !e.locked && (e.createdBy === me || ownerId === me)
+    // Mirrors the API rules: the creator or the owner may change it, only while it is unlocked
+    // and while everyone in it is still in the group.
+    const memberLeft = !e.locked && formerMemberIn(e, people) !== null
+    const canEdit = !e.locked && !memberLeft && (e.createdBy === me || ownerId === me)
     const ways = e.shares.length === 1 ? 'for one person' : `split ${e.shares.length} ways`
     return (
       <>
@@ -53,10 +55,10 @@ export function Feed({
         <div className="grow">
           <div className="t">
             {e.description}
-            {e.locked && (
+            {(e.locked || memberLeft) && (
               <span className="lock">
                 <UiIcon name="lock" />
-                locked
+                {e.locked ? 'locked' : 'member left'}
               </span>
             )}
           </div>

@@ -1,5 +1,5 @@
 import { formatMoney, type BalancesDTO, type SettlementDTO, type Transfer } from '@squadsplit/shared'
-import { useApi } from '../api'
+import { ApiError, useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
 import { useGroupMutation, type People } from '../groupData'
@@ -35,6 +35,14 @@ export function SuggestedTransfers({
     api.post<SettlementDTO>(`/groups/${groupId}/settlements`, t),
   )
 
+  // The API's exceeds_debt message counts raw cents; say it in money, from the (refetched) balances.
+  const friendlyError = (error: Error, toUserId: string | undefined) =>
+    error instanceof ApiError && error.code === 'exceeds_debt' && toUserId
+      ? new Error(
+          `You can mark at most ${formatMoney(settleableAmount(balances.balances, pending, me, toUserId), currency)} as paid right now.`,
+        )
+      : error
+
   const row = (t: Transfer) => {
     const amount = Math.min(t.amountCents, settleableAmount(balances.balances, pending, me, t.toUserId))
     return (
@@ -50,7 +58,7 @@ export function SuggestedTransfers({
           </div>
         </div>
         <div className="amt-r">{formatMoney(t.amountCents, currency)}</div>
-        {t.fromUserId === me && (
+        {t.fromUserId === me && !people.isFormer(t.toUserId) && (
           <button
             className="btn small primary"
             disabled={amount < 1 || settle.isPending}
@@ -73,7 +81,7 @@ export function SuggestedTransfers({
           <li className="empty">Everyone is settled up.</li>
         )}
       </ul>
-      {settle.isError && <ErrorNote error={settle.error} />}
+      {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables?.toUserId)} />}
     </>
   )
 }

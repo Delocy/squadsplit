@@ -23,7 +23,7 @@ import {
   type ItemDraft,
   type SplitMode,
 } from '../expenseDraft'
-import { useExpenses, useGroup, useGroupMutation } from '../groupData'
+import { formerMemberIn, peopleOf, useExpenses, useGroup, useGroupMutation } from '../groupData'
 
 const MODES: { key: SplitMode; label: string }[] = [
   { key: 'equal', label: 'Equally' },
@@ -41,6 +41,8 @@ export function ExpenseForm() {
   const close = () => navigate(`/groups/${groupId}`)
 
   const expense = expenseId ? expenses.data?.find((e) => e.id === expenseId) : undefined
+  const people = group.data ? peopleOf(group.data, me) : null
+  const leftMember = expense && people ? formerMemberIn(expense, people) : null
   let body: ReactNode
   if (!group.data || (expenseId && expenses.isPending)) body = <p className="empty">Loading…</p>
   else if (expenseId && !expense) body = <Notice onClose={close}>We can't find this expense. It may have been deleted.</Notice>
@@ -50,6 +52,8 @@ export function ExpenseForm() {
         This expense is locked: a payment has been confirmed since it was logged, so it can't be changed.
       </Notice>
     )
+  } else if (leftMember && people) {
+    body = <Notice onClose={close}>{people.name(leftMember)} has left the group, so this expense can't be changed.</Notice>
   } else if (expense && expense.createdBy !== me && group.data.ownerId !== me) {
     body = <Notice onClose={close}>Only the person who logged this expense or the group owner can change it.</Notice>
   } else {
@@ -320,15 +324,15 @@ function ExpenseFields({
               </div>
             ))}
           </div>
-          {summary.leftToAssign !== null && (
-            <p className={summary.leftToAssign === 0 ? 'left done' : 'left'}>
-              {summary.leftToAssign === 0
+          <p className={summary.leftToAssign === 0 ? 'left done' : 'left'}>
+            {summary.leftToAssign === null
+              ? 'Enter the total first'
+              : summary.leftToAssign === 0
                 ? 'Everything is assigned.'
                 : summary.leftToAssign > 0
                   ? `${money(summary.leftToAssign)} left to assign`
                   : `${money(-summary.leftToAssign)} too much assigned`}
-            </p>
-          )}
+          </p>
         </>
       )}
 

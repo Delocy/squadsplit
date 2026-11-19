@@ -71,10 +71,11 @@ export function newDraft(me: string, activeIds: string[], today: string): Expens
   }
 }
 
-/** The form filled in from a saved expense. People who have since left are dropped: they can't be in a split any more. */
+/**
+ * The form filled in from a saved expense, exactly as stored. Expenses that involve someone who has left
+ * never get here: the form refuses them (see formerMemberIn), so nothing is silently re-split.
+ */
 export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDraft {
-  const active = (id: string) => activeIds.includes(id)
-  const shares = e.shares.filter((s) => active(s.userId))
   return {
     description: e.description,
     amount: centsToInput(e.amountCents),
@@ -82,10 +83,10 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
     paidBy: e.paidBy,
     spentOn: e.spentOn,
     mode: e.splitType,
-    participantIds: e.splitType === 'equal' ? shares.map((s) => s.userId) : activeIds,
-    exact: e.splitType === 'exact' ? Object.fromEntries(shares.map((s) => [s.userId, centsToInput(s.amountCents)])) : {},
+    participantIds: e.splitType === 'equal' ? e.shares.map((s) => s.userId) : activeIds,
+    exact: e.splitType === 'exact' ? Object.fromEntries(e.shares.map((s) => [s.userId, centsToInput(s.amountCents)])) : {},
     items: e.items?.length
-      ? e.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents), userIds: it.userIds.filter(active) }))
+      ? e.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents), userIds: it.userIds }))
       : [emptyItem()],
     restaurantBill: (e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0,
   }

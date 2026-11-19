@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ME } from './clerk-mock'
-import { BOB, expense, groupHandlers } from './group-fixtures'
+import { BOB, CAROL, expense, groupHandlers } from './group-fixtures'
 import { fakeApi, renderApp } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
@@ -247,6 +247,33 @@ describe('Expense form', () => {
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
     expect(dialog.getByText(/locked/)).toBeTruthy()
     expect(dialog.queryByRole('button', { name: 'Save changes' })).toBeNull()
+  })
+
+  it('will not edit an expense someone who has left took part in, and offers no delete', async () => {
+    const calls = fakeApi(
+      groupHandlers({
+        expenses: [expense({ id: 'e7', shares: [{ userId: ME, amountCents: 500 }, { userId: CAROL, amountCents: 500 }] })],
+      }),
+    )
+    renderApp('/groups/g1/expenses/e7')
+    const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+    expect(dialog.getByText("Carol has left the group, so this expense can't be changed.")).toBeTruthy()
+    expect(dialog.queryByRole('button', { name: 'Save changes' })).toBeNull()
+    expect(dialog.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(dialog.queryByLabelText('Description')).toBeNull()
+    expect(calls.some((c) => c.key.startsWith('PATCH') || c.key.startsWith('DELETE'))).toBe(false)
+  })
+
+  it('in exact mode, asks for the total first when it is blank or zero', async () => {
+    const { dialog } = await openNewExpense()
+    fireEvent.click(dialog.getByRole('button', { name: 'Exact amounts' }))
+    expect(dialog.getByText('Enter the total first')).toBeTruthy()
+    type(dialog.getByLabelText('Amount (SGD)'), '0')
+    expect(dialog.getByText('Enter the total first')).toBeTruthy()
+    expect((dialog.getByRole('button', { name: 'Add expense' }) as HTMLButtonElement).disabled).toBe(true)
+    type(dialog.getByLabelText('Amount (SGD)'), '5')
+    expect(dialog.queryByText('Enter the total first')).toBeNull()
+    expect(dialog.getByText('$5.00 left to assign')).toBeTruthy()
   })
 
   it('closes back to the group', async () => {
