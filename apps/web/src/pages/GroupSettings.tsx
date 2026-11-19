@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/react'
-import { sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
+import { MAX_GROUP_MEMBERS, sameAvatar, type AvatarChoice, type GroupDTO, type MemberDTO, type UpdateMemberInput } from '@squadsplit/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
@@ -18,6 +18,7 @@ import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
+import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberName'
 import { invalidateGroup, queryKeys } from '../queryKeys'
 import { useSingleFlightMutation } from '../singleFlight'
 import { useMe } from '../useProfileRefresh'
@@ -59,6 +60,7 @@ export function GroupSettings() {
         {mine && <YouCard group={g} mine={mine} />}
         {isOwner && <RenameCard group={g} />}
         <MemberList group={g} me={me} />
+        {isOwner && <AddNameCard group={g} />}
         {!isOwner && <LeaveCard group={g} me={me} />}
       </div>
     </main>
@@ -126,6 +128,58 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
         </div>
       </form>
       {save.isError && <ErrorNote error={save.error} />}
+    </section>
+  )
+}
+
+/** The owner adds someone who hasn't joined yet, by name. They can claim it when they join. */
+function AddNameCard({ group }: { group: GroupDTO }) {
+  const api = useApi()
+  const [name, setName] = useState('')
+  const [invalid, setInvalid] = useState(false)
+  const add = useGroupMutation(group.id, (newName: string) => api.post<MemberDTO>(`/groups/${group.id}/placeholders`, { name: newName }))
+  const full = group.members.filter((m) => m.active).length >= MAX_GROUP_MEMBERS
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const parsed = parseMemberName(name)
+    setInvalid(parsed === null)
+    if (parsed === null) return
+    add.mutate(parsed, { onSuccess: () => setName('') })
+  }
+
+  return (
+    <section className="card" aria-labelledby="add-name-h">
+      <h3 id="add-name-h">
+        <UiIcon name="plus" />
+        Add a name
+      </h3>
+      <p className="s">For someone who hasn't joined yet. You can split with them now, and they can claim the name when they join.</p>
+      <form className="invite-link" onSubmit={submit} noValidate>
+        <input
+          type="text"
+          aria-label="Name"
+          value={name}
+          maxLength={MEMBER_NAME_MAX}
+          disabled={full}
+          onChange={(e) => {
+            setName(e.target.value)
+            setInvalid(false)
+          }}
+        />
+        <button className="btn" type="submit" disabled={full || add.isPending || !name.trim()}>
+          <BusyLabel busy={add.isPending} label="Adding…">
+            Add
+          </BusyLabel>
+        </button>
+      </form>
+      {full && <p className="s">The group is full ({MAX_GROUP_MEMBERS} people).</p>}
+      {invalid && (
+        <p className="err" role="alert">
+          {MEMBER_NAME_HINT}
+        </p>
+      )}
+      {add.isError && <ErrorNote error={add.error} />}
     </section>
   )
 }

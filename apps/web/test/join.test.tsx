@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
-  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, ...over,
+  groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 3, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, placeholders: [], ...over,
 })
 
 const animalButton = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Animal' })).getByRole('button', { name })
@@ -214,5 +214,115 @@ describe('Join page', () => {
     renderApp('/join/ABCD2345')
     expect(await screen.findByText(/Redirecting to sign-in, then back to .*\/join\/ABCD2345/)).toBeTruthy()
     expect(calls).toHaveLength(0)
+  })
+
+  describe('which one are you?', () => {
+    const DAVE_LOOK = { animal: 'bear', color: 'lemon' } as const
+    const ERIN_LOOK = { animal: 'kitty', color: 'sky' } as const
+    const named = (over: Partial<InvitePreviewDTO> = {}) =>
+      preview({
+        takenAvatars: [{ animal: 'fox', color: 'peach' }, DAVE_LOOK, ERIN_LOOK],
+        placeholders: [
+          { userId: 'ph_dave', name: 'Dave', avatar: DAVE_LOOK },
+          { userId: 'ph_erin', name: 'Erin', avatar: ERIN_LOOK },
+        ],
+        ...over,
+      })
+    const whoAreYou = async () => within(await screen.findByRole('group', { name: 'Which one are you?' }))
+
+    it('lists the names nobody has claimed, and asks before showing the join form', async () => {
+      fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: named() }) })
+      renderApp('/join/ABCD2345')
+      const who = await whoAreYou()
+      expect(who.getAllByRole('button').map((b) => b.textContent!.trim())).toEqual(['Dave', 'Erin', "I'm new"])
+      expect(screen.queryByRole('button', { name: /Join group/ })).toBeNull()
+      expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
+    })
+
+    it('claims the name you pick, starting from its look and name', async () => {
+      const calls = fakeApi({
+        'GET /invites/ABCD2345': () => ({ status: 200, body: named() }),
+        'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+      })
+      const router = renderApp('/join/ABCD2345')
+      fireEvent.click((await whoAreYou()).getByRole('button', { name: 'Dave' }))
+
+      expect(((await screen.findByLabelText('What should this group call you?')) as HTMLInputElement).value).toBe('Dave')
+      expect(pressed('Animal')).toEqual(['Bear'])
+      expect(pressed('Colour')).toEqual(['Lemon'])
+      // Dave's own look is not taken from Dave; Erin's still is.
+      fireEvent.click(animalButton('Kitty'))
+      expect((colourButton(/Sky/) as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(animalButton('Bear'))
+      fireEvent.click(colourButton('Lemon'))
+      fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+      expect(joinBody(calls)).toEqual({ claim: 'ph_dave' })
+    })
+
+    it("joins as someone new with I'm new", async () => {
+      const calls = fakeApi({
+        'GET /invites/ABCD2345': () => ({ status: 200, body: named() }),
+        'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+      })
+      renderApp('/join/ABCD2345')
+      fireEvent.click((await whoAreYou()).getByRole('button', { name: "I'm new" }))
+      fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+      await vi.waitFor(() => expect(joinBody(calls)).toEqual({}))
+    })
+
+    it('offers only the names in a full group, since claiming one takes no new place', async () => {
+      const calls = fakeApi({
+        'GET /invites/ABCD2345': () => ({ status: 200, body: named({ memberCount: 12 }) }),
+        'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+      })
+      renderApp('/join/ABCD2345')
+      const who = await whoAreYou()
+      expect(who.queryByRole('button', { name: "I'm new" })).toBeNull()
+      expect(screen.queryByText(/This group is full/)).toBeNull()
+      fireEvent.click(who.getByRole('button', { name: 'Erin' }))
+      fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+      await vi.waitFor(() => expect(joinBody(calls)).toEqual({ claim: 'ph_erin' }))
+    })
+
+    it('does not ask a former member, who rejoins as themselves', async () => {
+      fakeApi({ 'GET /invites/ABCD2345': () => ({ status: 200, body: named({ myFormerAvatar: { animal: 'panda', color: 'mint' } }) }) })
+      renderApp('/join/ABCD2345')
+      expect(await screen.findByRole('button', { name: /Join group/ })).toBeTruthy()
+      expect(screen.queryByRole('group', { name: 'Which one are you?' })).toBeNull()
+    })
+
+    it('says so when someone claimed the name first, and asks again', async () => {
+      let placeholders = named().placeholders
+      fakeApi({
+        'GET /invites/ABCD2345': () => ({ status: 200, body: named({ placeholders }) }),
+        'POST /invites/ABCD2345/join': () => {
+          placeholders = placeholders.slice(1)
+          return { status: 409, body: { error: { code: 'already_claimed', message: 'Someone has already claimed that name.' } } }
+        },
+      })
+      renderApp('/join/ABCD2345')
+      fireEvent.click((await whoAreYou()).getByRole('button', { name: 'Dave' }))
+      fireEvent.click(await screen.findByRole('button', { name: /Join group/ }))
+      expect(await screen.findByText('Someone has already claimed that name.')).toBeTruthy()
+      await vi.waitFor(async () => expect((await whoAreYou()).queryByRole('button', { name: 'Dave' })).toBeNull())
+    })
+  })
+
+  it('starts on your profile look', async () => {
+    const look = { animal: 'hamster', color: 'lilac' } as const
+    const calls = fakeApi({
+      'GET /me': () => ({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null, profileAvatar: look } }),
+      'GET /invites/ABCD2345': () => ({ status: 200, body: preview() }),
+      'POST /invites/ABCD2345/join': () => ({ status: 200, body: { groupId: 'g1' } }),
+    })
+    renderApp('/join/ABCD2345')
+    await screen.findByRole('group', { name: 'Animal' })
+    await vi.waitFor(() => expect(pressed('Animal')).toEqual(['Hamster']))
+    expect(pressed('Colour')).toEqual(['Lilac'])
+    fireEvent.click(screen.getByRole('button', { name: /Join group/ }))
+    // The server starts you on your profile look too, so there is nothing to send.
+    await vi.waitFor(() => expect(joinBody(calls)).toEqual({}))
   })
 })

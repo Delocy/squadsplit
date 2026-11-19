@@ -4,6 +4,7 @@ import { SETTLEMENT_STATUSES, type SettlementStatus, type Transfer } from './led
 import type { Badge } from './fun'
 import { itemizedTotal, type BillItem } from './itemized'
 import { AvatarChoice } from './avatar'
+import { MAX_GROUP_MEMBERS } from './limits'
 
 const MAX_CENTS = 100_000_000
 
@@ -25,13 +26,16 @@ const EMOJI = /(?![©®™])\p{Extended_Pictographic}|[\p{Regional_Indicator}\p{
  * What a member is called inside one group. Trimmed, at most 24 characters; empty means "no nickname" (null),
  * so the profile name shows instead. No control or invisible format characters, and no emoji (the app shows none).
  */
-export const Nickname = z
+const nameText = z
   .string()
   .trim()
   .max(24)
   .refine((s) => !CONTROL_OR_FORMAT.test(s), { message: 'No control characters' })
   .refine((s) => !EMOJI.test(s), { message: 'No emoji' })
-  .transform((s) => (s === '' ? null : s))
+export const Nickname = nameText.transform((s) => (s === '' ? null : s))
+
+/** The name of someone who hasn't joined yet (a placeholder member): the Nickname rules, and it can't be empty. */
+export const MemberName = nameText.refine((s) => s.length > 0, { message: 'Enter a name' })
 const groupEmoji = z.string().min(1).max(8)
 const currency = z.enum(CURRENCIES)
 
@@ -41,6 +45,8 @@ export const CreateGroupInput = z.object({
   currency: currency.default('SGD'),
   /** The owner's nickname in the new group; null or "" for none. */
   nickname: Nickname.nullable().optional(),
+  /** Everyone else in the group, by name, until they join and claim it. With the owner, at most MAX_GROUP_MEMBERS. */
+  members: z.array(MemberName).max(MAX_GROUP_MEMBERS - 1).optional(),
 })
 export type CreateGroupInput = z.infer<typeof CreateGroupInput>
 
@@ -120,7 +126,11 @@ export type CreateExpenseInput = z.infer<typeof CreateExpenseInput>
 export const UpdateExpenseInput = CreateExpenseInput
 export type UpdateExpenseInput = CreateExpenseInput
 
-export const CreateSettlementInput = z.object({ toUserId: id, amountCents })
+/**
+ * `fromUserId` defaults to the caller. Naming someone else is only for a creditor recording that someone who hasn't
+ * joined yet (a placeholder) paid them.
+ */
+export const CreateSettlementInput = z.object({ fromUserId: id.optional(), toUserId: id, amountCents })
 export type CreateSettlementInput = z.infer<typeof CreateSettlementInput>
 /** Query string of `GET /groups/:id/settlements`. */
 export const ListSettlementsQuery = z.object({ status: z.enum(SETTLEMENT_STATUSES).optional() })
@@ -129,8 +139,14 @@ export type ListSettlementsQuery = z.infer<typeof ListSettlementsQuery>
 /**
  * Body of `POST /invites/:code/join`; the whole body is optional. Without an avatar the server picks a free one.
  * Without a nickname a former member keeps theirs; null or "" means none.
+ * `claim` is the user id of a name in the group (a placeholder) that is you: you take over its place, history and
+ * look, and its name becomes your nickname unless you send one.
  */
-export const JoinGroupInput = z.object({ avatar: AvatarChoice.optional(), nickname: Nickname.nullable().optional() })
+export const JoinGroupInput = z.object({
+  avatar: AvatarChoice.optional(),
+  nickname: Nickname.nullable().optional(),
+  claim: id.optional(),
+})
 export type JoinGroupInput = z.infer<typeof JoinGroupInput>
 
 /** Body of `PATCH /groups/:id/members/me`. `nickname: null` (or "") clears it. */
@@ -139,20 +155,31 @@ export const UpdateMemberInput = z
   .refine((v) => v.avatar !== undefined || v.nickname !== undefined, { message: 'At least one field is required' })
 export type UpdateMemberInput = z.infer<typeof UpdateMemberInput>
 
+/** Body of `POST /groups/:id/placeholders` (owner): add someone who hasn't joined yet, by name. */
+export const AddPlaceholderInput = z.object({ name: MemberName })
+export type AddPlaceholderInput = z.infer<typeof AddPlaceholderInput>
+
+/** Body of `PATCH /me`: your look outside groups, and the one a new group starts you on. */
+export const UpdateProfileInput = z.object({ profileAvatar: AvatarChoice })
+export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>
+
 // ---- DTOs (types only) ----
 
-export interface MeDTO { id: string; displayName: string; avatarUrl: string | null }
+/** `profileAvatar`: the look you picked for yourself, or your default. */
+export interface MeDTO { id: string; displayName: string; avatarUrl: string | null; profileAvatar: AvatarChoice }
 /**
  * A member as the group sees them. `displayName` is the effective name: their `nickname` in this group if they set
  * one, otherwise their profile name. `avatar` is their look in this group: what they picked, or their default.
+ * `placeholder`: a name the owner added for someone who hasn't joined yet (they can claim it when they join).
  */
 export interface MemberDTO {
   userId: string; displayName: string; nickname: string | null; avatarUrl: string | null
-  role: 'owner' | 'member'; active: boolean; avatar: AvatarChoice
+  role: 'owner' | 'member'; active: boolean; avatar: AvatarChoice; placeholder: boolean
 }
 export interface GroupDTO { id: string; name: string; emoji: string; currency: Currency; inviteCode: string | null; ownerId: string; members: MemberDTO[] }
 export interface GroupSummaryDTO { id: string; name: string; emoji: string; currency: Currency; role: 'owner' | 'member'; myBalanceCents: number }
 /**
+ * `memberCount` and `takenAvatars` include the unclaimed names (placeholders), which count towards the cap.
  * `takenAvatars`: the looks of the group's active members, which a joiner can't pick.
  * `myFormerAvatar`: the look the caller left the group with (their default if they never stored one) when they are a
  * former member, else null. Joining without an avatar gives them it back if it is still free.
@@ -160,7 +187,10 @@ export interface GroupSummaryDTO { id: string; name: string; emoji: string; curr
 export interface InvitePreviewDTO {
   groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean
   takenAvatars: AvatarChoice[]; myFormerAvatar: AvatarChoice | null
+  /** The names in the group nobody has claimed yet: "Which one are you?" */
+  placeholders: PlaceholderDTO[]
 }
+export interface PlaceholderDTO { userId: string; name: string; avatar: AvatarChoice }
 export interface ExpenseDTO {
   id: string; groupId: string; description: string; amountCents: number; paidBy: string; createdBy: string
   category: Category; spentOn: string; splitType: 'equal' | 'exact' | 'itemized'; shares: { userId: string; amountCents: number }[]

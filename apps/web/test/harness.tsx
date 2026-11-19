@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { vi } from 'vitest'
+import { defaultAvatar } from '@squadsplit/shared'
 import { routes } from '../src/routes'
 import { ME } from './clerk-mock'
 
@@ -11,7 +12,7 @@ type Reply = { status: number; body?: unknown }
 export type Handler = (body: unknown) => Reply | Promise<Reply>
 
 /** What `GET /me` answers unless a test brings its own handler: the signed-in user's profile. */
-const defaultMe: Handler = () => ({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null } })
+const defaultMe: Handler = () => ({ status: 200, body: { id: ME, displayName: 'Me', avatarUrl: null, profileAvatar: defaultAvatar(ME) } })
 
 /**
  * Stubs global fetch with handlers keyed by "METHOD /path". Unknown routes fail the request loudly.

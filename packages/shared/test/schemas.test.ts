@@ -3,8 +3,11 @@ import {
   CreateExpenseInput,
   CreateGroupInput,
   CreateSettlementInput,
+  AddPlaceholderInput,
   JoinGroupInput,
+  MemberName,
   Nickname,
+  UpdateProfileInput,
   UpdateGroupInput,
   UpdateMemberInput,
 } from '../src/schemas'
@@ -266,5 +269,63 @@ describe('UpdateMemberInput', () => {
 
   it('needs at least one field', () => {
     expect(UpdateMemberInput.safeParse({}).success).toBe(false)
+  })
+})
+
+describe('MemberName', () => {
+  it('trims a name and keeps it', () => {
+    expect(MemberName.parse('  Dave ')).toBe('Dave')
+  })
+
+  it('rejects an empty name, one over 24 characters, emoji and control characters', () => {
+    for (const bad of ['', '   ', 'x'.repeat(25), 'Dave 🍕', 'Da\u202Eve']) expect(MemberName.safeParse(bad).success).toBe(false)
+  })
+})
+
+describe('CreateGroupInput members', () => {
+  const group = { name: 'Bali', emoji: '🏝️' }
+
+  it('takes up to 11 other people’s names, trimmed', () => {
+    const names = Array.from({ length: 11 }, (_, i) => ` P${i} `)
+    expect(CreateGroupInput.parse({ ...group, members: names }).members).toEqual(names.map((n) => n.trim()))
+  })
+
+  it('rejects a 12th name (the owner makes 12) and any invalid name', () => {
+    expect(CreateGroupInput.safeParse({ ...group, members: Array.from({ length: 12 }, (_, i) => `P${i}`) }).success).toBe(false)
+    expect(CreateGroupInput.safeParse({ ...group, members: ['Dave', ' '] }).success).toBe(false)
+  })
+
+  it('leaves members out when none are sent', () => {
+    expect(CreateGroupInput.parse(group).members).toBeUndefined()
+  })
+})
+
+describe('AddPlaceholderInput', () => {
+  it('takes one valid name', () => {
+    expect(AddPlaceholderInput.parse({ name: ' Eve ' })).toEqual({ name: 'Eve' })
+    expect(AddPlaceholderInput.safeParse({ name: '' }).success).toBe(false)
+  })
+})
+
+describe('JoinGroupInput claim', () => {
+  it('takes the placeholder being claimed', () => {
+    expect(JoinGroupInput.parse({ claim: 'ph_1' })).toEqual({ claim: 'ph_1' })
+    expect(JoinGroupInput.safeParse({ claim: '' }).success).toBe(false)
+  })
+})
+
+describe('CreateSettlementInput fromUserId', () => {
+  it('optionally names who paid', () => {
+    expect(CreateSettlementInput.parse({ fromUserId: 'ph_1', toUserId: 'u1', amountCents: 100 })).toEqual({
+      fromUserId: 'ph_1', toUserId: 'u1', amountCents: 100,
+    })
+  })
+})
+
+describe('UpdateProfileInput', () => {
+  it('takes a profile look from the palette', () => {
+    expect(UpdateProfileInput.parse({ profileAvatar: { animal: 'fox', color: 'mint' } })).toEqual({ profileAvatar: { animal: 'fox', color: 'mint' } })
+    expect(UpdateProfileInput.safeParse({ profileAvatar: { animal: 'dog', color: 'mint' } }).success).toBe(false)
+    expect(UpdateProfileInput.safeParse({}).success).toBe(false)
   })
 })

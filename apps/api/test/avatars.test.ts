@@ -210,7 +210,7 @@ describe('PATCH /groups/:id/members/me with an avatar', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual<MemberDTO>({
-      userId: 'bob', displayName: 'User bob', nickname: null, avatarUrl: null, role: 'member', active: true, avatar: KOALA,
+      userId: 'bob', displayName: 'User bob', nickname: null, avatarUrl: null, role: 'member', active: true, avatar: KOALA, placeholder: false,
     })
     expect(await avatarOf(group.id, 'bob')).toEqual(KOALA)
   })

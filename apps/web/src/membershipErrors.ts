@@ -8,6 +8,7 @@ export function membershipErrorText(error: unknown, removing: string | null): st
   const code = error instanceof ApiError ? error.code : null
   if (code === 'balance_not_zero') return removing ? `${removing} needs to settle up first` : 'Settle up before leaving'
   if (code === 'pending_settlement') return 'Finish the pending payment first'
+  if (code === 'name_in_use') return `${removing ?? 'That name'} is already in the group's history, so the name stays until they join.`
   if (code === 'owner_cannot_leave') return "The owner can't leave the group"
   return error instanceof Error ? error.message : 'Something went wrong.'
 }

@@ -112,3 +112,30 @@ it('0004_receipt_scans adds an empty per-user, per-day scan counter without touc
   expect(await bump()).toBe(2)
   await expect(env.DB.prepare(`INSERT INTO receipt_scans VALUES ('alice', '2026-11-19', 1)`).run()).rejects.toThrow(/UNIQUE constraint failed/)
 })
+
+it('0005_named_members_profile_look makes every existing user a person with no profile look, keeping their rows', async () => {
+  for (const table of TABLES) await env.DB.exec(`DROP TABLE IF EXISTS ${table}`)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 5))
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users VALUES ('alice', 'Alice', 'https://img/a', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO users VALUES ('bob', 'Bob', NULL, '2026-11-02T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO groups VALUES ('g1', 'Paris', '🥐', 'EUR', 'ABCDEFGH', 'alice', '2026-11-01T00:00:00.000Z')`),
+    env.DB.prepare(`INSERT INTO memberships VALUES ('g1', 'alice', 'owner', '2026-11-01T00:00:00.000Z', NULL, 'fox', 'peach', NULL)`),
+    env.DB.prepare(`INSERT INTO memberships VALUES ('g1', 'bob', 'member', '2026-11-02T00:00:00.000Z', NULL, NULL, NULL, 'Bobby')`),
+    env.DB.prepare(
+      `INSERT INTO expenses VALUES ('e1', 'g1', 'Dinner', 100, 'bob', 'alice', '🍕', '2026-11-19', 'exact', 'EUR', 1000000, NULL, NULL, '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z')`,
+    ),
+    env.DB.prepare(`INSERT INTO expense_shares VALUES ('e1', 'alice', 100)`),
+  ])
+
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+
+  expect(await env.DB.prepare('SELECT * FROM users ORDER BY id').all().then((r) => r.results)).toEqual([
+    { id: 'alice', display_name: 'Alice', avatar_url: 'https://img/a', created_at: '2026-11-01T00:00:00.000Z', kind: 'person', profile_animal: null, profile_color: null },
+    { id: 'bob', display_name: 'Bob', avatar_url: null, created_at: '2026-11-02T00:00:00.000Z', kind: 'person', profile_animal: null, profile_color: null },
+  ])
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM memberships').first('n')).toBe(2)
+  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM expense_shares').first('n')).toBe(1)
+  await env.DB.prepare(`INSERT INTO users (id, display_name, created_at, kind) VALUES ('ph_1', 'Dave', '2026-11-19T00:00:00.000Z', 'placeholder')`).run()
+  expect(await env.DB.prepare(`SELECT kind FROM users WHERE id = 'ph_1'`).first('kind')).toBe('placeholder')
+})

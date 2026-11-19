@@ -4,6 +4,7 @@ import { Avatar } from '../design/Avatar'
 import { BadgeArt, Medal, UiIcon } from '../design/icons'
 import type { People } from '../groupData'
 import { Money } from './Money'
+import { NotJoinedTag } from './NotJoinedTag'
 import { LeaderboardSkeleton } from './Skeletons'
 
 /** Members ranked by net balance (most owed first) with a centred bar, then the badge grid. */
@@ -37,6 +38,7 @@ function Board({ fun, people, currency }: { fun: FunDTO; people: People; currenc
               <span className="who">
                 <Avatar avatar={people.avatar(b.userId)} size="sm" />
                 <span>{people.name(b.userId)}</span>
+                {people.isPlaceholder(b.userId) && <NotJoinedTag />}
               </span>
               <span className="bar">
                 <i style={fill} />

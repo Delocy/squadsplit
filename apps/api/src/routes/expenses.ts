@@ -19,7 +19,7 @@ import { insertExpense, loadExpenses, replaceExpense, type ExpenseWrite } from '
 import { loadLedger } from '../db/ledger'
 import { expenses, groups, memberships, settlements } from '../db/schema'
 import type { AppEnv } from '../env'
-import { HttpError, parseBody } from '../errors'
+import { HttpError, parseBody, refusingStaleMember } from '../errors'
 
 /** v1 has one currency per group, so every expense is stored at a 1:1 exchange rate. */
 const PAR_FX_RATE_PPM = 1_000_000
@@ -177,7 +177,7 @@ export function groupExpenseRoutes() {
       await requireMember(d, groupId, c.var.userId)
       const write = await prepareWrite(d, groupId, await parseBody(c, CreateExpenseInput))
       const id = crypto.randomUUID()
-      await d.batch(insertExpense(d, { id, groupId, createdBy: c.var.userId, now: new Date().toISOString() }, write))
+      await refusingStaleMember(d.batch(insertExpense(d, { id, groupId, createdBy: c.var.userId, now: new Date().toISOString() }, write)))
       return c.json(await loadExpense(d, id), 201)
     })
 
@@ -199,7 +199,7 @@ export function expenseRoutes() {
       const { id, groupId } = expense
       const write = await prepareWrite(d, groupId, await parseBody(c, UpdateExpenseInput))
       await assertEditKeepsUnlocked(d, expense, write)
-      await d.batch(replaceExpense(d, id, new Date().toISOString(), write))
+      await refusingStaleMember(d.batch(replaceExpense(d, id, new Date().toISOString(), write)))
       return c.json(await loadExpense(d, id))
     })
 

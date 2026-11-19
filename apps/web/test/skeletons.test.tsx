@@ -99,7 +99,7 @@ describe('skeletons while loading', () => {
 
   it('shows skeletons on the settings, wheel and join pages while they load', async () => {
     const g = held(ok(group()))
-    const invite = held(ok({ groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 2, alreadyMember: false, takenAvatars: [], myFormerAvatar: null }))
+    const invite = held(ok({ groupId: 'g1', name: 'Bali Trip', emoji: '🧡', memberCount: 2, alreadyMember: false, takenAvatars: [], myFormerAvatar: null, placeholders: [] }))
     fakeApi(groupHandlers({}, { 'GET /groups/g1': g.handler, 'GET /invites/ABCD2345': invite.handler }))
 
     for (const [url, status] of [
