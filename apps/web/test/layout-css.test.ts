@@ -27,4 +27,20 @@ describe('narrow-screen layout rules', () => {
   it('does not ellipsize the nickname preview', () => {
     expect(rule('.you-preview b')).not.toContain('ellipsis')
   })
+
+  it('fits the expense dialog at 375px: the split tabs wrap, and the dialog body never scrolls sideways', () => {
+    expect(rule('.split-h')).toContain('flex-wrap: wrap')
+    expect(rule('.tabs')).toContain('flex-wrap: wrap')
+    expect(rule('.tabs')).toContain('max-width: 100%')
+    expect(rule('.dlg-b')).toContain('min-width: 0')
+    expect(rule('.dlg-b')).toContain('overflow-x: hidden')
+    expect(rule('.scan-actions')).toContain('flex-wrap: wrap')
+    expect(rule('.scan-banner')).toContain('overflow-wrap: anywhere')
+  })
+
+  it('animates the receipt reader with the existing bob motion, which reduced motion turns off', () => {
+    expect(rule('.scan-spin')).toMatch(/animation: bob /)
+    expect(css).toContain('@keyframes bob')
+    expect(css).toContain('@media (prefers-reduced-motion: reduce) { * { animation: none !important;')
+  })
 })

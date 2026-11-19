@@ -11,12 +11,15 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, 
 import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { ScanReceiptButton } from '../components/ScanReceiptButton'
 import { Avatar } from '../design/Avatar'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
 import {
+  applyScan,
   draftFromExpense,
   emptyItem,
+  hasTypedItems,
   newDraft,
   summarize,
   type ExpenseDraft,
@@ -338,6 +341,15 @@ function ExpenseFields({
 
       {draft.mode === 'itemized' && (
         <>
+          <ScanReceiptButton
+            groupId={group.id}
+            currency={currency}
+            hasTypedItems={hasTypedItems(draft)}
+            onScan={(scan) => {
+              setProblem(null)
+              setDraft((d) => applyScan(d, scan))
+            }}
+          />
           <label className="chip toggle">
             <input type="checkbox" checked={draft.restaurantBill} onChange={(e) => update({ restaurantBill: e.target.checked })} />
             <span>

@@ -10,6 +10,7 @@ import {
   type Category,
   type Currency,
   type ExpenseDTO,
+  type ReceiptScanResult,
 } from '@squadsplit/shared'
 
 // The add/edit expense form's state and rules, kept apart from the React code.
@@ -91,6 +92,29 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
       : [emptyItem()],
     // An itemized expense keeps what was saved; any other starts on, in case it is switched to By item.
     restaurantBill: e.splitType === 'itemized' ? (e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0 : true,
+  }
+}
+
+/** Whether the user has typed anything into the item rows (so a scan should ask before replacing them). */
+export const hasTypedItems = (d: ExpenseDraft) => d.items.some((it) => it.name.trim() !== '' || it.price.trim() !== '')
+
+/** Whether a receipt's charges are the SG 10% service charge and 9% GST the restaurant bill toggle adds (to within half a percent). */
+export const isSgRestaurantBill = (r: Pick<ReceiptScanResult, 'serviceChargeBps' | 'gstBps'>) =>
+  r.serviceChargeBps !== null &&
+  r.gstBps !== null &&
+  Math.abs(r.serviceChargeBps - SG_PRESET.serviceChargeBps) <= 50 &&
+  Math.abs(r.gstBps - SG_PRESET.gstBps) <= 50
+
+/**
+ * The form filled in from a scanned receipt: its items replace the rows (nobody assigned yet), and the restaurant
+ * bill toggle is on only for SG 10% + 9% charges, since the form has no other rates.
+ */
+export function applyScan(d: ExpenseDraft, scan: ReceiptScanResult): ExpenseDraft {
+  return {
+    ...d,
+    mode: 'itemized',
+    items: scan.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents) })),
+    restaurantBill: isSgRestaurantBill(scan),
   }
 }
 
