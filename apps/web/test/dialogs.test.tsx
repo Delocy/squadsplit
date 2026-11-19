@@ -52,6 +52,48 @@ describe('the expense dialog', () => {
     expect(document.activeElement).toBe(add)
   })
 
+  it('is a sheet with a grab handle, and its Cancel and Save stay in a footer at the bottom', async () => {
+    fakeApi(groupHandlers())
+    renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    expect(dialog.classList.contains('sheet')).toBe(true)
+    expect(dialog.querySelector('.dlg-grab')).toBeTruthy()
+    const footer = within(dialog).getByRole('button', { name: 'Add expense' }).closest('.sheet-foot')!
+    expect([...footer.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Cancel', 'Add expense'])
+  })
+
+  it('asks before closing over unsaved changes, from Cancel, Escape or the ×', async () => {
+    fakeApi(groupHandlers())
+    const router = renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Dinner' } })
+
+    for (const close of [
+      () => fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' })),
+      () => fireEvent(dialog, new Event('cancel', { cancelable: true })),
+      () => fireEvent.click(within(dialog).getByRole('button', { name: 'Close' })),
+    ]) {
+      close()
+      const ask = within(dialog).getByRole('group', { name: 'Discard this expense?' })
+      expect(dialog.classList.contains('out')).toBe(false)
+      fireEvent.click(within(ask).getByRole('button', { name: 'Keep editing' }))
+      await vi.waitFor(() => expect(within(dialog).queryByRole('group', { name: 'Discard this expense?' })).toBeNull())
+      expect((within(dialog).getByLabelText('Description') as HTMLInputElement).value).toBe('Dinner')
+    }
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+  })
+
+  it('closes without asking when nothing was typed', async () => {
+    fakeApi(groupHandlers())
+    const router = renderApp('/groups/g1/expenses/new')
+    const dialog = await screen.findByRole('dialog', { name: 'New expense' })
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+  })
+
   it('closes at once under reduced motion', async () => {
     mockReducedMotion(true)
     fakeApi(groupHandlers())

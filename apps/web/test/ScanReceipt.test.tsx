@@ -62,6 +62,7 @@ async function openByItem(scan: Handler) {
 }
 
 const photo = () => new File(['receipt photo'], 'receipt.jpg', { type: 'image/jpeg' })
+const pressed = (el: HTMLElement) => el.getAttribute('aria-pressed') === 'true'
 const choose = (input: HTMLElement) => fireEvent.change(input, { target: { files: [photo()] } })
 const itemRows = (dialog: ReturnType<typeof within>) =>
   dialog.queryAllByRole('group', { name: /^Item \d+$/ }).map((row: HTMLElement) => {
@@ -200,6 +201,29 @@ describe('Scan receipt', () => {
     fireEvent.change(total, { target: { value: '120' } })
     expect(dialog.getByText(/short of the \$120\.00 total/)).toBeTruthy()
     expect(save.disabled).toBe(true)
+  })
+
+  it('assigns nobody after a scan, even in a group of two, and offers Everyone had this and Assign all to everyone', async () => {
+    const { dialog } = await openByItem(() => ({
+      status: 200,
+      body: { ...AI_SCAN, items: [...AI_SCAN.items, { name: 'Kopi', amountCents: 300 }], totalCents: null, totalMatches: null },
+    }))
+    choose(dialog.getByLabelText('Scan receipt'))
+    await dialog.findByText('Read your receipt — tap who had what.')
+    const item = (n: number) => within(dialog.getByRole('group', { name: `Who had item ${n}` }))
+    // The group has two people (Alice and Bob): nobody is put on a dish without a tap.
+    for (const n of [1, 2, 3]) expect(item(n).getAllByRole('button').filter(pressed)).toEqual([])
+
+    // One tap puts everyone on a dish.
+    fireEvent.click(item(1).getByRole('button', { name: 'Everyone had this' }))
+    expect(item(1).getAllByRole('button', { name: /Alice|Bob/ }).every(pressed)).toBe(true)
+    fireEvent.click(item(2).getByRole('button', { name: 'Bob' }))
+
+    // The shortcut does every dish nobody is on yet, and leaves the ones already tapped.
+    fireEvent.click(dialog.getByRole('button', { name: 'Assign all to everyone' }))
+    expect(item(2).getAllByRole('button', { name: /Alice|Bob/ }).map(pressed)).toEqual([false, true])
+    expect(item(3).getAllByRole('button', { name: /Alice|Bob/ }).every(pressed)).toBe(true)
+    expect(dialog.queryByRole('button', { name: 'Assign all to everyone' })).toBeNull()
   })
 
   it('says once, at the total, when the items do not add up to the receipt total', async () => {

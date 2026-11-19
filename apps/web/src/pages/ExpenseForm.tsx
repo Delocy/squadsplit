@@ -6,18 +6,19 @@ import {
   type GroupDTO,
   type MemberDTO,
 } from '@squadsplit/shared'
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
+import { ConfirmBar, useConfirmStep } from '../components/ConfirmBar'
 import { ErrorNote } from '../components/ErrorNote'
 import { ScanReceiptCard } from '../components/ScanReceiptCard'
 import { TotalFixup } from '../components/TotalFixup'
+import { Sheet, useSheetClose } from '../components/Sheet'
 import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
-import { EXIT_MS, useReducedMotion } from '../design/motion'
 import {
   addOtherItem,
   applyScan,
@@ -40,100 +41,65 @@ const MODES: { key: SplitMode; label: string }[] = [
   { key: 'itemized', label: 'By item' },
 ]
 
-/** `/groups/:id/expenses/new` and `/groups/:id/expenses/:expenseId`: the add/edit dialog over the group home. */
+/**
+ * May the sheet close now? It asks first when there are unsaved changes (and answers false). Set by the form inside
+ * the sheet; with nothing in it, the sheet just closes.
+ */
+type CloseGuard = MutableRefObject<(() => boolean) | null>
+
+/**
+ * `/groups/:id/expenses/new` and `/groups/:id/expenses/:expenseId`: the add/edit sheet over the group home (a bottom
+ * sheet on a phone, a centred dialog on wider screens). Escape, the ×, a swipe down and Cancel all ask before
+ * dropping unsaved changes.
+ */
 export function ExpenseForm() {
   const { id: groupId = '', expenseId } = useParams()
   const me = useMyId()
   const navigate = useNavigate()
   const group = useGroup(groupId)
   const expenses = useExpenses(groupId)
-  const reduced = useReducedMotion()
-  const [leaving, setLeaving] = useState(false)
-  // Back to the group, staying where it was scrolled to. The dialog fades out first (not under reduced motion).
-  const backToGroup = () => navigate(`/groups/${groupId}`, { preventScrollReset: true })
-  const close = () => (reduced ? backToGroup() : setLeaving(true))
-  useEffect(() => {
-    if (!leaving) return
-    const timer = setTimeout(() => navigate(`/groups/${groupId}`, { preventScrollReset: true }), EXIT_MS)
-    return () => clearTimeout(timer)
-  }, [leaving, navigate, groupId])
+  // Back to the group, staying where it was scrolled to. The sheet slides out first (not under reduced motion).
+  const sheet = useSheetClose(() => navigate(`/groups/${groupId}`, { preventScrollReset: true }))
+  const guard: CloseGuard = useRef(null)
+  const requestClose = () => {
+    if (guard.current && !guard.current()) return
+    sheet.close()
+  }
 
   const expense = expenseId ? expenses.data?.find((e) => e.id === expenseId) : undefined
   const people = group.data ? peopleOf(group.data, me) : null
   const leftMember = expense && people ? formerMemberIn(expense, people) : null
   let body: ReactNode
   if (!group.data || (expenseId && expenses.isPending)) body = <ExpenseFormSkeleton />
-  else if (expenseId && !expense) body = <Notice onClose={close}>We can't find this expense. It may have been deleted.</Notice>
+  else if (expenseId && !expense) body = <Notice onClose={sheet.close}>We can't find this expense. It may have been deleted.</Notice>
   else if (expense?.locked) {
     body = (
-      <Notice onClose={close}>
+      <Notice onClose={sheet.close}>
         This expense is locked: a payment has been confirmed since it was logged, so it can't be changed.
       </Notice>
     )
   } else if (leftMember && people) {
-    body = <Notice onClose={close}>{people.name(leftMember)} has left the group, so this expense can't be changed.</Notice>
+    body = <Notice onClose={sheet.close}>{people.name(leftMember)} has left the group, so this expense can't be changed.</Notice>
   } else if (expense && expense.createdBy !== me && group.data.ownerId !== me) {
-    body = <Notice onClose={close}>Only the person who logged this expense or the group owner can change it.</Notice>
+    body = <Notice onClose={sheet.close}>Only the person who logged this expense or the group owner can change it.</Notice>
   } else {
-    body = <ExpenseFields key={expenseId ?? 'new'} group={group.data} me={me} expense={expense} onDone={close} />
+    body = (
+      <ExpenseFields
+        key={expenseId ?? 'new'}
+        group={group.data}
+        me={me}
+        expense={expense}
+        guard={guard}
+        onCancel={requestClose}
+        onDone={sheet.close}
+      />
+    )
   }
 
   return (
-    <Dialog title={expenseId ? 'Edit expense' : 'New expense'} leaving={leaving} onClose={close}>
+    <Sheet title={expenseId ? 'Edit expense' : 'New expense'} leaving={sheet.leaving} onClose={requestClose} className="expense-sheet">
       {body}
-    </Dialog>
-  )
-}
-
-/**
- * A native modal <dialog> (Escape closes it), opened as it mounts. It fades and scales in, and out while `leaving`.
- * When it goes, focus goes back to whatever opened it (the Add expense or Edit link).
- */
-function Dialog({
-  title,
-  leaving,
-  onClose,
-  children,
-}: {
-  title: string
-  leaving: boolean
-  onClose: () => void
-  children: ReactNode
-}) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useLayoutEffect(() => {
-    const opener = document.activeElement
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
-    }
-  }, [])
-  useLayoutEffect(() => {
-    const d = ref.current
-    if (!d || d.open) return
-    // jsdom has no showModal; the open attribute is the same dialog, just not modal.
-    if (typeof d.showModal === 'function') d.showModal()
-    else d.setAttribute('open', '')
-  }, [])
-  return (
-    <dialog
-      ref={ref}
-      className={leaving ? 'out' : undefined}
-      tabIndex={-1}
-      aria-labelledby="dlg-title"
-      onCancel={(e) => {
-        e.preventDefault()
-        onClose()
-      }}
-    >
-      <div className="dlg-h">
-        <UiIcon name="plus" />
-        <h3 id="dlg-title">{title}</h3>
-        <button type="button" className="x" aria-label="Close" onClick={onClose}>
-          ×
-        </button>
-      </div>
-      <div className="dlg-b">{children}</div>
-    </dialog>
+    </Sheet>
   )
 }
 
@@ -144,7 +110,7 @@ function Notice({ children, onClose }: { children: ReactNode; onClose: () => voi
         <UiIcon name="lock" />
         <span>{children}</span>
       </p>
-      <div className="dlg-f">
+      <div className="dlg-f sheet-foot">
         <button type="button" className="btn" onClick={onClose}>
           Back to the group
         </button>
@@ -153,20 +119,29 @@ function Notice({ children, onClose }: { children: ReactNode; onClose: () => voi
   )
 }
 
-/** Toggle chips, one per current member. */
+/** Toggle chips, one per current member, after an optional one-tap "Everyone had this". */
 function MemberChips({
   label,
   members,
   isOn,
   onToggle,
+  onEveryone,
 }: {
   label: string
   members: MemberDTO[]
   isOn: (userId: string) => boolean
   onToggle: (userId: string) => void
+  /** Puts everyone on it, or takes everyone off once they all are. */
+  onEveryone?: (all: boolean) => void
 }) {
+  const allOn = members.every((m) => isOn(m.userId))
   return (
     <div className="chips" role="group" aria-label={label}>
+      {onEveryone && (
+        <button type="button" className={allOn ? 'chip everyone on' : 'chip everyone'} aria-pressed={allOn} onClick={() => onEveryone(!allOn)}>
+          Everyone had this
+        </button>
+      )}
       {members.map((m) => (
         <button
           type="button"
@@ -189,11 +164,18 @@ function ExpenseFields({
   group,
   me,
   expense,
+  guard,
+  onCancel,
   onDone,
 }: {
   group: GroupDTO
   me: string
   expense: ExpenseDTO | undefined
+  /** Set here: asks before the sheet closes over unsaved changes. */
+  guard: CloseGuard
+  /** Cancel: closes, asking first if anything changed. */
+  onCancel: () => void
+  /** Closes at once (saved, deleted, or discarded). */
   onDone: () => void
 }) {
   const api = useApi()
@@ -202,11 +184,11 @@ function ExpenseFields({
   const currency = group.currency
   const money = (cents: number) => formatMoney(cents, currency)
 
-  const [draft, setDraft] = useState<ExpenseDraft>(() =>
-    expense ? draftFromExpense(expense, activeIds) : newDraft(me, activeIds, today()),
-  )
+  const [start] = useState<ExpenseDraft>(() => (expense ? draftFromExpense(expense, activeIds) : newDraft(me, activeIds, today())))
+  const [draft, setDraft] = useState<ExpenseDraft>(start)
   const [problem, setProblem] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const confirmDelete = useConfirmStep()
+  const confirmDiscard = useConfirmStep()
   const submitRef = useRef<HTMLButtonElement>(null)
   const descriptionRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -221,6 +203,12 @@ function ExpenseFields({
     expense ? api.patch<ExpenseDTO>(`/expenses/${expense.id}`, input) : api.post<ExpenseDTO>(`/groups/${group.id}/expenses`, input),
   )
   const remove = useGroupMutation(group.id, (id: string) => api.del(`/expenses/${id}`))
+  const dirty = draft !== start && JSON.stringify(draft) !== JSON.stringify(start)
+  guard.current = () => {
+    if (!dirty || save.isPending || remove.isPending) return true
+    confirmDiscard.open()
+    return false
+  }
 
   const update = (patch: Partial<ExpenseDraft>) => {
     setProblem(null)
@@ -422,6 +410,15 @@ function ExpenseFields({
               <span>GST {draft.charges.gstBps / 100}%</span>
             </label>
           </div>
+          {draft.items.length > 1 && draft.items.some((it) => it.userIds.length === 0) && (
+            <button
+              type="button"
+              className="btn small assign-all"
+              onClick={() => update({ items: draft.items.map((it) => (it.userIds.length ? it : { ...it, userIds: activeIds })) })}
+            >
+              Assign all to everyone
+            </button>
+          )}
           <div className="items">
             {draft.items.map((it, i) => (
               <div className="item" role="group" aria-label={`Item ${i + 1}`} key={it.key}>
@@ -459,6 +456,7 @@ function ExpenseFields({
                   members={active}
                   isOn={(id) => it.userIds.includes(id)}
                   onToggle={(id) => updateItem(it.key, { userIds: toggle(it.userIds, id) })}
+                  onEveryone={(all) => updateItem(it.key, { userIds: all ? activeIds : [] })}
                 />
               </div>
             ))}
@@ -510,38 +508,59 @@ function ExpenseFields({
         <ErrorNote error={save.error ?? remove.error} />
       )}
 
-      <div className="dlg-f">
-        {expense &&
-          (confirmDelete ? (
+      {expense &&
+        (confirmDelete.showBar ? (
+          <ConfirmBar
+            question={`Delete ${expense.description}? It can't be undone.`}
+            yes="Delete"
+            busyLabel="Deleting…"
+            busy={remove.isPending}
+            leaving={confirmDelete.leaving}
+            onYes={() => remove.mutate(expense.id, { onSuccess: onDone })}
+            onCancel={confirmDelete.close}
+          />
+        ) : (
+          <button
+            ref={confirmDelete.triggerRef}
+            type="button"
+            className="btn ghost danger delete-expense"
+            onClick={confirmDelete.open}
+            disabled={save.isPending}
+          >
+            Delete this expense
+          </button>
+        ))}
+
+      {/* Cancel and Save stay at the bottom of the sheet, above the keyboard. */}
+      <div className="dlg-f sheet-foot">
+        {confirmDiscard.showBar ? (
+          <ConfirmBar
+            question={expense ? 'Discard your changes?' : 'Discard this expense?'}
+            yes="Discard"
+            no="Keep editing"
+            busyLabel="Discarding…"
+            busy={false}
+            leaving={confirmDiscard.leaving}
+            onYes={onDone}
+            onCancel={confirmDiscard.close}
+          />
+        ) : (
+          <>
+            <button type="button" className="btn ghost" onClick={onCancel}>
+              Cancel
+            </button>
             <button
-              type="button"
-              className="btn ghost danger"
-              onClick={() => remove.mutate(expense.id, { onSuccess: onDone })}
-              disabled={remove.isPending || save.isPending}
+              ref={submitRef}
+              type="submit"
+              className="btn primary"
+              disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0) || summary.check !== null}
             >
-              <BusyLabel busy={remove.isPending} label="Deleting…">
-                Yes, delete it
+              <BusyLabel busy={save.isPending} label={expense ? 'Saving…' : 'Adding…'}>
+                {expense ? 'Save changes' : 'Add expense'}
               </BusyLabel>
             </button>
-          ) : (
-            <button type="button" className="btn ghost danger" onClick={() => setConfirmDelete(true)} disabled={save.isPending}>
-              Delete
-            </button>
-          ))}
-        <span className="spacer" />
-        <button type="button" className="btn ghost" onClick={onDone}>
-          Cancel
-        </button>
-        <button
-          ref={submitRef}
-          type="submit"
-          className="btn primary"
-          disabled={save.isPending || remove.isPending || (draft.mode === 'exact' && summary.leftToAssign !== 0) || summary.check !== null}
-        >
-          <BusyLabel busy={save.isPending} label={expense ? 'Saving…' : 'Adding…'}>
-            {expense ? 'Save changes' : 'Add expense'}
-          </BusyLabel>
-        </button>
+          </>
+        )}
       </div>
     </form>
   )

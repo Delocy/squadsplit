@@ -50,6 +50,7 @@ export function Sheet({
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const swipe = useSwipeDown(ref, onClose)
+  useKeyboardInset()
   useLayoutEffect(() => {
     const opener = document.activeElement
     return () => {
@@ -86,6 +87,31 @@ export function Sheet({
       <div className="dlg-b">{children}</div>
     </dialog>
   )
+}
+
+/**
+ * How much of the layout viewport the on-screen keyboard covers, as `--kb` on the page, so a bottom sheet (and its
+ * sticky footer) sits above it. The visual viewport shrinks for the keyboard (iOS, and Android by default) while the
+ * layout viewport doesn't; where the layout viewport shrinks itself, this stays 0.
+ */
+function useKeyboardInset() {
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const root = document.documentElement
+    const update = () => {
+      const covered = Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))
+      root.style.setProperty('--kb', `${covered}px`)
+    }
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+      root.style.removeProperty('--kb')
+    }
+  }, [])
 }
 
 /**
