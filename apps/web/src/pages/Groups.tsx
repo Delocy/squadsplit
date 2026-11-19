@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
+import { GroupLink } from '../components/GroupLink'
 import { JoinWithCode } from '../components/JoinWithCode'
 import { Money } from '../components/Money'
 import { PageLink } from '../components/PageLink'
@@ -21,7 +22,7 @@ function GroupCard({ group }: { group: GroupSummaryDTO }) {
   const { label, mood } = balanceText(group.myBalanceCents)
   return (
     <li>
-      <PageLink to={`/groups/${group.id}`} className="card group-card">
+      <GroupLink groupId={group.id} className="card group-card">
         <span className={mood === 'nervous' ? 'tile shiver' : 'tile'} style={{ '--tb': look.bg } as CSSProperties}>
           <Mascot kind={look.kind} face={look.face} mood={mood} />
         </span>
@@ -37,7 +38,7 @@ function GroupCard({ group }: { group: GroupSummaryDTO }) {
             </span>
           )}
         </span>
-      </PageLink>
+      </GroupLink>
     </li>
   )
 }

@@ -1,8 +1,8 @@
 import { useAuth } from '@clerk/react'
 import type { FeedItem } from '@squadsplit/shared'
 import { useParams } from 'react-router'
+import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
-import { PageLink } from '../components/PageLink'
 import { WheelCard } from '../components/WheelCard'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
@@ -31,9 +31,9 @@ export function Wheel() {
   return (
     <main className="narrow page">
       <div className="page-h">
-        <PageLink to={`/groups/${id}`} className="btn small ghost">
+        <GroupLink groupId={id} className="btn small ghost">
           Back to the group
-        </PageLink>
+        </GroupLink>
       </div>
       <WheelCard groupId={id} me={me} people={people} balances={balances.data?.balances} />
       <RecentSpins items={feed.data} me={me} people={people} />

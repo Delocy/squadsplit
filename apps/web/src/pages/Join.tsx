@@ -14,6 +14,7 @@ import { useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ErrorNote } from '../components/ErrorNote'
+import { GroupLink } from '../components/GroupLink'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { PageLink, usePageNavigate } from '../components/PageLink'
 import { lookOf } from '../design/Avatar'
@@ -112,9 +113,9 @@ export function Join() {
         {g.alreadyMember ? (
           <>
             <p>You're already in this group.</p>
-            <PageLink to={`/groups/${g.groupId}`} className="btn primary">
+            <GroupLink groupId={g.groupId} className="btn primary">
               Open group
-            </PageLink>
+            </GroupLink>
           </>
         ) : full ? (
           <>

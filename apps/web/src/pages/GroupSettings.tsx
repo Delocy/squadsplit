@@ -7,11 +7,12 @@ import { useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
 import { ConfirmBar } from '../components/ConfirmBar'
 import { ErrorNote } from '../components/ErrorNote'
+import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
 import { InviteCard } from '../components/InviteCard'
 import { MemberList } from '../components/MemberList'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
-import { PageLink, usePageNavigate } from '../components/PageLink'
+import { usePageNavigate } from '../components/PageLink'
 import { UiIcon } from '../design/icons'
 import { peopleOf, useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
@@ -42,9 +43,9 @@ export function GroupSettings() {
     <main className="narrow page">
       <div className="page-h">
         <h2>Group settings</h2>
-        <PageLink to={`/groups/${id}`} className="btn small ghost">
+        <GroupLink groupId={id} className="btn small ghost">
           Back to the group
-        </PageLink>
+        </GroupLink>
       </div>
       <div className="col">
         {isOwner && g.inviteCode ? (
