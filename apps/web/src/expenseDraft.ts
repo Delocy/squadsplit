@@ -2,6 +2,7 @@ import {
   CreateExpenseInput,
   formatMoney,
   itemizedTotal,
+  receiptChargesIncluded,
   SG_PRESET,
   splitEqual,
   SplitError,
@@ -38,9 +39,10 @@ export interface ExpenseDraft {
   exact: Record<string, string>
   /** itemized */
   items: ItemDraft[]
-  /** Whether the bill's charges (below) are added on top of the items. */
-  restaurantBill: boolean
-  /** The service charge and GST rates the toggle adds: Singapore's 10% + 9%, or a scanned receipt's or saved expense's own. */
+  /** Whether each charge (rates below) is added on top of the items. They switch on and off separately. */
+  serviceOn: boolean
+  gstOn: boolean
+  /** The rates the toggles add, always positive: Singapore's 10% + 9%, or a scanned receipt's or saved expense's own. */
   charges: BillCharges
 }
 
@@ -49,16 +51,11 @@ export interface BillCharges {
   gstBps: number
 }
 
-/** Whether the charges are the SG restaurant bill: 10% service charge, then 9% GST. */
-export const isSgCharges = (c: BillCharges) => c.serviceChargeBps === SG_PRESET.serviceChargeBps && c.gstBps === SG_PRESET.gstBps
-
-const percent = (bps: number) => `${bps / 100}%`
-
-/** "10% service charge, then 9% GST", "9% GST" or "10% service charge". */
-export function chargesHint(c: BillCharges): string {
-  const parts = [c.serviceChargeBps > 0 && `${percent(c.serviceChargeBps)} service charge`, c.gstBps > 0 && `${percent(c.gstBps)} GST`]
-  return parts.filter(Boolean).join(', then ')
-}
+/** The rates actually applied: each charge's rate when it is on, 0 when it is off. */
+export const appliedCharges = (d: Pick<ExpenseDraft, 'serviceOn' | 'gstOn' | 'charges'>): BillCharges => ({
+  serviceChargeBps: d.serviceOn ? d.charges.serviceChargeBps : 0,
+  gstBps: d.gstOn ? d.charges.gstBps : 0,
+})
 
 /** "12", "12.5", "12.50" or ".5" → cents. Anything else (including more than 2 decimals) → null. */
 export function parseAmount(text: string): number | null {
@@ -87,8 +84,9 @@ export function newDraft(me: string, activeIds: string[], today: string): Expens
     participantIds: activeIds,
     exact: {},
     items: [emptyItem()],
-    // Only used in By item mode, where it starts on (the playground default); the user can switch it off.
-    restaurantBill: true,
+    // Only used in By item mode, where both start on (the playground default); the user can switch either off.
+    serviceOn: true,
+    gstOn: true,
     charges: { ...SG_PRESET },
   }
 }
@@ -111,10 +109,15 @@ export function draftFromExpense(e: ExpenseDTO, activeIds: string[]): ExpenseDra
     items: e.items?.length
       ? e.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents), userIds: it.userIds }))
       : [emptyItem()],
-    // An itemized expense keeps what was saved, rates included; any other starts on SG, in case it is switched to By item.
-    ...(e.splitType === 'itemized' && ((e.serviceChargeBps ?? 0) > 0 || (e.gstBps ?? 0) > 0)
-      ? { restaurantBill: true, charges: { serviceChargeBps: e.serviceChargeBps ?? 0, gstBps: e.gstBps ?? 0 } }
-      : { restaurantBill: e.splitType !== 'itemized', charges: { ...SG_PRESET } }),
+    // An itemized expense keeps what was saved: a charge is on when its stored rate is, and an off one falls back to
+    // the SG rate. Any other expense starts on SG, in case it is switched to By item.
+    ...(e.splitType === 'itemized'
+      ? {
+          serviceOn: (e.serviceChargeBps ?? 0) > 0,
+          gstOn: (e.gstBps ?? 0) > 0,
+          charges: { serviceChargeBps: e.serviceChargeBps || SG_PRESET.serviceChargeBps, gstBps: e.gstBps || SG_PRESET.gstBps },
+        }
+      : { serviceOn: true, gstOn: true, charges: { ...SG_PRESET } }),
   }
 }
 
@@ -129,20 +132,24 @@ export const hasEnteredAmounts = (d: ExpenseDraft) =>
 
 /**
  * The form filled in from a scanned receipt: the split becomes By item and its items replace the rows (nobody
- * assigned yet). The receipt's own service charge and GST become the bill's charges (switched on), whatever their
- * rates, so the saved total is what the receipt adds up to; with no charges the toggle is off. The receipt's total,
- * when it shows one, becomes the amount too, for a switch back to Equally or Exact amounts.
+ * assigned yet). Each charge the receipt has is switched on at the receipt's own rate, whatever it is, so the saved
+ * total is what the receipt adds up to; one it lacks is off, at the SG rate for if it is switched on. When its
+ * prices already include the charges (receiptChargesIncluded), both are off, so the total stays the items' sum; the
+ * rates are kept for switching one on by hand. The receipt's total, when it shows one, becomes the amount too, for a
+ * switch back to Equally or Exact amounts.
  */
 export function applyScan(d: ExpenseDraft, scan: ReceiptScanResult): ExpenseDraft {
-  const charges = { serviceChargeBps: scan.serviceChargeBps ?? 0, gstBps: scan.gstBps ?? 0 }
-  const hasCharges = charges.serviceChargeBps > 0 || charges.gstBps > 0
+  const service = scan.serviceChargeBps ?? 0
+  const gst = scan.gstBps ?? 0
+  const included = receiptChargesIncluded(scan)
   return {
     ...d,
     mode: 'itemized',
     amount: scan.totalCents === null ? d.amount : centsToInput(scan.totalCents),
     items: scan.items.map((it) => ({ ...emptyItem(), name: it.name, price: centsToInput(it.amountCents) })),
-    restaurantBill: hasCharges,
-    charges: hasCharges ? charges : d.charges,
+    serviceOn: !included && service > 0,
+    gstOn: !included && gst > 0,
+    charges: { serviceChargeBps: service || SG_PRESET.serviceChargeBps, gstBps: gst || SG_PRESET.gstBps },
   }
 }
 
@@ -229,7 +236,7 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
       split = { type: 'exact', shares }
     }
   } else {
-    const bps = d.restaurantBill ? d.charges : { serviceChargeBps: 0, gstBps: 0 }
+    const bps = appliedCharges(d)
     const priced = d.items.map((it) => ({ ...it, cents: parseAmount(it.price) })).filter((it) => it.cents !== null && it.cents >= 1)
     if (priced.length) {
       const items: BillItem[] = priced.map((it) => ({ name: it.name.trim(), amountCents: it.cents!, userIds: ordered(it.userIds) }))
@@ -289,7 +296,7 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
  */
 export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft {
   const target = parseAmount(d.amount)
-  const bps = d.restaurantBill ? d.charges : { serviceChargeBps: 0, gstBps: 0 }
+  const bps = appliedCharges(d)
   const kept = d.items.filter((it) => it.name.trim() !== '' || it.price.trim() !== '' || it.userIds.length > 0)
   const priced: BillItem[] = kept.flatMap((it) => {
     const cents = parseAmount(it.price)
