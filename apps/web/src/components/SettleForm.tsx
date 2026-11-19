@@ -1,5 +1,5 @@
 import { formatMoney, settlementCap } from '@squadsplit/shared'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BusyLabel } from '../design/Busy'
 import { centsToInput, parseAmount } from '../expenseDraft'
 import type { People } from '../groupData'
@@ -22,6 +22,7 @@ export function SettleForm({
   people,
   currency,
   busy,
+  leaving = false,
   onSubmit,
   onCancel,
 }: {
@@ -35,6 +36,8 @@ export function SettleForm({
   people: People
   currency: string
   busy: boolean
+  /** Animating out after it closed. */
+  leaving?: boolean
   onSubmit: (input: SettlementInput) => void
   onCancel: () => void
 }) {
@@ -48,6 +51,8 @@ export function SettleForm({
   const [payee, setPayee] = useState(initialPayee)
   const [amount, setAmount] = useState(() => prefill(initialPayee))
   const [error, setError] = useState<string | null>(null)
+  const firstField = useRef<HTMLSelectElement>(null)
+  useEffect(() => firstField.current?.focus(), [])
 
   function choosePayee(userId: string) {
     setPayee(userId)
@@ -67,13 +72,13 @@ export function SettleForm({
   }
 
   return (
-    <form className="settle-form" aria-label="Mark a payment" onSubmit={submit}>
+    <form className={leaving ? 'settle-form out' : 'settle-form'} aria-label="Mark a payment" onSubmit={submit}>
       <div className="settle-fields">
         <div>
           <label className="f" htmlFor="settle-payee">
             Paid to
           </label>
-          <select id="settle-payee" value={payee} onChange={(e) => choosePayee(e.target.value)}>
+          <select ref={firstField} id="settle-payee" value={payee} onChange={(e) => choosePayee(e.target.value)}>
             {creditors.map((m) => (
               <option key={m.userId} value={m.userId}>
                 {m.displayName}
@@ -106,7 +111,7 @@ export function SettleForm({
         <button type="button" className="btn small ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn small primary" disabled={busy}>
+        <button type="submit" className="btn small primary" disabled={busy || leaving}>
           <BusyLabel busy={busy} label="Saving…">
             Submit
           </BusyLabel>

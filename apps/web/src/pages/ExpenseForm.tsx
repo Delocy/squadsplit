@@ -7,7 +7,7 @@ import {
   type GroupDTO,
   type MemberDTO,
 } from '@squadsplit/shared'
-import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
@@ -17,6 +17,7 @@ import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
 import { confetti } from '../design/confetti'
 import { CATEGORY_ART, CategoryIcon, UiIcon } from '../design/icons'
+import { EXIT_MS, useReducedMotion } from '../design/motion'
 import {
   applyScan,
   draftFromExpense,
@@ -43,8 +44,16 @@ export function ExpenseForm() {
   const navigate = useNavigate()
   const group = useGroup(groupId)
   const expenses = useExpenses(groupId)
-  // Back to the group, staying where it was scrolled to.
-  const close = () => navigate(`/groups/${groupId}`, { preventScrollReset: true })
+  const reduced = useReducedMotion()
+  const [leaving, setLeaving] = useState(false)
+  // Back to the group, staying where it was scrolled to. The dialog fades out first (not under reduced motion).
+  const backToGroup = () => navigate(`/groups/${groupId}`, { preventScrollReset: true })
+  const close = () => (reduced ? backToGroup() : setLeaving(true))
+  useEffect(() => {
+    if (!leaving) return
+    const timer = setTimeout(() => navigate(`/groups/${groupId}`, { preventScrollReset: true }), EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [leaving, navigate, groupId])
 
   const expense = expenseId ? expenses.data?.find((e) => e.id === expenseId) : undefined
   const people = group.data ? peopleOf(group.data, me) : null
@@ -67,15 +76,34 @@ export function ExpenseForm() {
   }
 
   return (
-    <Dialog title={expenseId ? 'Edit expense' : 'New expense'} onClose={close}>
+    <Dialog title={expenseId ? 'Edit expense' : 'New expense'} leaving={leaving} onClose={close}>
       {body}
     </Dialog>
   )
 }
 
-/** A native modal <dialog> (Escape closes it), opened as it mounts. */
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+/**
+ * A native modal <dialog> (Escape closes it), opened as it mounts. It fades and scales in, and out while `leaving`.
+ * When it goes, focus goes back to whatever opened it (the Add expense or Edit link).
+ */
+function Dialog({
+  title,
+  leaving,
+  onClose,
+  children,
+}: {
+  title: string
+  leaving: boolean
+  onClose: () => void
+  children: ReactNode
+}) {
   const ref = useRef<HTMLDialogElement>(null)
+  useLayoutEffect(() => {
+    const opener = document.activeElement
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [])
   useLayoutEffect(() => {
     const d = ref.current
     if (!d || d.open) return
@@ -86,6 +114,7 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   return (
     <dialog
       ref={ref}
+      className={leaving ? 'out' : undefined}
       aria-labelledby="dlg-title"
       onCancel={(e) => {
         e.preventDefault()
@@ -175,6 +204,8 @@ function ExpenseFields({
   const [problem, setProblem] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const submitRef = useRef<HTMLButtonElement>(null)
+  const descriptionRef = useRef<HTMLInputElement>(null)
+  useEffect(() => descriptionRef.current?.focus(), [])
 
   const save = useGroupMutation(group.id, (input: CreateExpenseInput) =>
     expense ? api.patch<ExpenseDTO>(`/expenses/${expense.id}`, input) : api.post<ExpenseDTO>(`/groups/${group.id}/expenses`, input),
@@ -223,6 +254,7 @@ function ExpenseFields({
             Description
           </label>
           <input
+            ref={descriptionRef}
             id="exp-desc"
             type="text"
             maxLength={100}

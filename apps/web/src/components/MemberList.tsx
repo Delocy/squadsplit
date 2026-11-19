@@ -1,11 +1,10 @@
 import { MAX_GROUP_MEMBERS, type GroupDTO, type MemberDTO } from '@squadsplit/shared'
-import { useState } from 'react'
 import { useApi } from '../api'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
 import { useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
-import { ConfirmBar } from './ConfirmBar'
+import { ConfirmBar, useConfirmStep } from './ConfirmBar'
 
 /** Everyone in the group with their role; the owner can remove others. People who left are folded away. */
 export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
@@ -45,7 +44,7 @@ export function MemberList({ group, me }: { group: GroupDTO; me: string }) {
 
 function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member: MemberDTO; me: string; canRemove: boolean }) {
   const api = useApi()
-  const [confirming, setConfirming] = useState(false)
+  const confirm = useConfirmStep()
   const remove = useGroupMutation(groupId, () => api.del(`/groups/${groupId}/members/${member.userId}`))
   return (
     <li className="row member">
@@ -57,19 +56,20 @@ function MemberRow({ groupId, member, me, canRemove }: { groupId: string; member
         </div>
         <div className="s">{member.role === 'owner' ? 'Owner' : 'Member'}</div>
       </div>
-      {canRemove && !confirming && (
-        <button className="btn small ghost danger" onClick={() => setConfirming(true)}>
+      {canRemove && !confirm.showBar && (
+        <button ref={confirm.triggerRef} className="btn small ghost danger" onClick={confirm.open}>
           Remove
         </button>
       )}
-      {confirming && (
+      {confirm.showBar && (
         <ConfirmBar
           question={`Remove ${member.displayName} from the group?`}
           yes={`Yes, remove ${member.displayName}`}
           busyLabel="Removing…"
           busy={remove.isPending}
-          onYes={() => remove.mutate(undefined, { onSettled: () => setConfirming(false) })}
-          onCancel={() => setConfirming(false)}
+          leaving={confirm.leaving}
+          onYes={() => remove.mutate(undefined, { onSettled: confirm.close })}
+          onCancel={confirm.close}
         />
       )}
       {remove.isError && (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useApi } from '../api'
 import { UiIcon } from '../design/icons'
 import { useGroupMutation } from '../groupData'
-import { ConfirmBar } from './ConfirmBar'
+import { ConfirmBar, useConfirmStep } from './ConfirmBar'
 import { ErrorNote } from './ErrorNote'
 import { InviteQr } from './InviteQr'
 
@@ -11,7 +11,7 @@ export function InviteCard({ groupId, inviteCode }: { groupId: string; inviteCod
   const api = useApi()
   const link = `${location.origin}/join/${inviteCode}`
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const [confirming, setConfirming] = useState(false)
+  const confirm = useConfirmStep()
   const reset = useGroupMutation(groupId, () => api.post<{ inviteCode: string }>(`/groups/${groupId}/invite/reset`))
 
   useEffect(() => {
@@ -48,17 +48,18 @@ export function InviteCard({ groupId, inviteCode }: { groupId: string; inviteCod
             </button>
           </div>
           {copy === 'failed' && <p className="err">Couldn't copy it. Select the link and copy it yourself.</p>}
-          {confirming ? (
+          {confirm.showBar ? (
             <ConfirmBar
               question="The old link will stop working."
               yes="Yes, reset it"
               busyLabel="Resetting…"
               busy={reset.isPending}
-              onYes={() => reset.mutate(undefined, { onSuccess: () => setConfirming(false) })}
-              onCancel={() => setConfirming(false)}
+              leaving={confirm.leaving}
+              onYes={() => reset.mutate(undefined, { onSuccess: confirm.close })}
+              onCancel={confirm.close}
             />
           ) : (
-            <button className="btn small ghost" onClick={() => setConfirming(true)}>
+            <button ref={confirm.triggerRef} className="btn small ghost" onClick={confirm.open}>
               Reset invite link
             </button>
           )}

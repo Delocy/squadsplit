@@ -60,7 +60,7 @@ describe('motion CSS', () => {
 
   it('turns every animation off under reduced motion, pseudo-elements and view transitions included', () => {
     const reduced = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'))
-    expect(reduced).toContain('*, *::before, *::after')
+    expect(reduced).toContain('*, *::before, *::after, ::backdrop')
     expect(reduced).toContain('::view-transition-group(*)')
     expect(reduced).toContain('::view-transition-old(*)')
     expect(reduced).toContain('::view-transition-new(*)')

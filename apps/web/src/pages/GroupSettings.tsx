@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import { useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
-import { ConfirmBar } from '../components/ConfirmBar'
+import { ConfirmBar, useConfirmStep } from '../components/ConfirmBar'
 import { ErrorNote } from '../components/ErrorNote'
 import { GroupLink } from '../components/GroupLink'
 import { GroupUnavailable } from '../components/GroupUnavailable'
@@ -164,7 +164,7 @@ function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
   const api = useApi()
   const navigate = usePageNavigate()
   const queryClient = useQueryClient()
-  const [confirming, setConfirming] = useState(false)
+  const confirm = useConfirmStep()
   // Not useGroupMutation: refetching this group after leaving would 404 before we navigate away.
   const leave = useSingleFlightMutation({
     mutationFn: () => api.del(`/groups/${group.id}/members/${me}`),
@@ -182,17 +182,18 @@ function LeaveCard({ group, me }: { group: GroupDTO; me: string }) {
         Leave
       </h3>
       <p className="s">You can leave once you're settled up. You can come back later with an invite link.</p>
-      {confirming ? (
+      {confirm.showBar ? (
         <ConfirmBar
           question={`Leave ${group.name}?`}
           yes="Yes, leave"
           busyLabel="Leaving…"
           busy={leave.isPending}
-          onYes={() => leave.mutate(undefined, { onError: () => setConfirming(false) })}
-          onCancel={() => setConfirming(false)}
+          leaving={confirm.leaving}
+          onYes={() => leave.mutate(undefined, { onError: confirm.close })}
+          onCancel={confirm.close}
         />
       ) : (
-        <button className="btn danger" onClick={() => setConfirming(true)}>
+        <button ref={confirm.triggerRef} className="btn danger" onClick={confirm.open}>
           Leave group
         </button>
       )}

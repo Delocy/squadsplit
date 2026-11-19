@@ -225,6 +225,19 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 dialog { border: 2px solid var(--ink); border-radius: 20px; box-shadow: 4px 4px 0 var(--ink); padding: 0; width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px); background: var(--card); color: var(--text); }
 dialog::backdrop { background: rgba(40, 25, 45, .45); }
+/* The dialog, the settle form and confirm bars ease in, and out (class "out") before they go. */
+@keyframes dlg-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes dlg-out { to { opacity: 0; transform: translateY(6px) scale(.97); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes sheet-out { to { opacity: 0; transform: translateY(-6px); } }
+dialog[open] { animation: dlg-in 160ms ease-out; }
+dialog[open]::backdrop { animation: fade-in 160ms ease-out; }
+dialog.out { animation: dlg-out 160ms ease-in forwards; pointer-events: none; }
+dialog.out::backdrop { animation: fade-out 160ms ease-in forwards; }
+.settle-form, .confirm { animation: sheet-in 160ms ease-out; }
+.settle-form.out, .confirm.out { animation: sheet-out 160ms ease-in forwards; pointer-events: none; }
 .dlg-h { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
 .dlg-h h3 { font-size: 18px; }
 .dlg-h > .ic > svg { width: 20px; height: 20px; color: var(--accent); }
@@ -360,6 +373,6 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 ::view-transition-old(top-bar) { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after, ::backdrop { animation: none !important; transition: none !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

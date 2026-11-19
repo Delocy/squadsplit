@@ -85,7 +85,8 @@ describe('Group settings', () => {
         expect((screen.getByLabelText('Invite link') as HTMLInputElement).value).toBe(`${location.origin}/join/WXYZ6789`),
       )
       expect(qr()).not.toBe(before)
-      expect(screen.queryByRole('button', { name: 'Yes, reset it' })).toBeNull()
+      // The confirm bar slides out first.
+      await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Yes, reset it' })).toBeNull())
     })
 
     it('renames the group', async () => {

@@ -238,7 +238,8 @@ describe('Group home', () => {
       expect(count(calls, 'POST /groups/g1/settlements')).toBe(0)
 
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-      expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull()
+      // It slides out first.
+      await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Mark a payment' })).toBeNull())
       expect(screen.queryByRole('alert')).toBeNull()
     })
 
