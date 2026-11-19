@@ -15,7 +15,7 @@ import { useMe } from '../useProfileRefresh'
 import { AssignStep } from './AssignStep'
 import { BillStep } from './BillStep'
 import { billProblem, draftFromSplit, newQuickDraft, peopleProblem, reserveKeys, toInput, type QuickDraft } from './draft'
-import { loadQuickDraft, newDraftId, saveQuickDraft } from './draftStore'
+import { dropQuickDraft, loadQuickDraft, newDraftId, saveQuickDraft } from './draftStore'
 import { localToday } from './format'
 import { PeopleStep } from './PeopleStep'
 import { useQuickSplit, useStoreQuickSplit } from './quickData'
@@ -33,10 +33,14 @@ const STEP_PARAM = ['', 'people', 'assign'] as const
 const stepFrom = (search: string): Step => Math.max(0, STEP_PARAM.indexOf(new URLSearchParams(search).get('step') as never)) as Step
 const searchFor = (step: Step) => (step === 0 ? '' : `?step=${STEP_PARAM[step]}`)
 
-/** What a history entry of the flow carries: its draft, and whether Next pushed it (so the step before is Back). */
+/**
+ * What a history entry of the flow carries: its draft, whether Next pushed it (so the step before is Back), and once
+ * the bill is saved from it, the split's id (Back from the card comes here, and finds the split to edit).
+ */
 interface FlowEntry {
   draftId?: string
   viaNext?: boolean
+  savedId?: string
 }
 
 export const LEAVE_QUESTION = "Leave this bill? Your dishes won't be saved."
@@ -63,7 +67,11 @@ function Flow({ initial, splitId }: { initial: QuickDraft; splitId?: string }) {
     reserveKeys(d)
     return d
   })
-  const savedId = kept?.savedId ?? splitId
+  const savedId = splitId
+  // An entry whose draft this tab no longer has: saved (Back from the card), left, or never kept because the browser
+  // refused storage. Never an empty bill in its place: the saved split to edit, or your groups.
+  const [lost] = useState(() => entry.draftId !== undefined && kept === null)
+  const finished = useRef(false)
   const [problem, setProblem] = useState<string | null>(null)
   // A change answers whatever stopped the last Next, so its message goes.
   const setDraft: typeof setDraftState = (update) => {
@@ -71,23 +79,32 @@ function Flow({ initial, splitId }: { initial: QuickDraft; splitId?: string }) {
     setDraftState(update)
   }
   const dirty = JSON.stringify(draft) !== JSON.stringify(start)
-  useEffect(() => saveQuickDraft(draftId, { start, draft, savedId }), [draftId, start, draft, savedId])
-  // The entry this draft opened on carries its id from now on.
   useEffect(() => {
-    if (!entry.draftId) navigate({ search: location.search }, { replace: true, state: { draftId } satisfies FlowEntry })
-  }, []) // once, on the entry it opened on
+    if (!lost && !finished.current) saveQuickDraft(draftId, { start, draft })
+  }, [lost, draftId, start, draft])
+  // Once, on the entry it opened on: a new draft's entry carries its id from now on; a lost one goes elsewhere.
+  useEffect(() => {
+    if (lost) navigate(entry.savedId ? `/quick/${entry.savedId}/edit?step=assign` : '/groups', { replace: true })
+    else if (!entry.draftId) navigate({ search: location.search }, { replace: true, state: { draftId } satisfies FlowEntry })
+  }, []) // once
 
   // The step in the URL, but never past one that isn't ready (a step opened with nothing to show lands earlier).
   const ready: Step = billProblem(draft) ? 0 : peopleProblem(draft) ? 1 : 2
   const wanted = stepFrom(location.search)
   const step = Math.min(wanted, ready) as Step
   useEffect(() => {
-    if (wanted > ready) navigate({ search: searchFor(ready) }, { replace: true, state: { draftId } satisfies FlowEntry })
-  }, [wanted, ready, draftId, navigate])
+    if (!lost && wanted > ready) navigate({ search: searchFor(ready) }, { replace: true, state: { draftId } satisfies FlowEntry })
+  }, [lost, wanted, ready, draftId, navigate])
 
   // Leaving the flow with changes asks first; saving doesn't.
   const leaving = useRef(false)
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname)
+  // Keep editing gives focus back to what had it (the link or button that tried to leave).
+  const focusBefore = useRef<HTMLElement | null>(null)
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    const block = dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname
+    if (block && document.activeElement instanceof HTMLElement) focusBefore.current = document.activeElement
+    return block
+  })
   useEffect(() => {
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => e.preventDefault()
@@ -97,13 +114,14 @@ function Flow({ initial, splitId }: { initial: QuickDraft; splitId?: string }) {
 
   const save = useSingleFlightMutation({
     mutationFn: (input: QuickSplitInput) => (savedId ? api.put<QuickSplitDTO>(`/quick-splits/${savedId}`, input) : api.post<QuickSplitDTO>('/quick-splits', input)),
-    onSuccess: (saved) => {
+    onSuccess: async (saved) => {
       store(saved)
-      // Back from the card comes here again, as the saved split (everyone with their id), to save as an edit.
-      const asSaved = draftFromSplit(saved)
-      saveQuickDraft(draftId, { start: asSaved, draft: asSaved, savedId: saved.id })
+      finished.current = true
       leaving.current = true
-      pageNavigate(`/quick/${saved.id}`, { state: { fresh: !splitId } })
+      dropQuickDraft(draftId)
+      // Back from the card lands on this entry again, which now names the split, to edit it from Assign.
+      await navigate({ search: location.search }, { replace: true, state: { ...entry, draftId, savedId: saved.id } satisfies FlowEntry })
+      pageNavigate(`/quick/${saved.id}`, { state: { fresh: !savedId } })
     },
   })
 
@@ -124,6 +142,8 @@ function Flow({ initial, splitId }: { initial: QuickDraft; splitId?: string }) {
     if ('problem' in out) return setProblem(out.problem)
     save.mutate(out.input)
   }
+
+  if (lost) return null
 
   const cancelTo = savedId ? `/quick/${savedId}` : '/groups'
   return (
@@ -168,8 +188,14 @@ function Flow({ initial, splitId }: { initial: QuickDraft; splitId?: string }) {
             no="Keep editing"
             busyLabel="Leaving…"
             busy={false}
-            onYes={() => blocker.proceed()}
-            onCancel={() => blocker.reset()}
+            onYes={() => {
+              dropQuickDraft(draftId)
+              blocker.proceed()
+            }}
+            onCancel={() => {
+              blocker.reset()
+              focusBefore.current?.focus()
+            }}
           />
         </div>
       )}

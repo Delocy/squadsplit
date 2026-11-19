@@ -3,12 +3,11 @@ import type { QuickDraft } from './draft'
 /**
  * A quick split being made, kept in this tab's sessionStorage under its own id, so coming back to it (Back, Forward,
  * a reload, the phone dropping the tab in the background) finds it as it was. `start` is what it began from, to tell
- * whether anything changed; `savedId` is set once it has been saved, so saving again updates that split.
+ * whether anything changed. It is dropped once the split is saved or the bill is left.
  */
 export interface StoredQuickDraft {
   start: QuickDraft
   draft: QuickDraft
-  savedId?: string
 }
 
 const key = (draftId: string) => `squadsplit.quickDraft.${draftId}`
@@ -25,6 +24,15 @@ export function loadQuickDraft(draftId: string): StoredQuickDraft | null {
     return stored && Array.isArray(stored.draft?.dishes) && Array.isArray(stored.start?.dishes) ? stored : null
   } catch {
     return null
+  }
+}
+
+/** Forgets the draft (saved, or left). */
+export function dropQuickDraft(draftId: string): void {
+  try {
+    sessionStorage.removeItem(key(draftId))
+  } catch {
+    // Storage refused: there was nothing kept to drop.
   }
 }
 

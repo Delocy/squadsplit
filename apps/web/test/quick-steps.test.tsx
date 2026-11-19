@@ -142,12 +142,44 @@ describe('Quick split steps and Back', () => {
     next(/Make the share card/)
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/quick/q1'))
 
+    // Saved, the draft is gone from storage: Back opens the saved split at Assign, to edit.
+    expect(Object.keys(sessionStorage).filter((k) => k.startsWith('squadsplit.quickDraft.'))).toEqual([])
     await act(() => router.navigate(-1))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/quick/q1/edit'))
     expect(router.state.location.search).toBe('?step=assign')
     fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }))
     await vi.waitFor(() => expect(calls.some((c) => c.key === 'PUT /quick-splits/q1')).toBe(true))
     expect(calls.filter((c) => c.key === 'POST /quick-splits')).toHaveLength(1)
     expect((calls.find((c) => c.key === 'PUT /quick-splits/q1')!.body as QuickSplitInput).people.every((p) => p.id)).toBe(true)
+    // Saving again is an edit: the card isn't "just made".
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/quick/q1'))
+    expect(router.state.location.state).toEqual({ fresh: false })
+  })
+
+  it('forgets the draft on Leave, and Back to it goes to your groups, never an empty bill', async () => {
+    api()
+    const router = renderApp('/groups')
+    await screen.findByRole('heading', { name: 'Your groups' })
+    await act(() => router.navigate('/quick/new'))
+    await fillBill()
+    fireEvent.click(screen.getByRole('link', { name: 'Cancel' }))
+    fireEvent.click(within(await screen.findByRole('group', { name: /Leave this bill/ })).getByRole('button', { name: 'Leave' }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups'))
+    expect(Object.keys(sessionStorage).filter((k) => k.startsWith('squadsplit.quickDraft.'))).toEqual([])
+
+    await act(() => router.navigate(-1))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups'))
+  })
+
+  it('gives focus back to what tried to leave when you keep editing', async () => {
+    api()
+    renderApp('/quick/new')
+    await fillBill()
+    const cancel = screen.getByRole('link', { name: 'Cancel' })
+    cancel.focus()
+    fireEvent.click(cancel)
+    fireEvent.click(within(await screen.findByRole('group', { name: /Leave this bill/ })).getByRole('button', { name: 'Keep editing' }))
+    expect(document.activeElement).toBe(cancel)
   })
 })
 
