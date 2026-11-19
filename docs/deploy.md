@@ -29,7 +29,7 @@ SquadSplit runs on Cloudflare: the API is a Worker with a D1 database, the web a
 7. TODO: Create a Cloudflare API token. Dashboard, My Profile, API Tokens, Create Token. Start from the "Edit Cloudflare Workers" template and add Account, D1, Edit and Account, Cloudflare Pages, Edit. Also copy your Account ID (dashboard sidebar or the Workers & Pages overview).
 8. TODO: Add GitHub config at `Delocy/squadsplit`, Settings, Secrets and variables, Actions.
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_CLERK_PUBLISHABLE_KEY`
-   - Variables: `WEB_ORIGIN` is the Pages URL, for example `https://squadsplit.pages.dev` (use whatever Pages assigns, with no trailing slash). `VITE_API_URL` is the Worker URL, `https://squadsplit-api.<your-subdomain>.workers.dev`, shown after the first deploy. Set a placeholder first, then correct it and re-run the workflow.
+   - Variables: `WEB_ORIGIN` is the Pages URL, for example `https://squadsplit.pages.dev` (use whatever Pages assigns, with no trailing slash). `VITE_API_URL` is the Worker URL, `https://squadsplit-api.<your-subdomain>.workers.dev`. Step 6 already created the Worker, so read its workers.dev URL from the Cloudflare dashboard (Workers & Pages, squadsplit-api). The deploy fails early if any of these three values is empty or if `WEB_ORIGIN` ends with a slash.
 9. TODO: In the Clerk dashboard, confirm the sign-in methods you want (for example Google and GitHub) and add the Pages URL if Clerk asks for allowed origins.
 10. TODO: Merge to `main` and watch the Actions tab. The `test` job runs first, then `deploy` migrates D1, deploys the Worker, builds the web app and publishes it to Pages.
 11. TODO: Smoke test. Open the health endpoint and expect `{"ok":true}`:
@@ -66,7 +66,7 @@ npx wrangler rollback
 
 For Pages, open the project's Deployments tab and roll back to an earlier deployment.
 
-D1 supports Time Travel, which restores the database to any point in the last 30 days (7 on the free plan):
+D1 supports Time Travel, which restores the database to an earlier point in time; see Cloudflare's D1 Time Travel docs for the retention window:
 
 ```bash
 npx wrangler d1 time-travel info squadsplit

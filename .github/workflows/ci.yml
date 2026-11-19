@@ -32,17 +32,31 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Check required deploy config
+        env:
+          WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          [ -n "$WEB_ORIGIN" ] || { echo "::error::Repository variable WEB_ORIGIN is empty or unset"; exit 1; }
+          [ -n "$VITE_API_URL" ] || { echo "::error::Repository variable VITE_API_URL is empty or unset"; exit 1; }
+          [ -n "$VITE_CLERK_PUBLISHABLE_KEY" ] || { echo "::error::Secret VITE_CLERK_PUBLISHABLE_KEY is empty or unset"; exit 1; }
+          case "$WEB_ORIGIN" in
+            */) echo "::error::WEB_ORIGIN must not end with a slash"; exit 1 ;;
+          esac
       - name: Apply D1 migrations
         working-directory: apps/api
         run: npx wrangler d1 migrations apply squadsplit --remote
       - name: Deploy API Worker
         working-directory: apps/api
-        run: npx wrangler deploy --var WEB_ORIGIN:${{ vars.WEB_ORIGIN }}
+        env:
+          WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+        run: npx wrangler deploy --var "WEB_ORIGIN:$WEB_ORIGIN"
       - name: Build web
         run: npm run build -w @squadsplit/web
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
       - name: Deploy web to Pages
-        working-directory: apps/api
-        run: npx wrangler pages deploy ../web/dist --project-name squadsplit --branch main
+        working-directory: apps/web
+        run: ../api/node_modules/.bin/wrangler pages deploy dist --project-name squadsplit --branch main
