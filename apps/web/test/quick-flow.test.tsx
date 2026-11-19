@@ -177,6 +177,36 @@ describe('Quick split: making one', () => {
     expect(within(screen.getByRole('region', { name: 'The bill' })).getByText('$11.88')).toBeTruthy()
   })
 
+  it('after a scan that misses a line, checks the dishes against the receipt total and never goes on with less', async () => {
+    const scan: ReceiptScanDTO = {
+      items: [{ name: 'Nasi lemak', amountCents: 1000 }],
+      serviceChargeBps: 1000,
+      gstBps: 900,
+      totalCents: 1319,
+      totalMatches: false,
+      source: 'ai',
+    }
+    start({ 'POST /receipts/scan': () => ({ status: 200, body: scan }) })
+    await screen.findByRole('heading', { name: 'Quick split' })
+    type("What's it for?", 'Lunch')
+    fireEvent.change(screen.getByLabelText('Pick a photo'), { target: { files: [new File(['x'], 'r.jpg', { type: 'image/jpeg' })] } })
+    await vi.waitFor(() => expect((screen.getByLabelText('Receipt total') as HTMLInputElement).value).toBe('13.19'))
+
+    const line = 'Items + charges come to $11.99, $1.20 short of the $13.19 total.'
+    expect(screen.getAllByText(line)).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /Next: who.s in/ }))
+    expect(screen.getByRole('alert').textContent).toBe(line)
+    // Still on the bill.
+    expect(screen.getByLabelText('Receipt total')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Other $1.00 (+ charges = $1.20)' }))
+    expect((within(screen.getByRole('group', { name: 'Dish 2' })).getByLabelText('Dish name') as HTMLInputElement).value).toBe('Other')
+    expect(within(screen.getByRole('region', { name: 'The bill' })).getByText('$13.19')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Next: who.s in/ }))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByLabelText('Receipt total')).toBeNull()
+  })
+
   it('suggests names from recent quick splits, leaving out you and anyone already in', async () => {
     start()
     await screen.findByRole('heading', { name: 'Quick split' })

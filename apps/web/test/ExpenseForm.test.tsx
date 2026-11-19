@@ -204,10 +204,12 @@ describe('Expense form', () => {
     expect(save.disabled).toBe(false)
 
     type(totalField(dialog), '50.00')
-    expect(dialog.getByRole('status').textContent).toContain('Items + charges come to $11.99, $38.01 not on any item.')
+    expect(dialog.getByRole('status').textContent).toContain('Items + charges come to $11.99, $38.01 short of the $50.00 total.')
     expect(save.disabled).toBe(true)
 
-    fireEvent.click(dialog.getByRole('button', { name: "Add $38.01 as 'Other', shared by all" }))
+    // Honest about the charges: the Other line is $31.70, which is $38.01 with them.
+    expect(dialog.getByText("It's added as Other, shared by all.")).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Add Other $31.70 (+ charges = $38.01)' }))
     const other = within(dialog.getByRole('group', { name: 'Item 2' }))
     expect((other.getByLabelText('Item name') as HTMLInputElement).value).toBe('Other')
     expect(other.getByRole('button', { name: 'Alice' }).getAttribute('aria-pressed')).toBe('true')
@@ -217,8 +219,8 @@ describe('Expense form', () => {
 
     // A total below the items offers no fix-up, only the check.
     type(totalField(dialog), '10.00')
-    expect(dialog.getByRole('status').textContent).toMatch(/more than the total\.$/)
-    expect(dialog.queryByRole('button', { name: /as 'Other'/ })).toBeNull()
+    expect(dialog.getByRole('status').textContent).toMatch(/more than the \$10\.00 total\.$/)
+    expect(dialog.queryByRole('button', { name: /^Add Other/ })).toBeNull()
     expect(save.disabled).toBe(true)
 
     type(totalField(dialog), '')

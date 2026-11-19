@@ -1,4 +1,4 @@
-import { formatMoney, receiptChargesIncluded, receiptItemsTotal, type Currency } from '@squadsplit/shared'
+import { formatMoney, receiptChargesIncluded, type Currency } from '@squadsplit/shared'
 import type { ReceiptScan } from './scanReceipt'
 
 export const UNREADABLE_BANNER = "Couldn't read this receipt — add the items by hand."
@@ -16,5 +16,6 @@ export function scanBanner(scan: ReceiptScan, currency: Currency): string {
     return `Read your receipt — total ${money(scan.totalCents)} matches (prices already include the charges). Tap who had what.`
   }
   if (scan.totalMatches) return `Read your receipt — total ${money(scan.totalCents)} matches. Tap who had what.`
-  return `Receipt says ${money(scan.totalCents)}, items add up to ${money(receiptItemsTotal(scan))} — please check the items.`
+  // How far off the items are is said once, at the total (see TotalFixup).
+  return 'Read your receipt — check the total below, then tap who had what.'
 }

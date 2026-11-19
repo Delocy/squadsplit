@@ -1,6 +1,7 @@
 import {
   defaultAvatar,
   firstFreeAvatar,
+  formatMoney,
   QuickSplitInput,
   quickSplitBreakdown,
   receiptChargesIncluded,
@@ -13,6 +14,7 @@ import {
 } from '@squadsplit/shared'
 import { centsToInput, parseAmount } from '../expenseDraft'
 import { parseMemberName } from '../memberName'
+import { checkTotal, otherLine, type TotalCheck } from '../receipt/fixup'
 
 // A quick split being made or edited, kept in the page's state until it is saved. Amounts are typed as text and
 // only ever become integer cents here.
@@ -33,6 +35,8 @@ export interface DraftDish {
   price: string
   /** Who had it, by DraftPerson.key. */
   had: string[]
+  /** Shared by everyone in the split (the Other fix-up): someone added later has it too, until it's changed by hand. */
+  everyone?: boolean
 }
 
 /** A charge with its own switch. Off is stored as 0; its rate is kept, so turning it back on never means 0%. */
@@ -51,17 +55,25 @@ export interface QuickDraft {
   /** people[0] is you. */
   people: DraftPerson[]
   payerKey: string
+  /** A scanned receipt's total, as typed (editable); null when there was no scan, or it showed none. */
+  receiptTotal: string | null
 }
+
+const money = (cents: number) => formatMoney(cents, 'SGD')
 
 let nextKey = 1
 const newKey = (prefix: string) => `${prefix}${nextKey++}`
 export const emptyDish = (): DraftDish => ({ key: newKey('d'), name: '', price: '', had: [] })
 
-/** Adds someone by name, with a look nobody else in the split has. */
+/** Adds someone by name, with a look nobody else in the split has. A dish shared by everyone is theirs too. */
 export function addPerson(d: QuickDraft, name: string): QuickDraft {
   const key = newKey('p')
   const avatar = firstFreeAvatar(defaultAvatar(key), d.people.map((p) => p.avatar))
-  return { ...d, people: [...d.people, { key, name, avatar }] }
+  return {
+    ...d,
+    people: [...d.people, { key, name, avatar }],
+    dishes: d.dishes.map((it) => (it.everyone ? { ...it, had: [...it.had, key] } : it)),
+  }
 }
 
 /** Takes someone out, and off every dish; if they paid, you did instead. */
@@ -86,6 +98,7 @@ export function newQuickDraft(myName: string, today: string, myLook: AvatarChoic
     gst: { on: true, bps: SG_PRESET.gstBps },
     people: [me],
     payerKey: me.key,
+    receiptTotal: null,
   }
 }
 
@@ -104,13 +117,15 @@ export function draftFromSplit(s: QuickSplitDTO): QuickDraft {
     gst: chargeFrom(s.gstBps, SG_PRESET.gstBps),
     people,
     payerKey: s.payerId,
+    receiptTotal: null,
   }
 }
 
 /**
  * A scanned receipt fills in the dishes (nobody assigned yet). Each charge is on only if the receipt has it, at the
  * receipt's rate; one it lacks is off, at the SG rate for when it is turned on. When the prices already include the
- * charges (receiptChargesIncluded), both start off, keeping the receipt's rates for turning on by hand.
+ * charges (receiptChargesIncluded), both start off, keeping the receipt's rates for turning on by hand. Its total,
+ * when it shows one, is kept to check the dishes against (see totalCheck).
  */
 export function applyScan(d: QuickDraft, scan: ReceiptScanResult): QuickDraft {
   const service = chargeFrom(scan.serviceChargeBps ?? 0, SG_PRESET.serviceChargeBps)
@@ -121,6 +136,7 @@ export function applyScan(d: QuickDraft, scan: ReceiptScanResult): QuickDraft {
     dishes: scan.items.map((it) => ({ ...emptyDish(), name: it.name, price: centsToInput(it.amountCents) })),
     service: included ? { ...service, on: false } : service,
     gst: included ? { ...gst, on: false } : gst,
+    receiptTotal: scan.totalCents === null ? null : centsToInput(scan.totalCents),
   }
 }
 
@@ -165,13 +181,46 @@ export function liveTotals(d: QuickDraft): QuickSplitBreakdown | 'too_small' | n
   }
 }
 
-/** Why the bill step isn't done yet, or null. */
+/** The receipt total as cents, null when blank or there is none; 'invalid' when it isn't an amount. */
+function receiptTarget(d: QuickDraft): number | null | 'invalid' {
+  if (d.receiptTotal === null || d.receiptTotal.trim() === '') return null
+  const cents = parseAmount(d.receiptTotal)
+  return cents === null || cents < 1 ? 'invalid' : cents
+}
+
+/**
+ * Whether the dishes (with the charges) add up to the scanned receipt's total, within 2 cents: null when they do,
+ * or when there is no total to check; otherwise the one line that says how far off they are, and the Other fix-up.
+ */
+export function totalCheck(d: QuickDraft): TotalCheck | null {
+  const target = receiptTarget(d)
+  const subtotal = pricedDishes(d).reduce((sum, it) => sum + it.cents, 0)
+  if (target === null || target === 'invalid' || subtotal === 0) return null
+  return checkTotal(subtotal, ratesOf(d), target, money)
+}
+
+/**
+ * Adds an "Other" dish, shared by everyone in the split (people added later too), that makes up what the dishes are
+ * short of the receipt's total. Its price is before the charges (see otherLine). Untouched blank rows are dropped.
+ */
+export function addOtherDish(d: QuickDraft): QuickDraft {
+  const target = receiptTarget(d)
+  const subtotal = pricedDishes(d).reduce((sum, it) => sum + it.cents, 0)
+  const other = typeof target === 'number' && subtotal > 0 ? otherLine(subtotal, ratesOf(d), target) : null
+  if (!other) return d
+  const kept = d.dishes.filter((it) => it.name.trim() !== '' || it.price.trim() !== '')
+  const dish: DraftDish = { ...emptyDish(), name: 'Other', price: centsToInput(other.priceCents), had: d.people.map((p) => p.key), everyone: true }
+  return { ...d, dishes: [...kept, dish] }
+}
+
+/** Why the bill step isn't done yet, or null. It never goes on with dishes that fall short of the receipt's total. */
 export function billProblem(d: QuickDraft): string | null {
   if (!d.title.trim()) return "What's it for? Give it a title, like Team lunch."
   if (d.title.trim().length > 50) return 'Keep the title to 50 characters or fewer.'
   if (d.dishes.some((it) => it.price.trim() !== '' && parseAmount(it.price) === null)) return 'Check the prices: use amounts like 4.50.'
   if (d.dishes.some((it) => !it.name.trim() || !(parseAmount(it.price) ?? 0))) return 'Give every dish a name and a price.'
-  return null
+  if (receiptTarget(d) === 'invalid') return `Check the receipt total: use an amount like ${centsToInput(billSoFar(d)?.totalCents ?? 0)}.`
+  return totalCheck(d)?.message ?? null
 }
 
 /** Why the people step isn't done yet, or null. */

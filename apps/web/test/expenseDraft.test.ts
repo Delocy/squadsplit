@@ -26,14 +26,16 @@ describe('By item total check', () => {
   it('blocks saving when a pinned total is more than the items cover', () => {
     const s = summarize(itemized({ amount: '100.00' }), IDS, 'SGD')
     expect(s.input).toBeNull()
-    expect(s.problem).toBe('Items + charges come to $93.52, $6.48 not on any item.')
+    expect(s.problem).toBe('Items + charges come to $93.52, $6.48 short of the $100.00 total.')
     expect(s.check).toMatchObject({ itemsTotal: 9352, diff: 648 })
+    // The fix-up's Other line is before the charges, and says what it comes to with them.
+    expect(s.check!.other).toEqual({ priceCents: 540, withChargesCents: 648 })
   })
 
   it('blocks saving when the items come to more than the pinned total', () => {
     const s = summarize(itemized({ amount: '90.00' }), IDS, 'SGD')
     expect(s.input).toBeNull()
-    expect(s.problem).toBe('Items + charges come to $93.52, $3.52 more than the total.')
+    expect(s.problem).toBe('Items + charges come to $93.52, $3.52 more than the $90.00 total.')
     expect(s.check!.diff).toBe(-352)
   })
 

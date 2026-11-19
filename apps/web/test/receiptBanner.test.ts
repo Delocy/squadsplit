@@ -25,10 +25,8 @@ describe('scanBanner', () => {
     expect(scanBanner(scanOf(result), 'SGD')).toBe('Read your receipt — total $93.52 matches. Tap who had what.')
   })
 
-  it('asks for a check when the items do not add up to the printed total', () => {
-    expect(scanBanner(scanOf({ ...result, totalCents: 10_000 }), 'SGD')).toBe(
-      'Receipt says $100.00, items add up to $93.52 — please check the items.',
-    )
+  it('points to the total when the items do not add up to it, leaving the numbers to the one line there', () => {
+    expect(scanBanner(scanOf({ ...result, totalCents: 10_000 }), 'SGD')).toBe('Read your receipt — check the total below, then tap who had what.')
   })
 
   it('formats money in the group currency', () => {

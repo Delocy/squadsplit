@@ -340,6 +340,10 @@ input[type=date] { width: auto; }
 .exact-row .who { min-width: 0; overflow-wrap: anywhere; }
 .left { font-size: 13px; color: var(--bad); margin: 8px 0 0; }
 .left.done { color: var(--good); }
+/* the receipt fix-up: one line at the total, the Other button on its own line under it */
+.fixup { display: grid; justify-items: start; gap: 6px; margin-top: 10px; padding: 10px 12px; border: 2px dashed var(--bad); border-radius: 12px; }
+.fixup .left { margin: 0; }
+.fixup .field-hint { margin-top: 0; }
 .charges { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip.toggle { margin-top: 12px; padding: 6px 10px; cursor: pointer; }
 .chip.toggle:has(input:checked) { border-color: var(--ink); background: #ffe3ef; color: #3d2c42; }

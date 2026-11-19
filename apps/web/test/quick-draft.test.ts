@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReceiptScanResult } from '@squadsplit/shared'
-import { applyScan, billSoFar, newQuickDraft, ratesOf } from '../src/quick/draft'
+import { addOtherDish, addPerson, applyScan, billProblem, billSoFar, newQuickDraft, ratesOf, totalCheck } from '../src/quick/draft'
 
 const draft = () => newQuickDraft('Dan', '2026-11-19', { animal: 'fox', color: 'peach' })
 
@@ -36,5 +36,48 @@ describe('applyScan', () => {
     expect(billSoFar({ ...tenDollars, service: { on: false, bps: 1000 } })?.totalCents).toBe(1090)
     expect(billSoFar({ ...tenDollars, gst: { on: false, bps: 900 } })?.totalCents).toBe(1100)
     expect(ratesOf({ ...tenDollars, gst: { on: false, bps: 900 } })).toEqual({ serviceChargeBps: 1000, gstBps: 0 })
+  })
+})
+
+describe('the receipt total after a scan', () => {
+  // The hawker receipt: dishes $56.10, $67.26 with the SG charges, but the receipt says $68.46.
+  const hawker: ReceiptScanResult = {
+    items: [
+      { name: 'Hokkien mee', amountCents: 800 },
+      { name: 'Chicken rice', amountCents: 650 },
+      { name: 'Cereal prawns', amountCents: 4160 },
+    ],
+    serviceChargeBps: 1000,
+    gstBps: 900,
+    totalCents: 6846,
+  }
+  const scanned = () => ({ ...applyScan(draft(), hawker), title: 'Lunch' })
+
+  it('keeps the receipt total, editable, and never quietly goes on with the lower one', () => {
+    const d = scanned()
+    expect(d.receiptTotal).toBe('68.46')
+    expect(totalCheck(d)!.message).toBe('Items + charges come to $67.26, $1.20 short of the $68.46 total.')
+    expect(billProblem(d)).toBe('Items + charges come to $67.26, $1.20 short of the $68.46 total.')
+    // Clearing it goes by the dishes; a total within 2 cents is fine.
+    expect(billProblem({ ...d, receiptTotal: '' })).toBeNull()
+    expect(billProblem({ ...d, receiptTotal: '67.28' })).toBeNull()
+    expect(billProblem({ ...d, receiptTotal: 'abc' })).toBe('Check the receipt total: use an amount like 67.26.')
+  })
+
+  it('has no total to check when typed by hand', () => {
+    expect(draft().receiptTotal).toBeNull()
+    expect(totalCheck(draft())).toBeNull()
+  })
+
+  it('adds the rest as Other, shared by everyone in the split, including people added after', () => {
+    let d = addOtherDish(scanned())
+    const other = d.dishes.at(-1)!
+    expect(other).toMatchObject({ name: 'Other', price: '1.00', everyone: true, had: [d.people[0]!.key] })
+    expect(billSoFar(d)!.totalCents).toBe(6846)
+    expect(billProblem(d)).toBeNull()
+    d = addPerson(d, 'Mei')
+    expect(d.dishes.at(-1)!.had).toEqual(d.people.map((p) => p.key))
+    // The others stay as they were.
+    expect(d.dishes[0]!.had).toEqual([])
   })
 })

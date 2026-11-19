@@ -11,6 +11,7 @@ import { useNavigate, useParams } from 'react-router'
 import { useApi } from '../api'
 import { ErrorNote } from '../components/ErrorNote'
 import { ScanReceiptCard } from '../components/ScanReceiptCard'
+import { TotalFixup } from '../components/TotalFixup'
 import { ExpenseFormSkeleton } from '../components/Skeletons'
 import { Avatar } from '../design/Avatar'
 import { BusyLabel } from '../design/Busy'
@@ -318,6 +319,10 @@ function ExpenseFields({
           </div>
         )}
       </div>
+      {/* At the total: one line on how far off the items are, and the fix. */}
+      {draft.mode === 'itemized' && summary.check && (
+        <TotalFixup check={summary.check} money={money} onAdd={() => update(addOtherItem(draft, activeIds))} />
+      )}
 
       <label className="f" htmlFor="exp-date">
         Date
@@ -467,19 +472,6 @@ function ExpenseFields({
             <UiIcon name="plus" />
             Add item
           </button>
-          {summary.check && (
-            <p className="left" role="status">
-              {summary.check.message}
-              {summary.check.diff > 0 && (
-                <>
-                  {' '}
-                  <button type="button" className="btn small" onClick={() => update(addOtherItem(draft, activeIds))}>
-                    Add {money(summary.check.diff)} as 'Other', shared by all
-                  </button>
-                </>
-              )}
-            </p>
-          )}
           {summary.bill && (draft.serviceOn || draft.gstOn) && (
             <p className="preview">
               Subtotal <b>{money(summary.bill.subtotal)}</b>

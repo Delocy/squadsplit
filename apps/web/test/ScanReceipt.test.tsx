@@ -181,29 +181,33 @@ describe('Scan receipt', () => {
       body: { ...AI_SCAN, items: [{ name: 'Laksa', amountCents: 6000 }], totalCents: 9352, totalMatches: false },
     }))
     choose(dialog.getByLabelText('Scan receipt'))
-    await dialog.findByText(/^Receipt says/)
+    await dialog.findByText('Read your receipt — check the total below, then tap who had what.')
     const total = dialog.getByLabelText('Total (SGD)') as HTMLInputElement
     expect(total.value).toBe('93.52')
     expect(total.placeholder).toBe('71.94')
     fireEvent.change(dialog.getByLabelText('Description'), { target: { value: 'Dinner' } })
     fireEvent.click(within(dialog.getByRole('group', { name: 'Who had item 1' })).getByRole('button', { name: 'Alice' }))
     const save = dialog.getByRole('button', { name: 'Add expense' }) as HTMLButtonElement
-    expect(dialog.getByText(/Items \+ charges come to \$71\.94, \$21\.58 not on any item/)).toBeTruthy()
+    // One line, at the total, says how far off the items are.
+    expect(dialog.getAllByText(/Items \+ charges come to/)).toHaveLength(1)
+    expect(dialog.getByText('Items + charges come to $71.94, $21.58 short of the $93.52 total.')).toBeTruthy()
     expect(save.disabled).toBe(true)
 
-    fireEvent.click(dialog.getByRole('button', { name: "Add $21.58 as 'Other', shared by all" }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Add Other $18.00 (+ charges = $21.58)' }))
     expect(itemRows(dialog).at(-1)![0]).toBe('Other')
     expect(save.disabled).toBe(false)
 
     fireEvent.change(total, { target: { value: '120' } })
-    expect(dialog.getByText(/not on any item/)).toBeTruthy()
+    expect(dialog.getByText(/short of the \$120\.00 total/)).toBeTruthy()
     expect(save.disabled).toBe(true)
   })
 
-  it('asks to check the items when they do not add up to the receipt total', async () => {
+  it('says once, at the total, when the items do not add up to the receipt total', async () => {
     const { dialog } = await openByItem(() => ({ status: 200, body: { ...AI_SCAN, totalCents: 10_000, totalMatches: false } }))
     choose(dialog.getByLabelText('Pick a photo'))
-    expect(await dialog.findByText('Receipt says $100.00, items add up to $93.52 — please check the items.')).toBeTruthy()
+    expect(await dialog.findByText('Read your receipt — check the total below, then tap who had what.')).toBeTruthy()
+    expect(dialog.getByText('Items + charges come to $93.52, $6.48 short of the $100.00 total.')).toBeTruthy()
+    expect(dialog.queryByText(/Receipt says/)).toBeNull()
   })
 
   it.each([

@@ -1,10 +1,12 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { ScanReceiptCard } from '../components/ScanReceiptCard'
+import { TotalFixup } from '../components/TotalFixup'
 import { Avatar } from '../design/Avatar'
 import { UiIcon } from '../design/icons'
 import { formatMoney, QUICK_SPLIT_MAX_ITEMS } from '@squadsplit/shared'
-import { applyScan, billSoFar, emptyDish, hasTypedDishes, type Charge, type DraftDish, type QuickDraft } from './draft'
+import { addOtherDish, applyScan, billSoFar, emptyDish, hasTypedDishes, totalCheck, type Charge, type DraftDish, type QuickDraft } from './draft'
 import { percent } from './format'
+import { centsToInput } from '../expenseDraft'
 
 type SetDraft = Dispatch<SetStateAction<QuickDraft>>
 const money = (cents: number) => formatMoney(cents, 'SGD')
@@ -70,6 +72,7 @@ function PaidBy({ draft, setDraft }: { draft: QuickDraft; setDraft: SetDraft }) 
 /** Step 1: what it was for, the dishes (scanned, from a photo, or typed), the charges and who paid. */
 export function BillStep({ draft, setDraft }: { draft: QuickDraft; setDraft: SetDraft }) {
   const bill = billSoFar(draft)
+  const check = totalCheck(draft)
   const updateDish = (key: string, patch: Partial<DraftDish>) =>
     setDraft((d) => ({ ...d, dishes: d.dishes.map((it) => (it.key === key ? { ...it, ...patch } : it)) }))
   return (
@@ -150,6 +153,25 @@ export function BillStep({ draft, setDraft }: { draft: QuickDraft; setDraft: Set
             <b>{money(bill?.totalCents ?? 0)}</b>
           </div>
         </div>
+        {/* After a scan: the receipt's own total, to check the dishes against. */}
+        {draft.receiptTotal !== null && (
+          <div className="qs-receipt-total">
+            <label className="f" htmlFor="qs-receipt-total">
+              Receipt total
+            </label>
+            <input
+              id="qs-receipt-total"
+              type="text"
+              inputMode="decimal"
+              className="amount"
+              placeholder={bill ? centsToInput(bill.totalCents) : '0.00'}
+              value={draft.receiptTotal}
+              onChange={(e) => setDraft((d) => ({ ...d, receiptTotal: e.target.value }))}
+            />
+            <span className="field-hint">From your receipt. Clear it to go by the dishes.</span>
+          </div>
+        )}
+        {check && <TotalFixup check={check} money={money} onAdd={() => setDraft(addOtherDish)} />}
       </section>
 
       <PaidBy draft={draft} setDraft={setDraft} />
