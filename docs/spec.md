@@ -191,8 +191,16 @@ squadsplit/                  (npm workspaces)
 - **"Poke" nudges** on a debt, and an optional weekly email summary.
 - **Export to CSV.**
 - **Install as a phone app (PWA)** with an offline queue for new expenses.
+- **Scan a receipt** using Cloudflare Workers AI (`@cf/meta/llama-3.2-11b-vision-instruct` through the Worker's AI binding). This is free within the shared 10,000-neurons/day allowance, about 40 neurons per receipt.
+  - The client downsizes the photo to about 1024px and strips EXIF.
+  - `POST /groups/:id/receipts/scan` is for members only.
+  - The model is prompted for strict JSON: `{items:[{name, amountCents}], serviceChargeBps?, gstBps?, totalCents?}`. The response is validated with zod and cross-checked with `itemizedTotal`, with a warning if they don't match.
+  - The result pre-fills the itemized form, where the user assigns people.
+  - The image is never stored.
+  - Each user can scan up to 20 receipts a day.
+  - Meta's licence may need a one-time acceptance on the Cloudflare account.
 
-**Later:** repeating expenses (such as rent), scanning a receipt photo to fill in an itemized bill with AI, and real support for multiple currencies (the columns already exist).
+**Later:** repeating expenses (such as rent) and real support for multiple currencies (the columns already exist).
 
 **Out of scope (v2):**
 Percentage or share splits, guest participants, ownership transfer, deleting a group, live updates, a preview deploy per PR, a custom domain, permanent achievements, comments and reactions.
