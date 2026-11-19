@@ -29,7 +29,7 @@ a { color: inherit; }
 /* top bar */
 /* Row 1: logo and name on the left, your avatar and Sign out on the right, at every width. The group breadcrumb
    takes its own full-width row below on narrow screens and sits between them from 600px up. */
-.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; padding-bottom: 14px; border-bottom: 2px solid var(--line); }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; padding-bottom: 14px; border-bottom: 2px solid var(--line); view-transition-name: top-bar; }
 .top > .logo { grid-column: 1; grid-row: 1; min-width: 0; justify-self: start; }
 .top > .me { grid-row: 1; grid-column: -2; justify-self: end; flex-shrink: 0; }
 .top > .crumb { grid-column: 1 / -1; grid-row: 2; }
@@ -341,4 +341,24 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .join h2 { font-size: 26px; overflow-wrap: anywhere; }
 .join p { margin: 0; }
 
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* loading: skeleton blocks in the shape of what's coming, and a spinner for buttons waiting on the server */
+.sk { display: block; flex: none; max-width: 100%; background: var(--line); border-radius: 8px; position: relative; overflow: hidden; }
+.sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: shimmer 1.4s ease-in-out infinite; }
+@media (prefers-color-scheme: dark) { .sk::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .07), transparent); } }
+@keyframes shimmer { to { transform: translateX(100%); } }
+.sk-lines { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.spinner { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* page transitions (React Router view transitions): a short cross-fade with a small rise; the top bar stays put */
+@keyframes vt-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(8px); } }
+::view-transition-old(root) { animation: 180ms ease-out both vt-out; }
+::view-transition-new(root) { animation: 220ms ease-out both vt-in; }
+::view-transition-group(top-bar), ::view-transition-new(top-bar) { animation: none; }
+::view-transition-old(top-bar) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

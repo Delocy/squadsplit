@@ -41,7 +41,7 @@ describe('narrow-screen layout rules', () => {
   it('animates the receipt reader with the existing bob motion, which reduced motion turns off', () => {
     expect(rule('.scan-spin')).toMatch(/animation: bob /)
     expect(css).toContain('@keyframes bob')
-    expect(css).toContain('@media (prefers-reduced-motion: reduce) { * { animation: none !important;')
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\*, \*::before, \*::after \{ animation: none !important;/)
   })
 
   it('keeps your avatar and Sign out on the top bar’s first row, right-aligned, at every width', () => {
