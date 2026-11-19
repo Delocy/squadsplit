@@ -21,7 +21,10 @@ export function clerkDeps(env: Bindings): AuthDeps {
           authorizedParties: [env.WEB_ORIGIN],
         })
         return payload.sub
-      } catch {
+      } catch (err) {
+        // Log only the reason (e.g. token-expired vs jwk-remote-failed-to-load), never the token,
+        // so a misconfigured secret key is visible in the logs rather than a silent wave of 401s.
+        console.warn('verifyToken failed', (err as { reason?: string } | null)?.reason ?? err)
         return null
       }
     },
