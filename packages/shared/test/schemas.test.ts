@@ -114,3 +114,57 @@ describe('CreateSettlementInput', () => {
     }
   })
 })
+
+describe('CreateExpenseInput itemized', () => {
+  const items = [
+    { name: 'Laksa', amountCents: 1000, userIds: ['u1'] },
+    { name: 'Satay', amountCents: 2000, userIds: ['u2'] },
+  ]
+  const itemized = (over: Record<string, unknown> = {}, amountCents = 3597) => ({
+    ...base,
+    amountCents,
+    split: { type: 'itemized', items, serviceChargeBps: 1000, gstBps: 900, ...over },
+  })
+  const paths = (r: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) =>
+    (r.error?.issues ?? []).map((i) => i.path.join('.'))
+
+  it('accepts a matching total', () => {
+    expect(CreateExpenseInput.safeParse(itemized()).success).toBe(true)
+  })
+
+  it('rejects a mismatched amount on path split', () => {
+    const r = CreateExpenseInput.safeParse(itemized({}, 3600))
+    expect(r.success).toBe(false)
+    expect(paths(r)).toContain('split')
+  })
+
+  it('rejects duplicate userIds, empty items, 51 items and gstBps 3001', () => {
+    const dup = [{ name: 'A', amountCents: 100, userIds: ['u1', 'u1'] }]
+    expect(CreateExpenseInput.safeParse(itemized({ items: dup }, 120)).success).toBe(false)
+    expect(CreateExpenseInput.safeParse(itemized({ items: [] }, 100)).success).toBe(false)
+    const many = Array.from({ length: 51 }, () => ({ name: 'A', amountCents: 100, userIds: ['u1'] }))
+    expect(CreateExpenseInput.safeParse(itemized({ items: many }, 5100)).success).toBe(false)
+    expect(CreateExpenseInput.safeParse(itemized({ gstBps: 3001 })).success).toBe(false)
+  })
+
+  it('rejects bad item names, amounts and empty userIds', () => {
+    const bad = (item: object) =>
+      CreateExpenseInput.safeParse(itemized({ items: [{ name: 'A', amountCents: 100, userIds: ['u1'], ...item }] }, 120))
+    expect(bad({ name: '   ' }).success).toBe(false)
+    expect(bad({ name: 'x'.repeat(61) }).success).toBe(false)
+    expect(bad({ amountCents: 0 }).success).toBe(false)
+    expect(bad({ amountCents: 100_000_001 }).success).toBe(false)
+    expect(bad({ userIds: [] }).success).toBe(false)
+  })
+
+  it('accepts bps bounds 0 and 3000 only', () => {
+    expect(CreateExpenseInput.safeParse(itemized({ serviceChargeBps: -1 })).success).toBe(false)
+    expect(CreateExpenseInput.safeParse(itemized({ serviceChargeBps: 0, gstBps: 0 }, 3000)).success).toBe(true)
+  })
+
+  it('validates optional currency', () => {
+    expect(CreateExpenseInput.safeParse({ ...base, currency: 'USD' }).success).toBe(true)
+    expect(CreateExpenseInput.safeParse({ ...base, currency: 'JPY' }).success).toBe(false)
+    expect(CreateExpenseInput.safeParse(base).success).toBe(true)
+  })
+})

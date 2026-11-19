@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CATEGORIES, CURRENCIES, type Category, type Currency } from './money'
 import type { SettlementStatus, Transfer } from './ledger'
 import type { Badge } from './fun'
+import { itemizedTotal, type BillItem } from './itemized'
 
 const MAX_CENTS = 100_000_000
 
@@ -47,6 +48,27 @@ const exactSplit = z.object({
     .refine((s) => new Set(s.map((x) => x.userId)).size === s.length, { message: 'Duplicate participants' }),
 })
 
+const bps = z.number().int().min(0).max(3000)
+
+const itemizedSplit = z.object({
+  type: z.literal('itemized'),
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(60),
+        amountCents,
+        userIds: z
+          .array(id)
+          .min(1)
+          .refine((ids) => new Set(ids).size === ids.length, { message: 'Duplicate participants' }),
+      }),
+    )
+    .min(1)
+    .max(50),
+  serviceChargeBps: bps,
+  gstBps: bps,
+})
+
 export const CreateExpenseInput = z
   .object({
     description: z.string().trim().min(1).max(100),
@@ -54,7 +76,8 @@ export const CreateExpenseInput = z
     paidBy: id,
     category: z.enum(CATEGORIES),
     spentOn: z.string().refine(isRealDate, { message: 'Must be a valid YYYY-MM-DD date' }),
-    split: z.discriminatedUnion('type', [equalSplit, exactSplit]),
+    currency: currency.optional(),
+    split: z.discriminatedUnion('type', [equalSplit, exactSplit, itemizedSplit]),
   })
   .superRefine((v, ctx) => {
     if (v.split.type === 'exact') {
@@ -62,6 +85,9 @@ export const CreateExpenseInput = z
       if (sum !== v.amountCents) {
         ctx.addIssue({ code: 'custom', path: ['split'], message: 'Shares must add up to the amount' })
       }
+    }
+    if (v.split.type === 'itemized' && v.amountCents !== itemizedTotal(v.split)) {
+      ctx.addIssue({ code: 'custom', path: ['split'], message: 'Amount must equal the itemized total' })
     }
   })
 export type CreateExpenseInput = z.infer<typeof CreateExpenseInput>
@@ -82,7 +108,9 @@ export interface GroupSummaryDTO { id: string; name: string; emoji: string; curr
 export interface InvitePreviewDTO { groupId: string; name: string; emoji: string; memberCount: number; alreadyMember: boolean }
 export interface ExpenseDTO {
   id: string; groupId: string; description: string; amountCents: number; paidBy: string; createdBy: string
-  category: Category; spentOn: string; splitType: 'equal' | 'exact'; shares: { userId: string; amountCents: number }[]
+  category: Category; spentOn: string; splitType: 'equal' | 'exact' | 'itemized'; shares: { userId: string; amountCents: number }[]
+  currency: Currency; fxRatePpm: number; serviceChargeBps: number | null; gstBps: number | null
+  items: BillItem[] | null
   locked: boolean; createdAt: string; updatedAt: string
 }
 export interface SettlementDTO {
