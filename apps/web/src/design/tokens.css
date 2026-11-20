@@ -4,11 +4,11 @@
 :root {
   --bg: #f8f4f2; --card: #ffffff; --ink: #3d2c42; --text: #3d2c42; --muted: #8b7a90; --line: #e9e0e6;
   --soft: #faf6f8; --accent: #f0609a; --accent-soft: #ffe3ef; --lav: #e9e2ff; --good: #1f9e72; --bad: #e0457f;
-  --shadow: 2px 2px 0 var(--ink); --radius: 18px;
+  --shadow: 2px 2px 0 var(--ink); --radius: 18px; --on-bad: #fff;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #1d1722; --card: #29212f; --ink: #0d090f; --text: #f3ecf5; --muted: #ab9bb1; --line: #3a3041;
-    --soft: #231c29; --accent: #ff7aac; --accent-soft: #4a2638; --lav: #3a3150; --good: #5fd6a6; --bad: #ff8fb8; }
+    --soft: #231c29; --accent: #ff7aac; --accent-soft: #4a2638; --lav: #3a3150; --good: #5fd6a6; --bad: #ff8fb8; --on-bad: #2a1220; }
   /* Dark native scrollbar (and date picker) in the expense dialog, instead of a light strip down its edge. */
   dialog { color-scheme: dark; }
 }
@@ -23,7 +23,7 @@ a { color: inherit; }
 /* Icon wrapper from design/icons.tsx: invisible to layout, so the <svg> sizes as a direct child. */
 .ic { display: contents; }
 
-.wrap { max-width: 1120px; margin: 0 auto; padding: 16px 16px 96px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 .narrow { max-width: 560px; margin: 0 auto; }
 
 /* top bar */
@@ -45,7 +45,7 @@ a { color: inherit; }
   .top.guest > .save-account { grid-column: 4; grid-row: 1; }
 }
 @media (max-width: 380px) { .top { column-gap: 8px; } .top .logo h1 { font-size: 19px; } .top .logo .mark { width: 34px; height: 34px; } }
-.logo { display: flex; align-items: center; gap: 9px; text-decoration: none; color: inherit; }
+.logo { display: flex; align-items: center; gap: 9px; min-height: 44px; text-decoration: none; color: inherit; }
 .logo .mark { width: 38px; height: 38px; border-radius: 12px; background: var(--accent-soft); border: 2px solid var(--ink); padding: 3px; }
 .logo h1 { font-size: 21px; font-weight: 700; }
 .spacer { flex: 1; }
@@ -70,15 +70,19 @@ button.av.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
 .card h3 { font-size: 17px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .card h3 > svg, .card h3 > .ic > svg { width: 22px; height: 22px; }
 .card h3 .right { margin-left: auto; }
+/* A card heading with something beside it (a "⋯" menu): the row takes the heading's spacing. */
+.card-h { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card-h h3 { margin-bottom: 0; min-width: 0; }
+.card-h > :last-child:not(h3) { margin-left: auto; }
 
 /* buttons */
-.btn { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; font: 700 14px Fredoka, sans-serif; cursor: pointer;
-  background: var(--card); color: var(--text); box-shadow: 2px 2px 0 var(--ink); display: inline-flex; align-items: center; gap: 7px;
+.btn { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 14px; font: 700 14px Fredoka, sans-serif; cursor: pointer; min-height: 44px;
+  background: var(--card); color: var(--text); box-shadow: 2px 2px 0 var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   text-decoration: none; transition: transform .08s, box-shadow .08s; }
 .btn svg { width: 17px; height: 17px; }
 .btn:active { transform: translate(2px, 2px); box-shadow: none; }
 .btn.primary { background: var(--accent); color: #fff; }
-.btn.small { padding: 4px 10px; font-size: 12.5px; border-radius: 10px; }
+.btn.small { padding: 4px 12px; font-size: 13px; border-radius: 10px; min-height: 34px; }
 .btn.ghost { box-shadow: none; border-color: var(--line); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
@@ -103,12 +107,12 @@ dialog:focus { outline: none; }
 
 /* tabs */
 .tabs { display: inline-flex; flex-wrap: wrap; max-width: 100%; min-width: 0; gap: 2px; background: var(--soft); border: 2px solid var(--line); border-radius: 11px; padding: 2px; }
-.tabs button { border: 0; background: none; color: var(--muted); font: 800 12px Nunito, sans-serif; padding: 4px 10px; white-space: nowrap; border-radius: 8px; cursor: pointer; }
+.tabs button { border: 0; background: none; color: var(--muted); font: 800 12.5px Nunito, sans-serif; padding: 6px 12px; min-height: 32px; white-space: nowrap; border-radius: 8px; cursor: pointer; }
 .tabs button.on { background: var(--card); color: var(--text); box-shadow: 0 0 0 1.5px var(--ink); }
 
 /* forms */
 label.f { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 6px; }
-input[type=text], input[type=number], input[type=date], select { width: 100%; padding: 9px 12px; border: 2px solid var(--line); border-radius: 12px;
+input[type=text], input[type=number], input[type=date], select { width: 100%; min-height: 44px; padding: 9px 12px; border: 2px solid var(--line); border-radius: 12px;
   background: var(--soft); color: var(--text); font: 700 15px Nunito, sans-serif; }
 input:focus, select:focus { outline: none; border-color: var(--accent); }
 .err { color: var(--bad); font-size: 13px; min-height: 18px; margin-top: 6px; }
@@ -118,8 +122,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 400px) { .settle-fields { grid-template-columns: 1fr; } }
 
 /* chips */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: 11px; padding: 3px 9px 3px 4px;
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: 11px; padding: 4px 10px 4px 5px; min-height: 40px;
   font: 800 12.5px Nunito, sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 /* Fixed light pink in both themes so the plum label stays readable in dark mode. */
 .chip.on { border-color: var(--ink); background: #ffe3ef; color: #3d2c42; }
@@ -163,6 +167,13 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
 .stat .v { font: 700 19px Fredoka, sans-serif; margin-top: 2px; overflow-wrap: anywhere; }
 .quick { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+/* On a phone: a row of three tiles, icon over label (Invite, Who pays next?, Group settings). */
+@media (max-width: 480px) {
+  .quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick .btn { flex-direction: column; gap: 4px; padding: 8px 4px; min-height: 64px; font-size: 13px; line-height: 1.15; text-align: center; }
+  .quick .btn svg { width: 22px; height: 22px; }
+}
+.quick .btn.invite-tile { background: var(--accent-soft); }
 
 /* group home: main grid */
 .main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -175,7 +186,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .arrow svg { width: 100%; height: 100%; }
 /* A fixed light pink in both themes (like the balance card), so its plum text stays readable in dark mode. */
 .need { background: #ffe3ef; border: 2px solid var(--ink); border-radius: 14px; padding: 10px; margin-bottom: 8px; color: #3d2c42; }
-.need.row { border-top: 2px solid var(--ink); }
+.need.row { border-top: 2px solid var(--ink); flex-wrap: wrap; }
+.need .acts { flex-basis: 100%; justify-content: flex-end; }
+.need .acts .btn { flex: 1 1 0; min-height: 44px; }
 .need .s { color: #7b6a80; }
 .acts { display: flex; gap: 6px; }
 
@@ -216,17 +229,58 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 /* group settings */
 .card > .s { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
 .card > .s:last-child { margin-bottom: 0; }
-.invite { display: grid; grid-template-columns: 168px 1fr; gap: 18px; align-items: start; }
-@media (max-width: 480px) { .invite { grid-template-columns: 1fr; justify-items: center; } }
-.invite-side { display: grid; gap: 10px; justify-items: start; min-width: 0; width: 100%; }
-.invite-side .s { color: var(--muted); font-size: 13.5px; margin: 0; }
+/* The invite card (Group settings, an empty group, the Invite sheet): Share leads, Copy follows, the QR folds away.
+   A .disclosure is a <details> whose summary is a 44px row with a turning triangle. */
+.invite { display: grid; gap: 12px; min-width: 0; }
+.invite > .s { color: var(--muted); font-size: 13.5px; margin: 0; }
+.invite-share { width: 100%; min-height: 48px; font-size: 15.5px; }
+.invite .invite-link { flex-wrap: nowrap; align-items: center; }
+.invite .invite-link .btn { flex: none; }
+@media (max-width: 400px) { .invite .invite-link { flex-wrap: wrap; } .invite .invite-link .btn { flex: 1 1 100%; } }
+/* The link as text, at most two lines; one tap selects all of it, for copying by hand where the clipboard is refused. */
+.invite-url { flex: 1; min-width: 0; margin: 0; padding: 8px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 13.5px; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; -webkit-user-select: all; user-select: all; }
+.invite-url b { color: var(--text); white-space: nowrap; }
+.invite-code { margin: 0; color: var(--muted); font-size: 14px; }
+.invite-code b { font: 700 17px ui-monospace, Menlo, monospace; letter-spacing: .12em; color: var(--text); }
+.invite-fresh { margin: 0; justify-self: start; padding: 4px 12px; border-radius: 99px; border: 2px solid var(--ink); background: #dcf5ea; color: #3d2c42; font-weight: 800; }
+.disclosure summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 800; list-style: none; }
+.disclosure summary::-webkit-details-marker { display: none; }
+.disclosure summary svg { width: 20px; height: 20px; flex: none; }
+.disclosure summary .s { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.disclosure summary::before { content: ""; flex: none; width: 0; height: 0; border-left: 6px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; }
+.disclosure[open] summary::before { transform: rotate(90deg); }
+/* "I'm new": the optional nickname, folded under the name. */
+.join-extra { margin-top: 10px; }
+.join-extra summary { color: var(--muted); font-size: 13.5px; }
+.join-extra[open] summary { color: var(--text); }
+.invite-qr > .s { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 12.5px; }
 /* The QR stays dark-on-white in both themes so phones can scan it. */
-.qr-box { width: 168px; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }
+.qr-box { width: 220px; max-width: 100%; margin: 6px auto 0; background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); }
 .qr { width: 100%; height: auto; }
 .invite-link { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .invite-link input { flex: 1 1 240px; min-width: 0; }
-.confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; padding: 8px 10px; border-radius: 12px;
-  background: var(--soft); border: 2px solid var(--line); font-size: 13.5px; }
+.code-join { flex-wrap: nowrap; }
+.code-join input { flex: 1 1 auto; }
+/* a "⋯" menu of rarer actions, in a card or sheet header */
+.more-menu { position: relative; }
+.more-button { width: 44px; height: 44px; margin: -10px -8px -10px 0; border: 0; border-radius: 12px; background: none; color: var(--text); display: grid; place-items: center; cursor: pointer; }
+.more-button svg { width: 22px; height: 22px; }
+.more-button:hover, .more-button[aria-expanded=true] { background: var(--soft); }
+.more-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
+.more-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; padding: 6px; min-width: 180px; border-radius: 14px; font: 800 14.5px Nunito, sans-serif; }
+.more-pop .me-pop-link { width: 100%; border: 0; background: none; color: var(--bad); font: inherit; cursor: pointer; text-align: left; }
+.dlg-h .more-menu { margin-left: auto; }
+.dlg-h .more-menu + .x { margin-left: 0; }
+/* a toast: rises at the bottom, above the Add expense bar when there is one, and fades */
+.toast-region { position: fixed; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 70; display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+@media (max-width: 860px) { body:has(.fab-bar) .toast-region { bottom: calc(var(--fab-bar) + 16px + env(safe-area-inset-bottom)); } }
+.toast { max-width: 420px; padding: 10px 18px; border-radius: 99px; border: 2px solid #3d2c42; background: #3d2c42; color: #fff; font: 800 14px Nunito, sans-serif; box-shadow: 2px 2px 0 rgba(0, 0, 0, .25); text-align: center; animation: toast 2600ms ease-out forwards; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(10px); } 8%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+/* A confirm bar: the question at full width, then the buttons in a row under it (Cancel, then the filled danger one). */
+.confirm { display: grid; gap: 10px; width: 100%; padding: 12px; border-radius: 14px; background: var(--soft); border: 2px solid var(--line); font-size: 14px; }
+.confirm-q { margin: 0; overflow-wrap: anywhere; }
+.confirm-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.confirm-acts .btn { flex: 1 1 0; min-width: max-content; }
 .row.member { flex-wrap: wrap; }
 .row.member .confirm, .row.member .err { flex-basis: 100%; margin: 0; }
 .former { margin-top: 10px; }
@@ -249,11 +303,29 @@ dialog.out { animation: dlg-out 160ms ease-in forwards; pointer-events: none; }
 dialog.out::backdrop { animation: fade-out 160ms ease-in forwards; }
 .settle-form, .confirm { animation: sheet-in 160ms ease-out; }
 .settle-form.out, .confirm.out { animation: sheet-out 160ms ease-in forwards; pointer-events: none; }
-.dlg-h { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+.dlg-h { position: relative; display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 2px solid var(--line); }
+/* On a phone a dialog is a bottom sheet: full width, rounded on top, with a grab handle; drag its header down to close. */
+.dlg-grab { display: none; }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes sheet-down { to { transform: translateY(100%); } }
+@media (max-width: 480px) {
+  dialog.sheet { width: 100%; max-width: 100%; margin: 0; top: auto; bottom: var(--kb, 0px); max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + 8px) - var(--kb, 0px));
+    border-width: 2px 0 0; border-radius: 22px 22px 0 0; box-shadow: 0 -3px 0 rgba(40, 25, 45, .12); }
+  dialog.sheet[open] { animation: sheet-up 240ms cubic-bezier(.2, .8, .3, 1); }
+  dialog.sheet.out { animation: sheet-down 180ms ease-in forwards; }
+  dialog.sheet .dlg-h { padding-top: 22px; touch-action: none; }
+  dialog.sheet .dlg-b { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .dlg-grab { display: block; position: absolute; top: 8px; left: 50%; width: 40px; height: 5px; margin-left: -20px; border-radius: 99px; background: var(--line); }
+}
 .dlg-h h3 { font-size: 18px; }
 .dlg-h > .ic > svg { width: 20px; height: 20px; color: var(--accent); }
 .dlg-b { padding: 4px 18px 18px; min-width: 0; overflow-x: hidden; }
-.x { margin-left: auto; border: 0; background: none; color: var(--muted); font: 700 22px Fredoka, sans-serif; cursor: pointer; line-height: 1; }
+/* A sheet keeps its header (grab handle, title, ×) in place and scrolls its body, whose footer sticks to the bottom. */
+dialog.sheet[open] { display: flex; flex-direction: column; overflow: hidden; }
+dialog.sheet .dlg-h { flex: none; }
+dialog.sheet .dlg-b { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.x { margin-left: auto; border: 0; background: none; color: var(--muted); font: 700 22px Fredoka, sans-serif; cursor: pointer; line-height: 1; min-width: 28px; min-height: 32px; }
+.dlg-h .x { width: 44px; height: 44px; margin: -10px -12px -10px auto; display: grid; place-items: center; border-radius: 12px; }
 span.f { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 12px 0 6px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .amount { font: 700 22px Fredoka, sans-serif !important; padding: 5px 12px !important; }
@@ -262,7 +334,17 @@ input[type=date] { width: auto; }
 .preview { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; min-height: 18px; }
 .preview b { color: var(--text); }
 .dlg-f { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+/* A sheet's footer (Cancel and Save) sticks to the bottom of the sheet as it scrolls, above the home indicator. */
+.sheet-foot { position: sticky; bottom: 0; z-index: 2; margin: 14px -18px 0; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); background: var(--card); border-top: 2px solid var(--line); flex-wrap: nowrap; }
+.sheet-foot > .btn { flex: 1 1 0; }
+.sheet-foot > .btn.primary { flex-grow: 2; }
+dialog.sheet.expense-sheet .dlg-b { padding-bottom: 0; }
+.delete-expense { margin-top: 14px; }
+.chip.everyone { padding-left: 10px; border-style: dashed; }
+.chip.everyone.on { border-style: solid; }
+.assign-all { margin-top: 10px; }
 .btn.danger { color: var(--bad); }
+.btn.danger.solid { background: var(--bad); color: var(--on-bad); }
 .notice { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 6px; }
 .notice svg { width: 22px; height: 22px; flex: none; }
 
@@ -275,6 +357,10 @@ input[type=date] { width: auto; }
 .exact-row .who { min-width: 0; overflow-wrap: anywhere; }
 .left { font-size: 13px; color: var(--bad); margin: 8px 0 0; }
 .left.done { color: var(--good); }
+/* the receipt fix-up: one line at the total, the Other button on its own line under it */
+.fixup { display: grid; justify-items: start; gap: 6px; margin-top: 10px; padding: 10px 12px; border: 2px dashed var(--bad); border-radius: 12px; }
+.fixup .left { margin: 0; }
+.fixup .field-hint { margin-top: 0; }
 .charges { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip.toggle { margin-top: 12px; padding: 6px 10px; cursor: pointer; }
 .chip.toggle:has(input:checked) { border-color: var(--ink); background: #ffe3ef; color: #3d2c42; }
@@ -299,13 +385,28 @@ input[type=date] { width: auto; }
 .scan-confirm p { flex-basis: 100%; margin: 0; }
 .scan-banner { margin: 0; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--soft); font-size: 12.5px; overflow-wrap: anywhere; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.item-h { display: grid; grid-template-columns: 1fr 96px auto; gap: 6px; align-items: center; }
+.item-h { display: grid; grid-template-columns: 1fr 96px auto; gap: 6px 10px; align-items: center; }
 .item-h input { padding: 6px 10px; background: var(--card); }
 .item-h .x { margin-left: 0; }
 
-.fab { position: fixed; right: 16px; bottom: 16px; z-index: 20; display: none; }
-@media (max-width: 860px) { .fab { display: inline-flex; } .quick .add-desktop { display: none; } }
+/* On a phone, Add expense sits in an opaque bar along the bottom, clear of the home indicator. The page pads for it,
+   so the last row (Mark paid, Edit, Group settings) always scrolls clear of it. From 861px it lives in the stats card. */
+:root { --fab-bar: 70px; }
+.fab-bar { display: none; }
+@media (max-width: 860px) {
+  .quick .add-desktop { display: none; }
+  .page.has-fab { padding-bottom: calc(var(--fab-bar) + env(safe-area-inset-bottom)); }
+  .fab-bar { display: flex; justify-content: center; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: var(--bg); border-top: 2px solid var(--line); }
+  .fab-bar .btn { width: 100%; max-width: 560px; min-height: 48px; justify-content: center; font-size: 15px; }
+}
 @media (max-width: 480px) { .two { grid-template-columns: 1fr; } .stats { gap: 6px; } .stat { padding: 8px; } .stat .v { font-size: 16px; } }
+
+/* Tap targets: every control takes a tap of at least 44×44px. One drawn smaller (a small button, a tab, a chip, a
+   swatch) gets an invisible hit area of that size centred on it, so it can stay neat. */
+.btn.small, .tabs button, .chip, .chip-x, .x, .swatch, .me-button, .qs-tap, .qs-steps button, .qs-chip.ghost, .qs-tick, .pub-undo { position: relative; }
+.btn.small::after, .tabs button::after, .chip::after, .chip-x::after, .x::after, .swatch::after, .me-button::after, .qs-tap::after, .qs-steps button::after, .qs-chip.ghost::after, .qs-tick::after, .pub-undo::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+/* A name chip isn't tapped itself: its × button is. */
+.name-chip::after { content: none; }
 
 /* motion: the animals stay alive */
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
@@ -406,6 +507,10 @@ ul.groups { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .row.transfer .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .row.transfer .tags .status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .row-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+/* "Mark paid" opens its form right under the row it's in. */
+.settle-in-row { flex-basis: 100%; min-width: 0; }
+/* Scrolled into view clear of the Add expense bar. */
+.settle-in-row .settle-form { margin-top: 4px; scroll-margin: 16px 0 calc(var(--fab-bar) + 16px + env(safe-area-inset-bottom)); }
 @media (max-width: 480px) { .row-end { flex-direction: column; align-items: flex-end; gap: 4px; } }
 .lb-row .who { flex-wrap: wrap; row-gap: 2px; }
 .lb-row .who > span:not(.av) { min-width: 0; overflow-wrap: anywhere; }
@@ -431,7 +536,7 @@ ul.chips.names:empty { display: none; }
 .me-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .me-button:hover .av svg { transform: rotate(-10deg) translateY(-1px); }
 .me-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; padding: 6px; min-width: 180px; border-radius: 14px; }
-.me-pop-link { display: block; padding: 8px 10px; border-radius: 10px; text-decoration: none; font-weight: 800; white-space: nowrap; }
+.me-pop-link { display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border-radius: 10px; text-decoration: none; font-weight: 800; white-space: nowrap; }
 .me-pop-link:hover, .me-pop-link:focus-visible { background: var(--accent-soft); outline: none; }
 
 @media (prefers-reduced-motion: reduce) {

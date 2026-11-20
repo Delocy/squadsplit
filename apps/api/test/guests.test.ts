@@ -293,6 +293,11 @@ describe('a guest token', () => {
     expect(await db().select().from(users).where(eq(users.id, 'bob'))).toEqual([])
   })
 
+  it('sees the invite code, to share the link like any member', async () => {
+    const { group, as } = await guestIn()
+    expect((await getGroup(group.id, as)).inviteCode).toBe(group.inviteCode)
+  })
+
   it('is 403 on owner-only routes', async () => {
     const { group, as } = await guestIn(['Dave', 'Erin'])
     expect((await as(`/groups/${group.id}`, json('PATCH', { name: 'Mine now' }))).status).toBe(403)

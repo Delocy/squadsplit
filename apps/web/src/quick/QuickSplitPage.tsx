@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useLocation, useParams } from 'react-router'
-import { ErrorNote } from '../components/ErrorNote'
+import { ErrorCard } from '../components/ErrorCard'
 import { Skeleton } from '../design/Skeleton'
 import { shareUrl } from './format'
 import { QuickHistory } from './QuickHistory'
@@ -31,7 +31,7 @@ export function QuickSplitPage() {
   if (split.isError) {
     return (
       <main className="narrow page qs-page">
-        <ErrorNote error={split.error} />
+        <ErrorCard error={split.error} onRetry={() => void split.refetch()} />
       </main>
     )
   }

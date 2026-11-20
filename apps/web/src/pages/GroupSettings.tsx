@@ -15,7 +15,7 @@ import { usePageNavigate } from '../components/PageLink'
 import { SettingsSkeleton } from '../components/Skeletons'
 import { BusyLabel } from '../design/Busy'
 import { UiIcon } from '../design/icons'
-import { peopleOf, useGroup, useGroupMutation } from '../groupData'
+import { useGroup, useGroupMutation } from '../groupData'
 import { membershipErrorText } from '../membershipErrors'
 import { MEMBER_NAME_HINT, MEMBER_NAME_MAX, parseMemberName } from '../memberName'
 import { invalidateGroup, queryKeys } from '../queryKeys'
@@ -26,8 +26,8 @@ import { useGroupAccess, useMyId } from '../guest/GroupAccess'
 const MAX_NAME = 50
 
 /**
- * `/groups/:id/settings`: inviting friends, your name and look here, the member list, renaming (owner) and leaving
- * (members with an account).
+ * `/groups/:id/settings`: inviting friends (everyone), your name and look here, the member list, renaming (owner) and
+ * leaving (members with an account).
  */
 export function GroupSettings() {
   const id = useParams().id ?? ''
@@ -36,7 +36,7 @@ export function GroupSettings() {
   const group = useGroup(id)
 
   if (group.isPending) return <SettingsSkeleton />
-  if (group.isError) return <GroupUnavailable error={group.error} />
+  if (group.isError) return <GroupUnavailable error={group.error} onRetry={() => void group.refetch()} />
 
   const g = group.data
   const isOwner = g.ownerId === me
@@ -50,17 +50,7 @@ export function GroupSettings() {
         </GroupLink>
       </div>
       <div className="col">
-        {isOwner && g.inviteCode ? (
-          <InviteCard groupId={id} inviteCode={g.inviteCode} />
-        ) : (
-          <section className="card" aria-labelledby="invite-h">
-            <h3 id="invite-h">
-              <UiIcon name="heart" />
-              Invite friends
-            </h3>
-            <p className="s">Ask {peopleOf(g, me).name(g.ownerId)} for the invite link</p>
-          </section>
-        )}
+        <InviteCard group={g} me={me} />
         {mine && <YouCard group={g} mine={mine} />}
         {isOwner && <RenameCard group={g} />}
         <MemberList group={g} me={me} />
@@ -110,15 +100,16 @@ function YouCard({ group, mine }: { group: GroupDTO; mine: MemberDTO }) {
         You in this group
       </h3>
       <form className="you-fields" onSubmit={submit} noValidate>
-        <NicknameField id="you-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
+        <NicknameField
+          id="you-nickname"
+          value={nickname.value}
+          placeholder={profileName}
+          error={showHint && nickname.invalid ? NICKNAME_HINT : null}
+          onChange={nickname.setValue}
+        />
         <span className="f">Your animal in this group</span>
         <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
         <AvatarPicker value={avatar} taken={taken} onChange={setChoice} />
-        {showHint && nickname.invalid && (
-          <p className="err" role="alert">
-            {NICKNAME_HINT}
-          </p>
-        )}
         <div className="form-f">
           {save.isSuccess && !dirty && (
             <span className="s" role="status">

@@ -2,6 +2,7 @@ import { SignInButton, useAuth } from '@clerk/react'
 import {
   defaultAvatar,
   firstFreeAvatar,
+  INVITE_CODE_LENGTH,
   MAX_GROUP_MEMBERS,
   sameAvatar,
   type AvatarChoice,
@@ -16,8 +17,11 @@ import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { useLocation, useParams } from 'react-router'
 import { ApiError, useApi } from '../api'
 import { AvatarPicker, YouPreview } from '../components/AvatarPicker'
+import { ErrorCard } from '../components/ErrorCard'
 import { ErrorNote } from '../components/ErrorNote'
 import { GroupLink } from '../components/GroupLink'
+import { spacedCode } from '../components/InviteCard'
+import { JoinWithCode } from '../components/JoinWithCode'
 import { NICKNAME_HINT, NicknameField, useNicknameDraft } from '../components/NicknameField'
 import { PageLink, usePageNavigate } from '../components/PageLink'
 import { JoinSkeleton } from '../components/Skeletons'
@@ -40,6 +44,8 @@ type JoinInput = JoinGroupInput & { name?: string }
 
 export function Join() {
   const code = useParams().code ?? ''
+  // Typed into "Got a code?" (see JoinWithCode), rather than opened as a link.
+  const typed = (useLocation().state as { typed?: boolean } | null)?.typed === true
   const path = `/invites/${encodeURIComponent(code)}`
   const api = useApi()
   const navigate = usePageNavigate()
@@ -76,17 +82,27 @@ export function Join() {
 
   if (invite.isError) {
     const dead = invite.error instanceof ApiError && invite.error.status === 404
+    if (!dead) {
+      return (
+        <main className="narrow page">
+          <ErrorCard error={invite.error} onRetry={() => void invite.refetch()} />
+        </main>
+      )
+    }
+    const upper = code.toUpperCase()
     return (
       <main className="narrow page">
         <section className="card join">
           <div className="hero-mark shiver">
             <Mascot kind="kitty" face="#ffe8a3" mood="nervous" />
           </div>
-          {dead ? (
-            <p>This invite link doesn't work any more. Ask a friend in the group for a new one.</p>
-          ) : (
-            <ErrorNote error={invite.error} />
-          )}
+          {/* Everyone in a group can share its link, so anyone there can help. */}
+          <p>
+            {typed
+              ? `We couldn't find a group with code ${upper.length === INVITE_CODE_LENGTH ? spacedCode(upper) : upper}. Check it, or ask anyone in the group to send you the invite link.`
+              : "This invite link doesn't work any more. It may have been reset: ask anyone in the group to send you the new one."}
+          </p>
+          <JoinWithCode placeholder="Paste a link or code" />
           <BackLink asGuest={asGuest} />
         </section>
       </main>
@@ -211,7 +227,8 @@ function WhichOneAreYou({
 
 /**
  * Your nickname and look in the group, then Join. Claiming a name starts from its name and look. A guest who is new
- * gives their name first.
+ * gives their name once: the group calls them that, unless they open "Change how the group sees you". Each error
+ * shows under its field, and focus goes to the first field with one.
  */
 function JoinForm({
   invite: g,
@@ -232,6 +249,8 @@ function JoinForm({
   const newGuest = asGuest && !claimed
   const [name, setName] = useState('')
   const nameField = useRef<HTMLInputElement>(null)
+  const nicknameField = useRef<HTMLInputElement>(null)
+  const extra = useRef<HTMLDetailsElement>(null)
   const profileName = newGuest ? name.trim() : (profile?.displayName ?? '')
   const nickname = useNicknameDraft(claimed?.name ?? (newGuest ? '' : profileName))
   /** The look you picked; null until you pick one. */
@@ -253,8 +272,12 @@ function JoinForm({
     const newName = newGuest ? parseMemberName(name) : null
     const hint = newGuest && newName === null ? 'name' : nickname.invalid ? 'nickname' : null
     setShowHint(hint)
-    // Back to the field the hint is about.
+    // Back to the field the hint is about, opening the extra a new guest's nickname sits in.
     if (hint === 'name') nameField.current?.focus()
+    if (hint === 'nickname') {
+      if (extra.current) extra.current.open = true
+      nicknameField.current?.focus()
+    }
     if (hint) return
     // The avatar only goes when it differs from what you're given, so the server's rule applies.
     onJoin({
@@ -264,6 +287,20 @@ function JoinForm({
       ...(nickname.change !== undefined && { nickname: nickname.change }),
     })
   }
+
+  const nicknameInput = (
+    <NicknameField
+      id="join-nickname"
+      inputRef={nicknameField}
+      value={nickname.value}
+      placeholder={profileName}
+      error={showHint === 'nickname' ? NICKNAME_HINT : null}
+      onChange={(value) => {
+        nickname.setValue(value)
+        setShowHint(null)
+      }}
+    />
+  )
 
   return (
     <form className="you-fields" onSubmit={submit} noValidate>
@@ -277,7 +314,7 @@ function JoinForm({
             id="join-name"
             type="text"
             aria-invalid={showHint === 'name'}
-            aria-describedby={showHint === 'name' ? 'join-hint' : undefined}
+            aria-describedby={showHint === 'name' ? 'join-name-hint' : undefined}
             maxLength={MEMBER_NAME_MAX}
             autoComplete="given-name"
             value={name}
@@ -286,17 +323,24 @@ function JoinForm({
               setShowHint(null)
             }}
           />
+          {showHint === 'name' && (
+            <p className="err" role="alert" id="join-name-hint">
+              {name.trim() ? MEMBER_NAME_HINT : 'Enter your name.'}
+            </p>
+          )}
         </>
       )}
-      <NicknameField id="join-nickname" value={nickname.value} placeholder={profileName} onChange={nickname.setValue} />
+      {newGuest ? (
+        <details className="join-extra disclosure" ref={extra}>
+          <summary>Change how the group sees you</summary>
+          {nicknameInput}
+        </details>
+      ) : (
+        nicknameInput
+      )}
       <span className="f">Your animal in this group</span>
       <YouPreview avatar={avatar} name={nickname.value.trim() || profileName} />
       <AvatarPicker value={avatar} taken={taken} onChange={setChoice} />
-      {showHint && (
-        <p className="err" role="alert" id="join-hint">
-          {showHint === 'nickname' ? NICKNAME_HINT : name.trim() ? MEMBER_NAME_HINT : 'Enter your name.'}
-        </p>
-      )}
       <button className="btn primary" type="submit" disabled={busy}>
         <BusyLabel busy={busy} label="Joining…">
           {asGuest ? 'Join as guest' : 'Join group'}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { BusyLabel } from '../design/Busy'
 import { useExitTransition } from '../design/useExitTransition'
 
@@ -27,10 +27,14 @@ export function useConfirmStep() {
   }
 }
 
-/** The second step of a destructive action: a question, a "yes" button and Cancel (focused when it opens). */
+/**
+ * The second step of a destructive action: the question on its own line, then Cancel (focused when it opens) and the
+ * filled "yes" button in a row under it.
+ */
 export function ConfirmBar({
   question,
   yes,
+  no = 'Cancel',
   busyLabel,
   busy,
   leaving = false,
@@ -39,6 +43,8 @@ export function ConfirmBar({
 }: {
   question: string
   yes: string
+  /** The button that backs out, "Cancel" unless the question reads better with something else ("Keep editing"). */
+  no?: string
   /** What the "yes" button says while the action waits on the server, like "Leaving…". */
   busyLabel: string
   busy: boolean
@@ -48,18 +54,23 @@ export function ConfirmBar({
   onCancel: () => void
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const questionId = useId()
   useEffect(() => cancelRef.current?.focus(), [])
   return (
-    <div className={leaving ? 'confirm out' : 'confirm'}>
-      <span className="grow">{question}</span>
-      <button className="btn small danger" onClick={onYes} disabled={busy || leaving}>
-        <BusyLabel busy={busy} label={busyLabel}>
-          {yes}
-        </BusyLabel>
-      </button>
-      <button ref={cancelRef} className="btn small ghost" onClick={onCancel} disabled={busy || leaving}>
-        Cancel
-      </button>
+    <div className={leaving ? 'confirm out' : 'confirm'} role="group" aria-labelledby={questionId}>
+      <p className="confirm-q" id={questionId}>
+        {question}
+      </p>
+      <div className="confirm-acts">
+        <button ref={cancelRef} type="button" className="btn ghost" onClick={onCancel} disabled={busy || leaving}>
+          {no}
+        </button>
+        <button type="button" className="btn danger solid" onClick={onYes} disabled={busy || leaving}>
+          <BusyLabel busy={busy} label={busyLabel}>
+            {yes}
+          </BusyLabel>
+        </button>
+      </div>
     </div>
   )
 }

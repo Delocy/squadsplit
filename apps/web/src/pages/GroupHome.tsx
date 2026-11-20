@@ -6,6 +6,7 @@ import { PageLink } from '../components/PageLink'
 import { GroupHomeSkeleton } from '../components/Skeletons'
 import { Feed } from '../components/Feed'
 import { GroupUnavailable } from '../components/GroupUnavailable'
+import { InviteCard } from '../components/InviteCard'
 import { Leaderboard } from '../components/Leaderboard'
 import { SquadNap } from '../components/SquadNap'
 import { PendingActions } from '../components/PendingActions'
@@ -15,7 +16,10 @@ import { UiIcon } from '../design/icons'
 import { peopleOf, useBalances, useExpenses, useFeed, useFun, useGroup, usePendingSettlements } from '../groupData'
 import { useMyId } from '../guest/GroupAccess'
 
-/** `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog opens over it. */
+/**
+ * `/groups/:id`: your balance, settling up, the activity feed, the leaderboard and the wheel. The expense dialog and
+ * the invite sheet open over it. A group with no expenses yet leads with the invite card.
+ */
 export function GroupHome() {
   const id = useParams().id ?? ''
   const me = useMyId()
@@ -26,7 +30,7 @@ export function GroupHome() {
   const fun = useFun(id)
   const feed = useFeed(id)
 
-  if (group.isError) return <GroupUnavailable error={group.error} />
+  if (group.isError) return <GroupUnavailable error={group.error} onRetry={() => void group.refetch()} />
   // The page waits for everything in its first screens and then appears at once: cards filling in one by one would
   // push each other down. Only the leaderboard (side column, below the fold on a phone) fills in on its own.
   if (group.isPending || [balances, expenses, pending, feed].some((q) => q.isPending)) return <GroupHomeSkeleton />
@@ -45,7 +49,8 @@ export function GroupHome() {
   const wheel = `/groups/${id}/wheel`
 
   return (
-    <main className="page">
+    <main className="page has-fab">
+      {expenses.data?.length === 0 && <InviteCard group={g} me={me} />}
       <div className="summary">
         {balances.data ? (
           <BalanceCard
@@ -59,7 +64,12 @@ export function GroupHome() {
           />
         ) : (
           <section className="card balance even" aria-label="Your balance">
-            <ErrorNote error={balances.error} />
+            <div className="feed-error">
+              <ErrorNote error={balances.error} />
+              <button type="button" className="btn small" onClick={() => void balances.refetch()}>
+                Try again
+              </button>
+            </div>
           </section>
         )}
         <section className="card" aria-label="Group stats">
@@ -82,11 +92,16 @@ export function GroupHome() {
               <UiIcon name="plus" />
               Add expense
             </Link>
+            <Link to={`/groups/${id}/invite`} state={{ fromHome: true }} preventScrollReset className="btn invite-tile">
+              <UiIcon name="heart" />
+              Invite
+            </Link>
             <PageLink to={wheel} className="btn">
               <UiIcon name="wheel" />
               Who pays next?
             </PageLink>
-            <PageLink to={`/groups/${id}/settings`} className="btn ghost">
+            <PageLink to={`/groups/${id}/settings`} className="btn">
+              <UiIcon name="gear" />
               Group settings
             </PageLink>
           </div>
@@ -150,10 +165,12 @@ export function GroupHome() {
         </div>
       </div>
 
-      <Link to={addExpense} preventScrollReset className="btn primary fab">
-        <UiIcon name="plus" />
-        Add expense
-      </Link>
+      <div className="fab-bar">
+        <Link to={addExpense} preventScrollReset className="btn primary">
+          <UiIcon name="plus" />
+          Add expense
+        </Link>
+      </div>
       <Outlet />
     </main>
   )

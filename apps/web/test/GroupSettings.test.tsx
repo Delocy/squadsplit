@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../src/api'
 import { membershipErrorText } from '../src/membershipErrors'
 import { ME } from './clerk-mock'
@@ -8,26 +8,19 @@ import { fakeApi, renderApp, type Handler } from './harness'
 
 vi.mock('@clerk/react', () => import('./clerk-mock'))
 
-const writeText = vi.fn<(text: string) => Promise<void>>()
-beforeEach(() => {
-  writeText.mockReset().mockResolvedValue(undefined)
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
-  Reflect.deleteProperty(navigator, 'clipboard')
 })
 
 const conflict = (code: string, message = 'Blocked'): Handler => () => ({ status: 409, body: { error: { code, message } } })
 const region = (name: string | RegExp) => within(screen.getByRole('region', { name }))
 const hasCall = (calls: { key: string }[], key: string) => calls.some((c) => c.key === key)
 
-/** The group as Alice sees it when Bob owns it: no invite code. */
+/** The group as Alice sees it when Bob owns it. */
 const bobsGroup = () =>
   group({
     ownerId: BOB,
-    inviteCode: null,
     members: [
       member(BOB, 'Bob', BOB_AVATAR, { role: 'owner' }),
       member(ME, 'Alice', ME_AVATAR),
@@ -37,58 +30,6 @@ const bobsGroup = () =>
 
 describe('Group settings', () => {
   describe('as the owner', () => {
-    it('shows the invite link and a QR code, and copies the link', async () => {
-      fakeApi(groupHandlers())
-      renderApp('/groups/g1/settings')
-
-      const link = `${location.origin}/join/ABCD2345`
-      expect(((await screen.findByLabelText('Invite link')) as HTMLInputElement).value).toBe(link)
-      const invite = region('Invite friends')
-      expect(invite.getByRole('img', { name: 'QR code for the invite link' }).querySelector('path')!.getAttribute('d')).toBeTruthy()
-
-      fireEvent.click(invite.getByRole('button', { name: 'Copy' }))
-      expect(await invite.findByRole('button', { name: 'Copied' })).toBeTruthy()
-      expect(writeText).toHaveBeenCalledWith(link)
-      expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
-    })
-
-    it('says so when the link cannot be copied', async () => {
-      writeText.mockRejectedValue(new Error('denied'))
-      fakeApi(groupHandlers())
-      renderApp('/groups/g1/settings')
-      fireEvent.click(await screen.findByRole('button', { name: 'Copy' }))
-      expect(await screen.findByText("Couldn't copy it. Select the link and copy it yourself.")).toBeTruthy()
-    })
-
-    it('resets the invite link only after a confirm, and shows the new one', async () => {
-      let code = 'ABCD2345'
-      const calls = fakeApi(
-        groupHandlers({}, {
-          'GET /groups/g1': () => ({ status: 200, body: group({ inviteCode: code }) }),
-          'POST /groups/g1/invite/reset': () => {
-            code = 'WXYZ6789'
-            return { status: 200, body: { inviteCode: code } }
-          },
-        }),
-      )
-      renderApp('/groups/g1/settings')
-      await screen.findByLabelText('Invite link')
-      const qr = () => screen.getByRole('img', { name: 'QR code for the invite link' }).querySelector('path')!.getAttribute('d')
-      const before = qr()
-
-      fireEvent.click(screen.getByRole('button', { name: 'Reset invite link' }))
-      expect(screen.getByText('The old link will stop working, and every guest will be signed out.')).toBeTruthy()
-      expect(hasCall(calls, 'POST /groups/g1/invite/reset')).toBe(false)
-      fireEvent.click(screen.getByRole('button', { name: 'Yes, reset it' }))
-
-      await vi.waitFor(() =>
-        expect((screen.getByLabelText('Invite link') as HTMLInputElement).value).toBe(`${location.origin}/join/WXYZ6789`),
-      )
-      expect(qr()).not.toBe(before)
-      // The confirm bar slides out first.
-      await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Yes, reset it' })).toBeNull())
-    })
-
     it('renames the group', async () => {
       const calls = fakeApi(groupHandlers({}, { 'PATCH /groups/g1': () => ({ status: 200, body: group({ name: 'Bali 2027' }) }) }))
       renderApp('/groups/g1/settings')
@@ -196,13 +137,12 @@ describe('Group settings', () => {
   })
 
   describe('as a member', () => {
-    it('hides the invite code, rename and remove, and points to the owner', async () => {
+    it('hides rename and remove, and shows the invite card like everyone else', async () => {
       fakeApi(groupHandlers({ group: bobsGroup() }))
       renderApp('/groups/g1/settings')
 
-      expect(await screen.findByText('Ask Bob for the invite link')).toBeTruthy()
-      expect(screen.queryByLabelText('Invite link')).toBeNull()
-      expect(screen.queryByRole('img', { name: 'QR code for the invite link' })).toBeNull()
+      expect(within(await screen.findByRole('region', { name: 'Invite friends' })).getByText('ABCD2345')).toBeTruthy()
+      expect(screen.queryByText(/Ask Bob/)).toBeNull()
       expect(screen.queryByLabelText('Group name')).toBeNull()
       expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
       expect(document.body.textContent).not.toMatch(/\p{Extended_Pictographic}/u)

@@ -92,4 +92,32 @@ describe('narrow-screen layout rules', () => {
     expect(css).toContain('@media (max-width: 599px) { .top.guest > .crumb { grid-column: 1; } }')
     expect(rule('.top > .err')).toContain('grid-column: 1 / -1')
   })
+
+  it('keeps the Add expense bar off the page: the home pads for it, and every bar clears the safe areas', () => {
+    const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8')
+    expect(html).toMatch(/<meta name="viewport" content="[^"]*viewport-fit=cover/)
+    // The page ends above the bar: its padding is the bar's height plus the home indicator's inset.
+    expect(css).toMatch(/\.page\.has-fab \{ padding-bottom: calc\(var\(--fab-bar\) \+ env\(safe-area-inset-bottom\)\); \}/)
+    const bar = css.split('\n').find((l) => l.trim().startsWith('.fab-bar { display: flex;')) ?? ''
+    expect(bar).toContain('env(safe-area-inset-bottom)')
+    // Opaque and full width: nothing scrolls into view under a floating button.
+    expect(bar).toMatch(/left: 0; right: 0; bottom: 0;.*background: var\(--bg\)/)
+    expect(rule('.wrap')).toMatch(/env\(safe-area-inset-left\).*env\(safe-area-inset-right\)|env\(safe-area-inset-right\).*env\(safe-area-inset-left\)/)
+  })
+
+  it('stacks a confirm bar: the question takes the full width, the buttons share the row under it', () => {
+    expect(rule('.confirm')).toContain('display: grid')
+    expect(rule('.confirm-acts')).toMatch(/display: flex;.*justify-content: flex-end/)
+    expect(rule('.confirm-acts .btn')).toContain('flex: 1 1 0')
+    expect(rule('.btn.danger.solid')).toContain('background: var(--bad)')
+    // The pending payback card stacks the same way: its line on top, Confirm and Reject under it.
+    expect(rule('.need.row')).toContain('flex-wrap: wrap')
+    expect(rule('.need .acts')).toContain('flex-basis: 100%')
+  })
+
+  it('keeps .sheet for the sheet dialog alone: the sticker book has its own class', () => {
+    const fun = readFileSync(resolve(__dirname, '../src/design/fun.css'), 'utf8')
+    for (const sheet of [css, fun]) expect(sheet).not.toMatch(/(^|[\s,}])\.sheet(-h)?\s*[{,]/m)
+    expect(fun).toMatch(/^\.sticker-sheet \{/m)
+  })
 })

@@ -66,7 +66,23 @@ export function SuggestedTransfers({
   const cap = (toUserId: string) => settlementCap(balances.balances, pendingOutgoing, me, toUserId)
   const mood = (userId: string) => balanceMood(balances.balances[userId] ?? 0)
 
+  /** Whether `t` is the transfer whose "Mark paid" opens the form for `f.other` in `f.direction`. */
+  const isRowFor = (t: Transfer, f: { direction: SettleDirection; other: string }) =>
+    f.direction === 'paid' ? t.fromUserId === me && t.toUserId === f.other : t.toUserId === me && t.fromUserId === f.other
+  // The suggestions can change under an open form (someone adds an expense). If its row goes, the form goes too,
+  // saying why, rather than vanishing or recording a payment the list no longer suggests.
+  const [moved, setMoved] = useState(false)
+  // (Not while a payment from it is saving or just saved: that is what took its row away.)
+  const rowGone = formFor !== null && settle.isIdle && !balances.suggestions.some((t) => isRowFor(t, formFor))
+  useEffect(() => {
+    if (!rowGone) return
+    opener.current = null
+    setFormFor(null)
+    setMoved(true)
+  }, [rowGone])
+
   function open(direction: SettleDirection, other: string, e: MouseEvent<HTMLElement>) {
+    setMoved(false)
     settle.reset()
     opener.current = e.currentTarget
     setFormFor({ direction, other })
@@ -93,6 +109,34 @@ export function SuggestedTransfers({
       </span>
     )
   }
+
+  // The form opens inside the row whose "Mark paid" was tapped, right under it.
+  const settleForm = form.shown && (
+    <div className="settle-in-row">
+      <SettleForm
+        key={`${form.shown.direction}:${form.shown.other}`}
+        leaving={form.leaving}
+        balances={balances.balances}
+        pendingOutgoingCents={pendingOutgoing}
+        suggestions={balances.suggestions}
+        me={me}
+        direction={form.shown.direction}
+        initialPayee={form.shown.other}
+        people={people}
+        currency={currency}
+        busy={settle.isPending}
+        onSubmit={(input) => settle.mutate(input, { onSuccess: () => setFormFor(null) })}
+        onCancel={() => {
+          settle.reset()
+          setFormFor(null)
+        }}
+      />
+      {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables)} />}
+    </div>
+  )
+
+  /** Whether the open form belongs under this transfer: its "Mark paid" opened it. */
+  const formIsFor = (t: Transfer) => form.shown !== null && isRowFor(t, form.shown)
 
   const row = (t: Transfer) => {
     const amount = Math.min(t.amountCents, cap(t.toUserId))
@@ -140,6 +184,7 @@ export function SuggestedTransfers({
             </button>
           )}
         </div>
+        {formIsFor(t) && settleForm}
       </li>
     )
   }
@@ -154,27 +199,11 @@ export function SuggestedTransfers({
           <li className="empty">Everyone is settled up.</li>
         )}
       </ul>
-      {form.shown && (
-        <SettleForm
-          key={`${form.shown.direction}:${form.shown.other}`}
-          leaving={form.leaving}
-          balances={balances.balances}
-          pendingOutgoingCents={pendingOutgoing}
-          suggestions={balances.suggestions}
-          me={me}
-          direction={form.shown.direction}
-          initialPayee={form.shown.other}
-          people={people}
-          currency={currency}
-          busy={settle.isPending}
-          onSubmit={(input) => settle.mutate(input, { onSuccess: () => setFormFor(null) })}
-          onCancel={() => {
-            settle.reset()
-            setFormFor(null)
-          }}
-        />
+      {moved && (
+        <p className="s" role="status">
+          Settle up changed while you had that open. Have another look before you mark it paid.
+        </p>
       )}
-      {settle.isError && <ErrorNote error={friendlyError(settle.error, settle.variables)} />}
     </>
   )
 }

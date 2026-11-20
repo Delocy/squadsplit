@@ -19,7 +19,7 @@ export function Wheel() {
   const balances = useBalances(id)
   const feed = useFeed(id)
 
-  if (group.isError) return <GroupUnavailable error={group.error} />
+  if (group.isError) return <GroupUnavailable error={group.error} onRetry={() => void group.refetch()} />
   // Appears at once when the wheel's odds and the recent spins are in, so nothing on it moves afterwards.
   if (group.isPending || balances.isPending || feed.isPending) return <WheelPageSkeleton />
 

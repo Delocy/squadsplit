@@ -38,7 +38,6 @@ const preview = (over: Partial<InvitePreviewDTO> = {}): InvitePreviewDTO => ({
 /** The group as its guest Dave sees it: the owner is someone else (Alice). */
 const guestView = (over: Partial<GroupDTO> = {}) =>
   group({
-    inviteCode: null,
     members: [
       member(ME, 'Alice', ME_AVATAR, { role: 'owner' }),
       member(BOB, 'Bob', BOB_AVATAR),
@@ -111,6 +110,7 @@ describe('the Join page, signed out', () => {
     fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/Names are up to 24 characters/)
     fireEvent.change(screen.getByLabelText('Your name'), { target: { value: ' Zed ' } })
+    fireEvent.click(screen.getByText('Change how the group sees you'))
     fireEvent.change(screen.getByLabelText('What should this group call you?'), { target: { value: 'Zeddy' } })
     fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
 
@@ -119,6 +119,58 @@ describe('the Join page, signed out', () => {
     const look = firstFreeAvatar(defaultAvatar('gs_g1'), preview().takenAvatars)
     expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).toEqual({ name: 'Zed', avatar: look, nickname: 'Zeddy' })
     expect(storedPass()).toEqual(passFor('gs_zed'))
+  })
+
+  it("asks someone new for their name once: the group calls them that unless they open the extra", async () => {
+    signIn.state = false
+    const calls = fakeApi(
+      groupHandlers(
+        { group: guestView() },
+        {
+          'GET /invites/ABCD2345': ok(preview({ placeholders: [] })),
+          'POST /invites/ABCD2345/guest': () => ({
+            status: 201,
+            body: { token: TOKEN, groupId: 'g1', member: member('gs_zed', 'Zed', DAVE_LOOK, { guest: true }) },
+          }),
+        },
+      ),
+    )
+    const router = renderApp('/join/ABCD2345')
+
+    const name = await screen.findByLabelText('Your name')
+    const extra = screen.getByText('Change how the group sees you').closest('details')!
+    expect(extra.open).toBe(false)
+    expect(extra.contains(screen.getByLabelText('What should this group call you?'))).toBe(true)
+    fireEvent.change(name, { target: { value: 'Zed' } })
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
+    expect(calls.find((c) => c.key === 'POST /invites/ABCD2345/guest')?.body).not.toHaveProperty('nickname')
+  })
+
+  it('shows each error right under its field, and opens the extra to a bad nickname', async () => {
+    signIn.state = false
+    fakeApi({ 'GET /invites/ABCD2345': ok(preview({ placeholders: [] })) })
+    renderApp('/join/ABCD2345')
+
+    const name = await screen.findByLabelText('Your name')
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+    const hint = await screen.findByRole('alert')
+    expect(name.nextElementSibling).toBe(hint)
+    expect(name.getAttribute('aria-describedby')).toBe(hint.id)
+
+    fireEvent.change(name, { target: { value: 'Zed' } })
+    fireEvent.click(screen.getByText('Change how the group sees you'))
+    const nickname = screen.getByLabelText('What should this group call you?')
+    fireEvent.change(nickname, { target: { value: 'Z 🍕' } })
+    const extra = nickname.closest('details')!
+    extra.open = false
+    fireEvent.click(screen.getByRole('button', { name: /Join as guest/ }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Keep it to 24 characters, with no emoji.')
+    expect(nickname.nextElementSibling).toBe(screen.getByRole('alert'))
+    expect(extra.open).toBe(true)
+    expect(document.activeElement).toBe(nickname)
   })
 
   it('offers signing in instead, to keep the group in a list', async () => {
@@ -150,8 +202,9 @@ describe('a group page with a guest pass', () => {
 
     expect(await screen.findByRole('heading', { name: 'Group settings' })).toBeTruthy()
     expect(screen.getByText('Dave (you)')).toBeTruthy()
-    expect(screen.queryByRole('textbox', { name: 'Invite link' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Reset invite link/ })).toBeNull()
+    // A guest shares the invite link like anyone in the group, but only the owner can reset it.
+    expect(within(screen.getByRole('region', { name: 'Invite friends' })).getByText('ABCD2345')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Invite link options' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Add a name' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
@@ -180,9 +233,40 @@ describe('a group page with a guest pass', () => {
     renderApp('/groups/g1')
 
     const card = await screen.findByRole('alert')
-    expect(card.textContent).toContain("You've been signed out of Bali Trip. Ask for the new link to rejoin.")
-    expect(within(card).getByRole('link', { name: 'Try the link again' }).getAttribute('href')).toBe('/join/ABCD2345')
+    expect(card.textContent).toContain("You've been signed out of Bali Trip.")
     expect(storedPass()).toBeNull()
+  })
+
+  it('after a reset, never sends the guest back to the dead link: it asks for the new one and takes it right there', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(
+      groupHandlers({}, {
+        'GET /groups/g1': () => ({ status: 401, body: SIGNED_OUT }),
+        'GET /invites/ABCD2345': () => ({ status: 404, body: { error: { code: 'not_found', message: 'Invite not found' } } }),
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const card = await screen.findByRole('alert')
+    expect(await within(card).findByText("There's a new invite link for Bali Trip. Ask anyone in the group to send it to you.")).toBeTruthy()
+    expect(within(card).queryByRole('link', { name: /Try the link again|Join again/ })).toBeNull()
+    expect(within(card).getByRole('form', { name: 'Join with a code' })).toBeTruthy()
+  })
+
+  it('after "Free up name", where the link still works, offers to join again with it', async () => {
+    signIn.state = false
+    saveGuestPass('g1', passFor())
+    fakeApi(
+      groupHandlers({}, {
+        'GET /groups/g1': () => ({ status: 401, body: SIGNED_OUT }),
+        'GET /invites/ABCD2345': () => ({ status: 200, body: preview() }),
+      }),
+    )
+    renderApp('/groups/g1')
+
+    const card = await screen.findByRole('alert')
+    expect((await within(card).findByRole('link', { name: 'Join again' })).getAttribute('href')).toBe('/join/ABCD2345')
   })
 
   it('shows the group, not the signed-out card, once signed in (the card is only for a signed-out phone)', async () => {

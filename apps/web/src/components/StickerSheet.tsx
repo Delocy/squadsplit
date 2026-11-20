@@ -40,8 +40,8 @@ export function StickerSheet({ badges, people }: { badges: Badge[]; people: Peop
   const held = slots.filter((s) => s.holders.length > 0).map((s) => s.key)
   const atFirst = useRef(new Set(held))
   return (
-    <div className="sheet" role="group" aria-label="Sticker book">
-      <div className="sheet-h">
+    <div className="sticker-sheet" role="group" aria-label="Sticker book">
+      <div className="sticker-sheet-h">
         Sticker book <b>{`${collected} of ${STICKER_COUNT}`}</b>
       </div>
       <div className="stickers">

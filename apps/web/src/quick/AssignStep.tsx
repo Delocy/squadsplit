@@ -36,7 +36,10 @@ export function AssignStep({ draft, setDraft }: { draft: QuickDraft; setDraft: S
                       key={p.key}
                       className="qs-tap"
                       aria-pressed={on}
-                      onClick={() => setDraft((d) => ({ ...d, dishes: d.dishes.map((x) => (x.key === it.key ? { ...x, had: toggle(x.had, p.key) } : x)) }))}
+                      // Changed by hand, a dish shared by everyone is just its own people now.
+                      onClick={() =>
+                        setDraft((d) => ({ ...d, dishes: d.dishes.map((x) => (x.key === it.key ? { ...x, had: toggle(x.had, p.key), everyone: false } : x)) }))
+                      }
                     >
                       <Avatar avatar={p.avatar} size="sm" mood={on ? 'happy' : 'calm'} />
                       {label(i, p.name)}

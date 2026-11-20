@@ -13,6 +13,7 @@ import {
   type ExpenseDTO,
   type ReceiptScanResult,
 } from '@squadsplit/shared'
+import { checkTotal, otherLine, type TotalCheck } from './receipt/fixup'
 
 // The add/edit expense form's state and rules, kept apart from the React code.
 // Amounts are typed as text and only ever become integer cents here; no float touches money.
@@ -171,8 +172,8 @@ export interface DraftSummary {
   leftToAssign: number | null
   /** itemized mode */
   bill: BillBreakdown | null
-  /** itemized mode, with a total typed (or scanned) that the items plus charges don't match; `diff` is target minus items (positive: short). */
-  check: { itemsTotal: number; diff: number; message: string } | null
+  /** itemized mode, with a total typed (or scanned) that the items plus charges don't match (see checkTotal). */
+  check: TotalCheck | null
   /** Why the expense can't be saved yet, in plain words; null when it can. */
   problem: string | null
   /** The request body, when there is no problem. */
@@ -180,8 +181,6 @@ export interface DraftSummary {
 }
 
 const MAX_CENTS = 100_000_000
-/** How far the items' total may sit from a typed total: a receipt rounds its charges separately (as receiptTotalMatches allows). */
-const TOTAL_TOLERANCE_CENTS = 2
 const TOO_SMALL = "That's too small to split between that many people."
 
 const tryShares = (f: () => Record<string, number>): Record<string, number> | 'too_small' => {
@@ -247,11 +246,9 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
       out.amountCents = total
       const target = parseAmount(d.amount)
       if (d.amount.trim() !== '' && (target === null || target < 1)) checkProblem = `Check the total: use an amount like ${centsToInput(total)}.`
-      else if (target !== null && Math.abs(total - target) > TOTAL_TOLERANCE_CENTS) {
-        const diff = target - total
-        const message = `Items + charges come to ${money(total)}, ${diff > 0 ? `${money(diff)} not on any item` : `${money(-diff)} more than the total`}.`
-        out.check = { itemsTotal: total, diff, message }
-        checkProblem = message
+      else if (target !== null) {
+        out.check = checkTotal(subtotal, bps, target, money)
+        if (out.check) checkProblem = out.check.message
       }
       if (items.every((it) => it.userIds.length)) {
         const shares = tryShares(() => splitItemized({ items, ...bps }, d.paidBy))
@@ -291,8 +288,9 @@ export function summarize(d: ExpenseDraft, activeIds: string[], currency: Curren
 
 /**
  * Adds an "Other" item, shared by everyone, that makes up what the items are short of the typed total. Its price is
- * the pre-charge amount whose item-plus-charges total lands closest to the gap. Untouched blank rows are dropped.
- * Does nothing unless the items are priced and short.
+ * the pre-charge amount whose item-plus-charges total lands closest to the gap (see otherLine); one too small to split
+ * between everyone goes to the payer alone. Untouched blank rows are dropped. Does nothing unless the items are priced
+ * and short.
  */
 export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft {
   const target = parseAmount(d.amount)
@@ -303,13 +301,9 @@ export function addOtherItem(d: ExpenseDraft, activeIds: string[]): ExpenseDraft
     return cents !== null && cents >= 1 ? [{ name: it.name.trim(), amountCents: cents, userIds: it.userIds }] : []
   })
   if (target === null || !priced.length) return d
-  const totalWith = (price: number) => itemizedTotal({ items: [...priced, { name: 'Other', amountCents: price, userIds: activeIds }], ...bps })
-  const gap = target - itemizedTotal({ items: priced, ...bps })
-  if (gap < 1) return d
-  const guess = Math.round(gap / ((1 + bps.serviceChargeBps / 10_000) * (1 + bps.gstBps / 10_000)))
-  let best = Math.max(1, guess)
-  for (let price = Math.max(1, guess - 5); price <= guess + 5; price++) {
-    if (Math.abs(totalWith(price) - target) < Math.abs(totalWith(best) - target)) best = price
-  }
-  return { ...d, items: [...kept, { ...emptyItem(), name: 'Other', price: centsToInput(best), userIds: activeIds }] }
+  const other = otherLine(priced.reduce((sum, it) => sum + it.amountCents, 0), bps, target)
+  if (!other) return d
+  // A few cents can't be split between everyone (each share is at least 1¢): they go on the payer's share.
+  const userIds = other.priceCents < activeIds.length ? [d.paidBy] : activeIds
+  return { ...d, items: [...kept, { ...emptyItem(), name: 'Other', price: centsToInput(other.priceCents), userIds }] }
 }

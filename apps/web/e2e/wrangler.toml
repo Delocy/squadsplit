@@ -1,0 +1,15 @@
+# The API for the browser checks (see tap-targets.mjs): a local D1 only, never deployed.
+name = "squadsplit-e2e"
+main = "worker.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "squadsplit-e2e"
+database_id = "00000000-0000-0000-0000-00000000e2e0"
+migrations_dir = "../../api/migrations"
+
+[vars]
+CLERK_SECRET_KEY = "unused"
+CLERK_PUBLISHABLE_KEY = "unused"

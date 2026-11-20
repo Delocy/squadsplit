@@ -204,10 +204,13 @@ describe('Expense form', () => {
     expect(save.disabled).toBe(false)
 
     type(totalField(dialog), '50.00')
-    expect(dialog.getByRole('status').textContent).toContain('Items + charges come to $11.99, $38.01 not on any item.')
+    expect(dialog.getByText(/^Items \+ charges come to/).textContent).toBe('Items + charges come to $11.99, $38.01 short of the $50.00 total.')
+    expect(dialog.getByRole('status').textContent).toBe('The items come to less than the total.')
     expect(save.disabled).toBe(true)
 
-    fireEvent.click(dialog.getByRole('button', { name: "Add $38.01 as 'Other', shared by all" }))
+    // Honest about the charges: the Other line is $31.70, which is $38.01 with them.
+    expect(dialog.getByText("It's added as Other, shared by all.")).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Add Other $31.70 (+ charges = $38.01)' }))
     const other = within(dialog.getByRole('group', { name: 'Item 2' }))
     expect((other.getByLabelText('Item name') as HTMLInputElement).value).toBe('Other')
     expect(other.getByRole('button', { name: 'Alice' }).getAttribute('aria-pressed')).toBe('true')
@@ -217,8 +220,8 @@ describe('Expense form', () => {
 
     // A total below the items offers no fix-up, only the check.
     type(totalField(dialog), '10.00')
-    expect(dialog.getByRole('status').textContent).toMatch(/more than the total\.$/)
-    expect(dialog.queryByRole('button', { name: /as 'Other'/ })).toBeNull()
+    expect(dialog.getByText(/^Items \+ charges come to/).textContent).toMatch(/more than the \$10\.00 total\.$/)
+    expect(dialog.queryByRole('button', { name: /^Add Other/ })).toBeNull()
     expect(save.disabled).toBe(true)
 
     type(totalField(dialog), '')
@@ -347,9 +350,10 @@ describe('Expense form', () => {
     )
     const router = renderApp('/groups/g1/expenses/e7')
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
-    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete this expense' }))
     expect(calls.some((c) => c.key === 'DELETE /expenses/e7')).toBe(false)
-    fireEvent.click(dialog.getByRole('button', { name: 'Yes, delete it' }))
+    expect(dialog.getByText("Delete Dinner? It can't be undone.")).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete' }))
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/groups/g1'))
     expect(calls.some((c) => c.key === 'DELETE /expenses/e7')).toBe(true)
   })
@@ -372,7 +376,7 @@ describe('Expense form', () => {
     const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
     expect(dialog.getByText("Carol has left the group, so this expense can't be changed.")).toBeTruthy()
     expect(dialog.queryByRole('button', { name: 'Save changes' })).toBeNull()
-    expect(dialog.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(dialog.queryByRole('button', { name: /Delete/ })).toBeNull()
     expect(dialog.queryByLabelText('Description')).toBeNull()
     expect(calls.some((c) => c.key.startsWith('PATCH') || c.key.startsWith('DELETE'))).toBe(false)
   })
